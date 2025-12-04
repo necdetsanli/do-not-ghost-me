@@ -3,6 +3,14 @@
 
 import { FormEvent, useState } from "react";
 import { Stage, JobLevel, PositionCategory } from "@prisma/client";
+import {
+  POSITION_CATEGORY_OPTIONS,
+  JOB_LEVEL_OPTIONS,
+  STAGE_OPTIONS,
+  labelForCategory,
+  labelForJobLevel,
+  labelForStage,
+} from "@/lib/enums";
 
 type SubmitStatus = "idle" | "submitting" | "success" | "error";
 
@@ -12,29 +20,6 @@ const STAGES: Stage[] = [
   "TECHNICAL",
   "HR_INTERVIEW",
   "OFFER",
-  "OTHER",
-];
-
-const JOB_LEVELS: JobLevel[] = [
-  "INTERN",
-  "JUNIOR",
-  "MID",
-  "SENIOR",
-  "LEAD",
-  "OTHER",
-];
-
-const POSITION_CATEGORIES: PositionCategory[] = [
-  "SOFTWARE_ENGINEERING",
-  "DEVOPS_SRE_PLATFORM",
-  "SECURITY",
-  "DATA_ML_AI",
-  "MOBILE",
-  "EMBEDDED_ROBOTICS",
-  "QA_TEST",
-  "CLOUD_INFRA",
-  "PRODUCT",
-  "DESIGN",
   "OTHER",
 ];
 
@@ -83,7 +68,11 @@ export default function Home() {
         let message: string | null = data?.error ?? null;
 
         // Try to surface the first validation error, if present
-        if (details && typeof details === "object" && "fieldErrors" in details) {
+        if (
+          details &&
+          typeof details === "object" &&
+          "fieldErrors" in details
+        ) {
           const fieldErrors = details.fieldErrors as Record<
             string,
             string[] | undefined
@@ -129,8 +118,8 @@ export default function Home() {
       </h1>
 
       <p style={{ marginBottom: "0.75rem" }}>
-        Report when a company has ghosted you. We only collect minimal
-        data and do not store personal information.
+        Report when a company has ghosted you. We only collect minimal data and
+        do not store personal information.
       </p>
 
       <p
@@ -150,10 +139,7 @@ export default function Home() {
         .
       </p>
 
-      <form
-        onSubmit={handleSubmit}
-        style={{ display: "grid", gap: "0.75rem" }}
-      >
+      <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.75rem" }}>
         <label style={{ display: "grid", gap: "0.25rem" }}>
           <span>Company name</span>
           <input
@@ -179,9 +165,9 @@ export default function Home() {
               borderRadius: 4,
             }}
           >
-            {STAGES.map((s) => (
-              <option key={s} value={s}>
-                {s}
+            {STAGE_OPTIONS.map((stage) => (
+              <option key={stage} value={stage}>
+                {labelForStage(stage)}
               </option>
             ))}
           </select>
@@ -191,16 +177,16 @@ export default function Home() {
           <span>Job level</span>
           <select
             name="jobLevel"
-            defaultValue="JUNIOR"
+            defaultValue="Junior"
             style={{
               padding: "0.5rem",
               border: "1px solid #ccc",
               borderRadius: 4,
             }}
           >
-            {JOB_LEVELS.map((lvl) => (
+            {JOB_LEVEL_OPTIONS.map((lvl) => (
               <option key={lvl} value={lvl}>
-                {lvl}
+                {labelForJobLevel(lvl)}
               </option>
             ))}
           </select>
@@ -210,16 +196,16 @@ export default function Home() {
           <span>Position category</span>
           <select
             name="positionCategory"
-            defaultValue="SOFTWARE_ENGINEERING"
+            defaultValue="Software Engineering"
             style={{
               padding: "0.5rem",
               border: "1px solid #ccc",
               borderRadius: 4,
             }}
           >
-            {POSITION_CATEGORIES.map((cat) => (
+            {POSITION_CATEGORY_OPTIONS.map((cat) => (
               <option key={cat} value={cat}>
-                {cat}
+                {labelForCategory(cat)}
               </option>
             ))}
           </select>

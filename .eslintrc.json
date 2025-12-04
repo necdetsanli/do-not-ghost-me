@@ -7,10 +7,7 @@
   ],
   "rules": {
     // Allow console.warn and console.error for logging, but warn on other console usage
-    "no-console": [
-      "warn",
-      { "allow": ["warn", "error"] }
-    ],
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
     // Enforce triple equals by default
     "eqeqeq": ["error", "always"],
     // Disallow unused variables, but ignore unused function args that start with "_"

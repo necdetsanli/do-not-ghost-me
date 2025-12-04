@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
           error: "Invalid input",
           details: parsed.error.flatten(),
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
         id: report.id,
         createdAt: report.createdAt,
       },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
     // In production you may want to plug this into a proper logger
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -25,10 +25,7 @@ export const reportSchema = z.object({
     .trim()
     .min(2, "Position detail must be at least 2 characters long")
     .max(80, "Position detail must be at most 80 characters long")
-    .regex(
-      positionDetailRegex,
-      "Position detail contains invalid characters"
-    ),
+    .regex(positionDetailRegex, "Position detail contains invalid characters"),
 
   daysWithoutReply: z.coerce
     .number()
@@ -38,11 +35,13 @@ export const reportSchema = z.object({
 
   country: z
     .string()
+    .trim()
     .max(100, "Country name must be at most 100 characters long")
-    .optional(),
+    .optional()
+    .transform((val) => (val === "" ? undefined : val)),
 
   // Honeypot field for bots; must be empty for valid submissions
-  honeypot: z.string().max(0).optional(),
+  honeypot: z.string().optional(),
 });
 
 export type ReportInput = z.infer<typeof reportSchema>;

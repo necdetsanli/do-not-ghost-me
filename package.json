@@ -15,7 +15,9 @@
     "check": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:deploy": "prisma migrate deploy"
+    "prisma:deploy": "prisma migrate deploy",
+    "seed:dummy": "node scripts/dev/seed-dummy-reports.js",
+    "format": "prettier --write ."
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.1.0",
@@ -31,9 +33,10 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "prisma": "^7.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.0.7",
+    "prettier": "^3.7.4",
+    "prisma": "^7.1.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
