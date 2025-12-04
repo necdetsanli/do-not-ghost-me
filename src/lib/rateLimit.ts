@@ -1,116 +1,221 @@
 // src/lib/rateLimit.ts
-import crypto from "crypto";
-import { Prisma } from "@prisma/client";
-import type { PositionCategory } from "@prisma/client";
+import crypto from "node:crypto";
+import { PositionCategory } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
-const DEFAULT_MAX_REPORTS_PER_COMPANY_PER_IP = 3;
-
 export class ReportRateLimitError extends Error {
-  public readonly code = "REPORT_RATE_LIMIT";
+  public readonly code: "REPORT_RATE_LIMIT";
 
   constructor(message: string) {
     super(message);
     this.name = "ReportRateLimitError";
+    this.code = "REPORT_RATE_LIMIT";
   }
+}
+
+function getEnvInt(
+  key: string,
+  fallback: number,
+  options?: { min?: number },
+): number {
+  const raw = process.env[key];
+
+  if (raw == null || raw.trim() === "") {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  if (options?.min != null && parsed < options.min) {
+    return options.min;
+  }
+
+  return parsed;
 }
 
 function getMaxReportsPerCompanyPerIp(): number {
-  const raw = process.env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP;
-  const parsed =
-    typeof raw === "string" && raw.trim().length > 0 ? Number(raw) : NaN;
-
-  if (Number.isFinite(parsed) && parsed > 0) {
-    return parsed;
-  }
-
-  return DEFAULT_MAX_REPORTS_PER_COMPANY_PER_IP;
+  return getEnvInt("RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP", 3, {
+    min: 1,
+  });
 }
 
-function getIpSalt(): string {
-  const salt = process.env.RATE_LIMIT_IP_SALT;
-  if (salt == null || salt.trim().length < 16) {
-    // In production this MUST be set to a long, random value.
-    // We still return a fixed fallback to avoid crashes in dev.
-    return "dev-fallback-ip-salt-change-me";
-  }
-  return salt;
-}
-
-export function hashIp(ip: string): string {
-  const salt = getIpSalt();
-  return crypto.createHash("sha256").update(`${ip}|${salt}`).digest("hex");
-}
-
-function buildPositionKey(params: {
-  positionCategory: PositionCategory;
-  positionDetail: string;
-}): string {
-  const normalizedDetail = params.positionDetail.trim().toLowerCase();
-  return `${params.positionCategory}:${normalizedDetail}`;
+function getMaxReportsPerIpPerDay(): number {
+  return getEnvInt("RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY", 50, {
+    min: 1,
+  });
 }
 
 /**
- * Enforces the following rules:
- * - For a given IP (hashed) and companyId, a maximum of N reports is allowed (default 3).
- * - For a given IP (hashed), companyId and positionKey, only one report is allowed in total.
- *
- * This uses a dedicated table (ReportIpCompanyLimit) to store which
- * (ipHash, companyId, positionKey) combinations have already been used.
+ * Returns true if the IP should be treated as "unknown" and ignored.
  */
-export async function enforceReportLimitForIpCompanyPosition(params: {
-  ip: string;
+function isUnknownIp(ip: string | null | undefined): boolean {
+  if (ip == null) {
+    return true;
+  }
+
+  const trimmed = ip.trim();
+
+  if (trimmed === "") {
+    return true;
+  }
+
+  // Your app uses "unknown" when the real IP cannot be determined.
+  if (trimmed.toLowerCase() === "unknown") {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Hash the IP with a salt so we never store raw addresses.
+ */
+export function hashIp(ip: string): string {
+  const trimmed = ip.trim();
+
+  if (trimmed === "") {
+    throw new Error("Cannot hash empty IP string.");
+  }
+
+  const salt = process.env.RATE_LIMIT_IP_SALT;
+
+  const effectiveSalt =
+    salt != null && salt.length >= 16
+      ? salt
+      : "dev-only-fallback-salt-change-me-in-production";
+
+  const hash = crypto.createHash("sha256");
+
+  hash.update(effectiveSalt);
+  hash.update("|");
+  hash.update(trimmed);
+
+  return hash.digest("hex");
+}
+
+/**
+ * Helper to detect unique-constraint errors without depending
+ * on Prisma's specific error class in tests.
+ */
+function isUniqueConstraintError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+
+  if (!("code" in error)) {
+    return false;
+  }
+
+  const codeValue = (error as { code?: unknown }).code;
+
+  return typeof codeValue === "string" && codeValue === "P2002";
+}
+
+/**
+ * Enforce:
+ * - Global per-day limit from this IP (across companies).
+ * - Per-company limit from this IP.
+ * - No duplicate reports for the same position at the same company from the same IP.
+ */
+export async function enforceReportLimitForIpCompanyPosition(args: {
+  ip: string | null | undefined;
   companyId: string;
   positionCategory: PositionCategory;
   positionDetail: string;
 }): Promise<void> {
-  const { ip, companyId, positionCategory, positionDetail } = params;
+  const { ip, companyId, positionCategory, positionDetail } = args;
 
-  if (ip.length === 0 || ip === "unknown") {
-    // In local development we skip IP-based limits.
+  // If we do not have a usable IP, do not enforce limits.
+  if (isUnknownIp(ip)) {
     return;
   }
 
-  const ipHash = hashIp(ip);
-  const positionKey = buildPositionKey({ positionCategory, positionDetail });
-  const maxReportsPerCompanyPerIp = getMaxReportsPerCompanyPerIp();
+  const trimmedIp = ip!.trim();
+  const ipHash = hashIp(trimmedIp);
 
-  // 1) Check how many distinct positions this IP has already reported for this company.
-  const existingCount = await prisma.reportIpCompanyLimit.count({
-    where: {
-      ipHash,
-      companyId,
-    },
-  });
+  const today = new Date();
+  const dayKey = today.toISOString().slice(0, 10); // YYYY-MM-DD in UTC
 
-  if (existingCount >= maxReportsPerCompanyPerIp) {
-    throw new ReportRateLimitError(
-      "You have reached the maximum number of reports for this company.",
-    );
-  }
+  const maxPerCompany = getMaxReportsPerCompanyPerIp();
+  const maxPerDay = getMaxReportsPerIpPerDay();
 
-  // 2) Try to register this specific position for this IP + company.
-  // If it already exists, we do not allow another report for the same position.
-  try {
-    await prisma.reportIpCompanyLimit.create({
-      data: {
-        ipHash,
-        companyId,
-        positionKey,
+  // Normalize position into a stable key.
+  const normalizedPositionDetail = positionDetail.trim().toLowerCase();
+  const positionKey = `${positionCategory}:${normalizedPositionDetail}`;
+
+  await prisma.$transaction(async (tx) => {
+    // 1) Global per-day IP limit
+    const existingDaily = await tx.reportIpDailyLimit.findUnique({
+      where: {
+        ipHash_day: {
+          ipHash,
+          day: dayKey,
+        },
       },
     });
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    ) {
-      // Unique constraint on (ipHash, companyId, positionKey) failed.
+
+    if (existingDaily == null) {
+      await tx.reportIpDailyLimit.create({
+        data: {
+          ipHash,
+          day: dayKey,
+          count: 1,
+        },
+      });
+    } else {
+      if (existingDaily.count >= maxPerDay) {
+        throw new ReportRateLimitError(
+          "You have reached the daily report limit from this network.",
+        );
+      }
+
+      await tx.reportIpDailyLimit.update({
+        where: {
+          id: existingDaily.id,
+        },
+        data: {
+          count: {
+            increment: 1,
+          },
+        },
+      });
+    }
+
+    // 2) Per-company limit from this IP
+    const existingCompanyCount = await tx.reportIpCompanyLimit.count({
+      where: {
+        ipHash,
+        companyId,
+      },
+    });
+
+    if (existingCompanyCount >= maxPerCompany) {
       throw new ReportRateLimitError(
-        "You have already submitted a report for this position at this company.",
+        "You have reached the maximum number of reports for this company from this network.",
       );
     }
 
-    // Any other DB error is not a rate-limit violation, bubble it up.
-    throw error;
-  }
+    // 3) Per-position uniqueness for this IP + company
+    try {
+      await tx.reportIpCompanyLimit.create({
+        data: {
+          ipHash,
+          companyId,
+          positionKey,
+        },
+      });
+    } catch (error) {
+      if (isUniqueConstraintError(error)) {
+        throw new ReportRateLimitError(
+          "You have already submitted a report for this position at this company from this network.",
+        );
+      }
+
+      throw error;
+    }
+  });
 }
