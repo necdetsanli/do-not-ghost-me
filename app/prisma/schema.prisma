@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Stage {
+  CV_SCREEN
+  FIRST_INTERVIEW
+  TECHNICAL
+  HR_INTERVIEW
+  OFFER
+  OTHER
+}
+
+enum JobLevel {
+  INTERN
+  JUNIOR
+  MID
+  SENIOR
+  LEAD
+  OTHER
+}
+
+enum PositionCategory {
+  SOFTWARE_ENGINEERING
+  DEVOPS_SRE_PLATFORM
+  SECURITY
+  DATA_ML_AI
+  MOBILE
+  EMBEDDED_ROBOTICS
+  QA_TEST
+  CLOUD_INFRA
+  PRODUCT
+  DESIGN
+  OTHER
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  website   String?
+  country   String?
+  createdAt DateTime @default(now())
+
+  reports Report[]
+}
+
+model Report {
+  id               String           @id @default(cuid())
+  company          Company          @relation(fields: [companyId], references: [id])
+  companyId        String
+  stage            Stage
+  jobLevel         JobLevel
+  positionCategory PositionCategory
+  positionDetail   String           @db.VarChar(80) // Short free-text position label from user
+  daysWithoutReply Int
+  country          String?
+  createdAt        DateTime         @default(now())
+}
+
+model AdminUser {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String // Hashed password will be stored here
+  createdAt DateTime @default(now())
+}
