@@ -3,6 +3,9 @@ FROM mcr.microsoft.com/devcontainers/javascript-node:24
 # Switch to root to install packages and configure sudo
 USER root
 
+# Use a specific npm version for the dev container
+RUN npm install -g npm@11.6.4
+
 # Install PostgreSQL
 RUN apt-get update && \
     apt-get install -y --no-install-recommends postgresql postgresql-contrib && \

@@ -8,8 +8,9 @@
     "terminal.integrated.defaultProfile.linux": "bash",
     "editor.formatOnSave": true
   },
-  "forwardPorts": [3000],
-  "postCreateCommand": "bash -lc 'if [ -f package.json ]; then npm install; fi'",
+  "forwardPorts": [3000, 5432],
+  "postCreateCommand": "bash -lc 'if [ -f package.json ]; then npm install && npx prisma generate; fi'",
+  "postStartCommand": "bash -lc 'if [ -x scripts/dev/setup-db.sh ]; then scripts/dev/setup-db.sh; fi'",
   "remoteUser": "node",
   "customizations": {
     "vscode": {
