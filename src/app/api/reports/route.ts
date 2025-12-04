@@ -30,18 +30,33 @@ export async function POST(req: NextRequest) {
 
     const normalizedCompanyName = data.companyName.trim();
 
-    // Create the report in the database, creating or reusing the company by name
+    // Find or create company first, and keep country on the Company record
+    let company = await prisma.company.findUnique({
+      where: { name: normalizedCompanyName },
+    });
+
+    if (!company) {
+      // First time we see this company: create it with the provided country (if any)
+      company = await prisma.company.create({
+        data: {
+          name: normalizedCompanyName,
+          country: data.country ?? null,
+        },
+      });
+    } else if (!company.country && data.country) {
+      // Company exists but has no country yet; set it once from the first non-empty report
+      company = await prisma.company.update({
+        where: { id: company.id },
+        data: { country: data.country },
+      });
+    }
+    // If company already has a country and a new report sends a different one,
+    // we keep the existing value to avoid random users overwriting it.
+
+    // Create the report and link it to the company
     const report = await prisma.report.create({
       data: {
-        company: {
-          connectOrCreate: {
-            where: { name: normalizedCompanyName },
-            create: {
-              name: normalizedCompanyName,
-              // If you want, you can later infer country from IP or let user set it
-            },
-          },
-        },
+        companyId: company.id,
         stage: data.stage,
         jobLevel: data.jobLevel,
         positionCategory: data.positionCategory,

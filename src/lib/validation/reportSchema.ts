@@ -1,10 +1,10 @@
-// lib/validation/reportSchema.ts
+// src/lib/validation/reportSchema.ts
 import { z } from "zod";
 import { Stage, JobLevel, PositionCategory } from "@prisma/client";
 
-// Allow letters (including Unicode), digits, spaces and a small set of safe symbols
-const positionDetailRegex = /^[\p{L}\p{N}\s\-_/&()]+$/u;
-const companyNameRegex = /^[\p{L}\p{N}\s\-_.&()]+$/u;
+// Allow letters (including Unicode), digits, spaces and a safe set of symbols
+const companyNameRegex = /^[\p{L}\p{N}\s\-_/&()'",.]+$/u;
+const positionDetailRegex = /^[\p{L}\p{N}\s\-_/&()'",.]+$/u;
 
 export const reportSchema = z.object({
   companyName: z
@@ -30,7 +30,6 @@ export const reportSchema = z.object({
       "Position detail contains invalid characters"
     ),
 
-  // Use coercion so that both number and numeric string are accepted
   daysWithoutReply: z.coerce
     .number()
     .int()

@@ -1,20 +1,30 @@
-// app/page.tsx
+// src/app/page.tsx
 "use client";
 
 import { FormEvent, useState } from "react";
+import { Stage, JobLevel, PositionCategory } from "@prisma/client";
 
-const STAGES = [
+type SubmitStatus = "idle" | "submitting" | "success" | "error";
+
+const STAGES: Stage[] = [
   "CV_SCREEN",
   "FIRST_INTERVIEW",
   "TECHNICAL",
   "HR_INTERVIEW",
   "OFFER",
   "OTHER",
-] as const;
+];
 
-const JOB_LEVELS = ["INTERN", "JUNIOR", "MID", "SENIOR", "LEAD", "OTHER"] as const;
+const JOB_LEVELS: JobLevel[] = [
+  "INTERN",
+  "JUNIOR",
+  "MID",
+  "SENIOR",
+  "LEAD",
+  "OTHER",
+];
 
-const POSITION_CATEGORIES = [
+const POSITION_CATEGORIES: PositionCategory[] = [
   "SOFTWARE_ENGINEERING",
   "DEVOPS_SRE_PLATFORM",
   "SECURITY",
@@ -26,10 +36,10 @@ const POSITION_CATEGORIES = [
   "PRODUCT",
   "DESIGN",
   "OTHER",
-] as const;
+];
 
 export default function Home() {
-  const [status, setStatus] = useState<null | "idle" | "submitting" | "success" | "error">(null);
+  const [status, setStatus] = useState<SubmitStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -37,7 +47,9 @@ export default function Home() {
     setStatus("submitting");
     setErrorMessage(null);
 
-    const formData = new FormData(e.currentTarget);
+    // Capture form element before any await
+    const form = e.currentTarget;
+    const formData = new FormData(form);
 
     const payload = {
       companyName: String(formData.get("companyName") || "").trim(),
@@ -61,12 +73,33 @@ export default function Home() {
 
       if (res.ok) {
         setStatus("success");
-        e.currentTarget.reset();
+        setErrorMessage(null);
+        form.reset();
       } else {
-        const data = await res.json().catch(() => ({}));
+        const data = (await res.json().catch(() => ({}))) as any;
         setStatus("error");
+
+        const details = data?.details;
+        let message: string | null = data?.error ?? null;
+
+        // Try to surface the first validation error, if present
+        if (details && typeof details === "object" && "fieldErrors" in details) {
+          const fieldErrors = details.fieldErrors as Record<
+            string,
+            string[] | undefined
+          >;
+
+          const firstField = Object.keys(fieldErrors).find(
+            (key) => fieldErrors[key] && fieldErrors[key]!.length > 0,
+          );
+
+          if (firstField) {
+            message = fieldErrors[firstField]![0];
+          }
+        }
+
         setErrorMessage(
-          data?.error || "Something went wrong while submitting the report."
+          message || "Something went wrong while submitting the report.",
         );
       }
     } catch (err) {
@@ -85,22 +118,53 @@ export default function Home() {
         margin: "0 auto",
       }}
     >
-      <h1 style={{ fontSize: "2rem", fontWeight: 700, marginBottom: "1rem" }}>
+      <h1
+        style={{
+          fontSize: "2rem",
+          fontWeight: 700,
+          marginBottom: "1rem",
+        }}
+      >
         Ghost Report
       </h1>
-      <p style={{ marginBottom: "1.5rem" }}>
-        Report when a company has ghosted you. We only collect minimal data and
-        do not store personal information.
+
+      <p style={{ marginBottom: "0.75rem" }}>
+        Report when a company has ghosted you. We only collect minimal
+        data and do not store personal information.
       </p>
 
-      <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.75rem" }}>
+      <p
+        style={{
+          marginBottom: "1.5rem",
+          fontSize: "0.9rem",
+          color: "#4b5563",
+        }}
+      >
+        You can see aggregated stats on{" "}
+        <a
+          href="/top-companies"
+          style={{ textDecoration: "underline", color: "#2563eb" }}
+        >
+          top ghosting companies
+        </a>
+        .
+      </p>
+
+      <form
+        onSubmit={handleSubmit}
+        style={{ display: "grid", gap: "0.75rem" }}
+      >
         <label style={{ display: "grid", gap: "0.25rem" }}>
           <span>Company name</span>
           <input
             name="companyName"
             required
             maxLength={120}
-            style={{ padding: "0.5rem", border: "1px solid #ccc", borderRadius: 4 }}
+            style={{
+              padding: "0.5rem",
+              border: "1px solid #ccc",
+              borderRadius: 4,
+            }}
           />
         </label>
 
@@ -109,7 +173,11 @@ export default function Home() {
           <select
             name="stage"
             defaultValue="TECHNICAL"
-            style={{ padding: "0.5rem", border: "1px solid #ccc", borderRadius: 4 }}
+            style={{
+              padding: "0.5rem",
+              border: "1px solid #ccc",
+              borderRadius: 4,
+            }}
           >
             {STAGES.map((s) => (
               <option key={s} value={s}>
@@ -124,7 +192,11 @@ export default function Home() {
           <select
             name="jobLevel"
             defaultValue="JUNIOR"
-            style={{ padding: "0.5rem", border: "1px solid #ccc", borderRadius: 4 }}
+            style={{
+              padding: "0.5rem",
+              border: "1px solid #ccc",
+              borderRadius: 4,
+            }}
           >
             {JOB_LEVELS.map((lvl) => (
               <option key={lvl} value={lvl}>
@@ -139,7 +211,11 @@ export default function Home() {
           <select
             name="positionCategory"
             defaultValue="SOFTWARE_ENGINEERING"
-            style={{ padding: "0.5rem", border: "1px solid #ccc", borderRadius: 4 }}
+            style={{
+              padding: "0.5rem",
+              border: "1px solid #ccc",
+              borderRadius: 4,
+            }}
           >
             {POSITION_CATEGORIES.map((cat) => (
               <option key={cat} value={cat}>
@@ -155,7 +231,11 @@ export default function Home() {
             name="positionDetail"
             required
             maxLength={80}
-            style={{ padding: "0.5rem", border: "1px solid #ccc", borderRadius: 4 }}
+            style={{
+              padding: "0.5rem",
+              border: "1px solid #ccc",
+              borderRadius: 4,
+            }}
           />
         </label>
 
@@ -167,7 +247,11 @@ export default function Home() {
             min={1}
             max={365}
             required
-            style={{ padding: "0.5rem", border: "1px solid #ccc", borderRadius: 4 }}
+            style={{
+              padding: "0.5rem",
+              border: "1px solid #ccc",
+              borderRadius: 4,
+            }}
           />
         </label>
 
@@ -176,7 +260,11 @@ export default function Home() {
           <input
             name="country"
             maxLength={100}
-            style={{ padding: "0.5rem", border: "1px solid #ccc", borderRadius: 4 }}
+            style={{
+              padding: "0.5rem",
+              border: "1px solid #ccc",
+              borderRadius: 4,
+            }}
           />
         </label>
 
