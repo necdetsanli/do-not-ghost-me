@@ -60,6 +60,17 @@ model Report {
   createdAt        DateTime         @default(now())
 }
 
+model ReportIpCompanyLimit {
+  id          String   @id @default(cuid())
+  ipHash      String
+  companyId   String
+  positionKey String // normalized combination of category + position detail
+  createdAt   DateTime @default(now())
+
+  @@unique([ipHash, companyId, positionKey])
+  @@index([ipHash, companyId])
+}
+
 model AdminUser {
   id        String   @id @default(cuid())
   email     String   @unique

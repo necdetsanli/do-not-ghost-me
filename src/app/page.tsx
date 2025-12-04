@@ -1,8 +1,8 @@
 // src/app/page.tsx
 "use client";
-
-import { FormEvent, useState } from "react";
-import { Stage, JobLevel, PositionCategory } from "@prisma/client";
+import type { JSX } from "react";
+import type { FormEvent } from "react";
+import { useState } from "react";
 import {
   POSITION_CATEGORY_OPTIONS,
   JOB_LEVEL_OPTIONS,
@@ -14,20 +14,19 @@ import {
 
 type SubmitStatus = "idle" | "submitting" | "success" | "error";
 
-const STAGES: Stage[] = [
-  "CV_SCREEN",
-  "FIRST_INTERVIEW",
-  "TECHNICAL",
-  "HR_INTERVIEW",
-  "OFFER",
-  "OTHER",
-];
+type ErrorResponse = {
+  error?: string;
+  details?: {
+    fieldErrors?: Record<string, string[]>;
+    formErrors?: string[];
+  };
+};
 
-export default function Home() {
+export default function HomePage(): JSX.Element {
   const [status, setStatus] = useState<SubmitStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
     setStatus("submitting");
     setErrorMessage(null);
@@ -37,14 +36,17 @@ export default function Home() {
     const formData = new FormData(form);
 
     const payload = {
-      companyName: String(formData.get("companyName") || "").trim(),
-      stage: String(formData.get("stage") || "OTHER"),
-      jobLevel: String(formData.get("jobLevel") || "OTHER"),
-      positionCategory: String(formData.get("positionCategory") || "OTHER"),
-      positionDetail: String(formData.get("positionDetail") || "").trim(),
-      daysWithoutReply: String(formData.get("daysWithoutReply") || "0"),
-      country: String(formData.get("country") || "").trim() || undefined,
-      honeypot: String(formData.get("hp") || ""), // hidden honeypot field
+      companyName: String(formData.get("companyName") ?? "").trim(),
+      stage: String(formData.get("stage") ?? "OTHER"),
+      jobLevel: String(formData.get("jobLevel") ?? "OTHER"),
+      positionCategory: String(formData.get("positionCategory") ?? "OTHER"),
+      positionDetail: String(formData.get("positionDetail") ?? "").trim(),
+      daysWithoutReply: String(formData.get("daysWithoutReply") ?? "0"),
+      country:
+        String(formData.get("country") ?? "").trim() === ""
+          ? undefined
+          : String(formData.get("country") ?? "").trim(),
+      honeypot: String(formData.get("hp") ?? ""), // hidden honeypot field
     };
 
     try {
@@ -61,34 +63,39 @@ export default function Home() {
         setErrorMessage(null);
         form.reset();
       } else {
-        const data = (await res.json().catch(() => ({}))) as any;
+        const data = (await res.json().catch(() => ({}))) as ErrorResponse;
         setStatus("error");
 
-        const details = data?.details;
-        let message: string | null = data?.error ?? null;
+        const details = data.details;
+        if (details != null && details.fieldErrors != null) {
+          const firstFieldError = Object.values(details.fieldErrors)
+            .flat()
+            .find(Boolean);
 
-        // Try to surface the first validation error, if present
-        if (
-          details &&
-          typeof details === "object" &&
-          "fieldErrors" in details
-        ) {
-          const fieldErrors = details.fieldErrors as Record<
-            string,
-            string[] | undefined
-          >;
-
-          const firstField = Object.keys(fieldErrors).find(
-            (key) => fieldErrors[key] && fieldErrors[key]!.length > 0,
-          );
-
-          if (firstField) {
-            message = fieldErrors[firstField]![0];
+          if (firstFieldError != null && firstFieldError !== "") {
+            setErrorMessage(firstFieldError);
+            return;
           }
         }
 
+        if (
+          details != null &&
+          details.formErrors != null &&
+          details.formErrors.length > 0
+        ) {
+          const firstFormError = details.formErrors[0];
+          setErrorMessage(
+            firstFormError != null && firstFormError !== ""
+              ? firstFormError
+              : "Something went wrong.",
+          );
+          return;
+        }
+
         setErrorMessage(
-          message || "Something went wrong while submitting the report.",
+          data.error != null && data.error !== ""
+            ? data.error
+            : "Something went wrong.",
         );
       }
     } catch (err) {
@@ -287,7 +294,7 @@ export default function Home() {
 
         {status === "error" && (
           <p style={{ color: "red", marginTop: "0.5rem" }}>
-            {errorMessage || "Something went wrong."}
+            {errorMessage != null ? errorMessage : "Something went wrong."}
           </p>
         )}
       </form>

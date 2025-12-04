@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+/* eslint-env node */
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable no-console */
+
 // Development-only seed script to generate a large set of dummy reports
 // for testing the /top-companies aggregation logic with many companies.
 

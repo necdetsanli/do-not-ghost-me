@@ -1,8 +1,8 @@
 // src/app/top-companies/page.tsx
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
-import { PositionCategory, JobLevel, Stage } from "@prisma/client";
-
+import type { PositionCategory, JobLevel, Stage } from "@prisma/client";
+import type { JSX } from "react";
 import {
   POSITION_CATEGORY_OPTIONS,
   JOB_LEVEL_OPTIONS,
@@ -54,43 +54,54 @@ function parseFilters(searchParams?: SearchParams): ResolvedFilters {
   const page = Math.min(safeRawPage, 1000); // For example, cap at page 1000
 
   const rawSearch = (searchParams?.search ?? "").trim();
-  const search = rawSearch ? rawSearch.slice(0, 120) : undefined;
+  const search = rawSearch !== "" ? rawSearch.slice(0, 120) : undefined;
 
   const rawCountry = (searchParams?.country ?? "").trim();
-  const country = rawCountry ? rawCountry.slice(0, 80) : undefined;
+  const country = rawCountry !== "" ? rawCountry.slice(0, 80) : undefined;
 
   const categorySlugRaw = (searchParams?.category ?? "").trim().toLowerCase();
-  const categorySlug = categorySlugRaw || undefined;
+  const categorySlug = categorySlugRaw !== "" ? categorySlugRaw : undefined;
 
   const senioritySlugRaw = (searchParams?.seniority ?? "").trim().toLowerCase();
-  const senioritySlug = senioritySlugRaw || undefined;
+  const senioritySlug = senioritySlugRaw !== "" ? senioritySlugRaw : undefined;
 
   const stageSlugRaw = (searchParams?.stage ?? "").trim().toLowerCase();
-  const stageSlug = stageSlugRaw || undefined;
+  const stageSlug = stageSlugRaw !== "" ? stageSlugRaw : undefined;
 
   let positionCategory: PositionCategory | undefined;
-  if (categorySlug && categorySlug !== "all") {
+  if (categorySlug !== undefined && categorySlug !== "all") {
     positionCategory = categorySlugToEnum(categorySlug);
   }
 
   let seniority: JobLevel | undefined;
-  if (senioritySlug && senioritySlug !== "all") {
+  if (senioritySlug !== undefined && senioritySlug !== "all") {
     seniority = senioritySlugToEnum(senioritySlug);
   }
 
   let stage: Stage | undefined;
-  if (stageSlug && stageSlug !== "all") {
+  if (stageSlug !== undefined && stageSlug !== "all") {
     stage = stageSlugToEnum(stageSlug);
   }
 
-  return {
-    page,
-    search,
-    country,
-    positionCategory,
-    seniority,
-    stage,
-  };
+  const result: ResolvedFilters = { page };
+
+  if (search !== undefined) {
+    result.search = search;
+  }
+  if (country !== undefined) {
+    result.country = country;
+  }
+  if (positionCategory !== undefined) {
+    result.positionCategory = positionCategory;
+  }
+  if (seniority !== undefined) {
+    result.seniority = seniority;
+  }
+  if (stage !== undefined) {
+    result.stage = stage;
+  }
+
+  return result;
 }
 
 async function getCompaniesPage(filters: ResolvedFilters): Promise<{
@@ -104,7 +115,7 @@ async function getCompaniesPage(filters: ResolvedFilters): Promise<{
 
   const where: Prisma.ReportWhereInput = {};
 
-  if (search) {
+  if (search !== undefined && search !== "") {
     // Filter by company name (case-insensitive substring)
     where.company = {
       name: {
@@ -114,7 +125,7 @@ async function getCompaniesPage(filters: ResolvedFilters): Promise<{
     };
   }
 
-  if (country) {
+  if (country !== undefined && country !== "") {
     // Filter by report country (case-insensitive exact match)
     where.country = {
       equals: country,
@@ -122,17 +133,17 @@ async function getCompaniesPage(filters: ResolvedFilters): Promise<{
     };
   }
 
-  if (positionCategory) {
+  if (positionCategory !== undefined) {
     // Filter by position category
     where.positionCategory = positionCategory;
   }
 
-  if (seniority) {
+  if (seniority !== undefined) {
     // Filter by job level (seniority)
     where.jobLevel = seniority;
   }
 
-  if (stage) {
+  if (stage !== undefined) {
     where.stage = stage;
   }
 
@@ -213,20 +224,24 @@ function buildPageUrl(
 
   params.set("page", String(page));
 
-  if (filters.search) params.set("search", filters.search);
-  if (filters.country) params.set("country", filters.country);
-  if (filters.positionCategory) {
+  if (filters.search !== undefined && filters.search !== "") {
+    params.set("search", filters.search);
+  }
+  if (filters.country !== undefined && filters.country !== "") {
+    params.set("country", filters.country);
+  }
+  if (filters.positionCategory !== undefined) {
     params.set("category", categoryEnumToSlug(filters.positionCategory));
   }
-  if (filters.seniority) {
+  if (filters.seniority !== undefined) {
     params.set("seniority", seniorityEnumToSlug(filters.seniority));
   }
-  if (filters.stage) {
+  if (filters.stage !== undefined) {
     params.set("stage", stageEnumToSlug(filters.stage));
   }
 
   const qs = params.toString();
-  return qs ? `${base}?${qs}` : base;
+  return qs !== "" ? `${base}?${qs}` : base;
 }
 
 const chipStyle: React.CSSProperties = {
@@ -241,7 +256,9 @@ const chipStyle: React.CSSProperties = {
   gap: "0.25rem",
 };
 
-export default async function TopCompaniesPage({ searchParams }: PageProps) {
+export default async function TopCompaniesPage({
+  searchParams,
+}: PageProps): Promise<JSX.Element> {
   // IMPORTANT: unwrap the Promise from Next.js
   const resolvedSearchParams = await searchParams;
 
@@ -342,7 +359,9 @@ export default async function TopCompaniesPage({ searchParams }: PageProps) {
             <select
               name="category"
               defaultValue={
-                positionCategory ? categoryEnumToSlug(positionCategory) : ""
+                positionCategory !== undefined
+                  ? categoryEnumToSlug(positionCategory)
+                  : ""
               }
               style={{
                 padding: "0.45rem 0.6rem",
@@ -365,7 +384,7 @@ export default async function TopCompaniesPage({ searchParams }: PageProps) {
             <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>Stage</span>
             <select
               name="stage"
-              defaultValue={stage ? stageEnumToSlug(stage) : ""}
+              defaultValue={stage !== undefined ? stageEnumToSlug(stage) : ""}
               style={{
                 padding: "0.45rem 0.6rem",
                 borderRadius: 4,
@@ -389,7 +408,9 @@ export default async function TopCompaniesPage({ searchParams }: PageProps) {
             </span>
             <select
               name="seniority"
-              defaultValue={seniority ? seniorityEnumToSlug(seniority) : ""}
+              defaultValue={
+                seniority !== undefined ? seniorityEnumToSlug(seniority) : ""
+              }
               style={{
                 padding: "0.45rem 0.6rem",
                 borderRadius: 4,
@@ -433,7 +454,11 @@ export default async function TopCompaniesPage({ searchParams }: PageProps) {
           marginBottom: "0.75rem",
         }}
       >
-        {(search || country || positionCategory || seniority || stage) && (
+        {((search !== undefined && search !== "") ||
+          (country !== undefined && country !== "") ||
+          positionCategory !== undefined ||
+          seniority !== undefined ||
+          stage !== undefined) && (
           <div
             style={{
               padding: "0.5rem 0.75rem",
@@ -457,36 +482,36 @@ export default async function TopCompaniesPage({ searchParams }: PageProps) {
               Active filters:
             </span>
 
-            {search && (
+            {search !== undefined && search !== "" && (
               <span style={chipStyle}>
                 {/* React escapes all values here, so it is safe */}
                 <span>Search:</span>
-                <strong>"{search}"</strong>
+                <strong>&quot;{search}&quot;</strong>
               </span>
             )}
 
-            {country && (
+            {country !== undefined && country !== "" && (
               <span style={chipStyle}>
                 <span>Country:</span>
                 <strong>{country}</strong>
               </span>
             )}
 
-            {positionCategory && (
+            {positionCategory !== undefined && (
               <span style={chipStyle}>
                 <span>Category:</span>
                 <strong>{labelForCategory(positionCategory)}</strong>
               </span>
             )}
 
-            {seniority && (
+            {seniority !== undefined && (
               <span style={chipStyle}>
                 <span>Seniority:</span>
                 <strong>{labelForJobLevel(seniority)}</strong>
               </span>
             )}
 
-            {stage && (
+            {stage !== undefined && (
               <span style={chipStyle}>
                 <span>Stage:</span>
                 <strong>{labelForStage(stage)}</strong>
@@ -515,7 +540,7 @@ export default async function TopCompaniesPage({ searchParams }: PageProps) {
               fontSize: "0.9rem",
             }}
           >
-            {search ? (
+            {search !== undefined && search !== "" ? (
               <p>
                 No companies found matching{" "}
                 <strong>&quot;{search}&quot;</strong> with the selected filters.

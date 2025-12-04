@@ -2,9 +2,17 @@
 import { z } from "zod";
 import { Stage, JobLevel, PositionCategory } from "@prisma/client";
 
-// Allow letters (including Unicode), digits, spaces and a safe set of symbols
-const companyNameRegex = /^[\p{L}\p{N}\s\-_/&()'",.]+$/u;
-const positionDetailRegex = /^[\p{L}\p{N}\s\-_/&()'",.]+$/u;
+// Shared regex for company name and position detail:
+// - Allow Unicode letters and digits
+// - Allow spaces and a safe set of symbols (/, #, +, -, _, &, (), ', ", ., ,)
+const nameLikeRegex = /^[\p{L}\p{N}\s_\-\/&()'",.+#]+$/u;
+
+// Country should only contain letters (Unicode), spaces and a few punctuation marks.
+// No digits allowed in country names.
+const countryRegex = /^[\p{L}\s\-'.(),]+$/u;
+
+// Helper to enforce "must contain at least one letter"
+const mustContainLetter = (value: string): boolean => /\p{L}/u.test(value);
 
 export const reportSchema = z.object({
   companyName: z
@@ -12,7 +20,10 @@ export const reportSchema = z.object({
     .trim()
     .min(2, "Company name must be at least 2 characters long")
     .max(120, "Company name must be at most 120 characters long")
-    .regex(companyNameRegex, "Company name contains invalid characters"),
+    .regex(nameLikeRegex, "Company name contains invalid characters")
+    .refine(mustContainLetter, {
+      message: "Company name must contain at least one letter",
+    }),
 
   stage: z.nativeEnum(Stage),
 
@@ -25,7 +36,10 @@ export const reportSchema = z.object({
     .trim()
     .min(2, "Position detail must be at least 2 characters long")
     .max(80, "Position detail must be at most 80 characters long")
-    .regex(positionDetailRegex, "Position detail contains invalid characters"),
+    .regex(nameLikeRegex, "Position detail contains invalid characters")
+    .refine(mustContainLetter, {
+      message: "Position detail must contain at least one letter",
+    }),
 
   daysWithoutReply: z.coerce
     .number()
@@ -37,11 +51,11 @@ export const reportSchema = z.object({
     .string()
     .trim()
     .max(100, "Country name must be at most 100 characters long")
-    .optional()
-    .transform((val) => (val === "" ? undefined : val)),
+    .regex(countryRegex, "Country name contains invalid characters")
+    .optional(),
 
   // Honeypot field for bots; must be empty for valid submissions
-  honeypot: z.string().optional(),
+  honeypot: z.string().max(0).optional(),
 });
 
 export type ReportInput = z.infer<typeof reportSchema>;

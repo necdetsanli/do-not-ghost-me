@@ -10,7 +10,7 @@ const globalForPrisma = globalThis as unknown as {
 function createPrismaClient(): PrismaClient {
   const databaseUrl = process.env.DATABASE_URL;
 
-  if (!databaseUrl) {
+  if (databaseUrl == null || databaseUrl === "") {
     throw new Error("DATABASE_URL is not set");
   }
 
