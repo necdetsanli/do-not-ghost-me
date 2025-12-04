@@ -41,7 +41,6 @@ enum PositionCategory {
 model Company {
   id        String   @id @default(cuid())
   name      String   @unique
-  website   String?
   country   String?
   createdAt DateTime @default(now())
 
