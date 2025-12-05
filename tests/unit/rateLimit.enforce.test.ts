@@ -1,11 +1,13 @@
-// tests/unit/rateLimit.enforce.test.ts
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { PositionCategory } from "@prisma/client";
 import { enforceReportLimitForIpCompanyPosition } from "@/lib/rateLimit";
-import { ReportRateLimitError } from "@/lib/rateLimitError";
 import { prisma } from "@/lib/db";
 import { env } from "@/env";
 
+/**
+ * Minimal subset of the Prisma client that is used by the rate-limit module.
+ * We only mock the pieces we actually touch in the tests.
+ */
 type Tx = {
   reportIpDailyLimit: {
     findUnique: ReturnType<typeof vi.fn>;
@@ -18,19 +20,16 @@ type Tx = {
   };
 };
 
-let txMock: Tx;
-
-function getPrismaMock(): {
+type PrismaWithTransaction = {
   $transaction: ReturnType<typeof vi.fn>;
-} {
-  return prisma as unknown as {
-    $transaction: ReturnType<typeof vi.fn>;
-  };
-}
+};
 
 const SAMPLE_COMPANY_ID = "company-1";
 const SAMPLE_CATEGORY = "DEVOPS_SRE_PLATFORM" as PositionCategory;
 const SAMPLE_POSITION = "DevOps Engineer";
+
+let txMock: Tx;
+let prismaMock: PrismaWithTransaction;
 
 describe("enforceReportLimitForIpCompanyPosition", () => {
   beforeEach(() => {
@@ -46,14 +45,15 @@ describe("enforceReportLimitForIpCompanyPosition", () => {
       },
     };
 
-    (prisma as unknown as { $transaction: unknown }).$transaction = vi.fn(
-      async (cb: (tx: Tx) => unknown) => cb(txMock),
-    ) as unknown;
+    // Cast to a writable shape so we can override $transaction in tests.
+    prismaMock = prisma as unknown as PrismaWithTransaction;
+
+    prismaMock.$transaction = vi.fn(async (cb: (tx: Tx) => unknown) =>
+      cb(txMock),
+    ) as unknown as PrismaWithTransaction["$transaction"];
   });
 
   it("throws a ReportRateLimitError when IP is null", async () => {
-    const prismaMock = getPrismaMock();
-
     await expect(
       enforceReportLimitForIpCompanyPosition({
         ip: null,
@@ -70,8 +70,6 @@ describe("enforceReportLimitForIpCompanyPosition", () => {
   });
 
   it('treats the string "unknown" as missing IP', async () => {
-    const prismaMock = getPrismaMock();
-
     await expect(
       enforceReportLimitForIpCompanyPosition({
         ip: "unknown",
@@ -97,8 +95,6 @@ describe("enforceReportLimitForIpCompanyPosition", () => {
       positionCategory: SAMPLE_CATEGORY,
       positionDetail: SAMPLE_POSITION,
     });
-
-    const prismaMock = getPrismaMock();
 
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
     expect(txMock.reportIpDailyLimit.findUnique).toHaveBeenCalledTimes(1);

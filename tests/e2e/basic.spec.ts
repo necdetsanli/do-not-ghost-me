@@ -1,6 +1,10 @@
-// tests/e2e/basic.spec.ts
 import { test, expect } from "@playwright/test";
 
+/**
+ * Basic happy-path flows for the public UI:
+ * - Submitting a ghosting report.
+ * - Viewing the aggregated "top companies" page.
+ */
 test.describe("do-not-ghost-me basic flows", () => {
   test("home page renders and report form is usable", async ({ page }) => {
     await page.goto("/");
@@ -29,7 +33,7 @@ test.describe("do-not-ghost-me basic flows", () => {
 
     await page.getByRole("button", { name: /submit report/i }).click();
 
-    // Accept BOTH:
+    // Accept both:
     //  - success: "Thank you. Your report has been recorded."
     //  - duplicate/rate-limit: "You have already submitted a report ..."
     const feedback = page.getByText(
@@ -45,14 +49,19 @@ test.describe("do-not-ghost-me basic flows", () => {
     await page.goto("/top-companies");
 
     // Filter controls should be visible
-    await expect(page.getByRole("textbox", { name: /search/i })).toBeVisible();
     await expect(
-      page.getByRole("combobox", { name: /category/i }),
+      page.getByRole("textbox", { name: /search by company name/i }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("textbox", { name: /country \(optional\)/i }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("combobox", { name: /position category/i }),
+    ).toBeVisible();
+    await expect(page.getByRole("combobox", { name: /stage/i })).toBeVisible();
     await expect(
       page.getByRole("combobox", { name: /seniority/i }),
     ).toBeVisible();
-    await expect(page.getByRole("combobox", { name: /stage/i })).toBeVisible();
 
     // Table with results/empty state should be rendered
     await expect(page.getByRole("table")).toBeVisible();

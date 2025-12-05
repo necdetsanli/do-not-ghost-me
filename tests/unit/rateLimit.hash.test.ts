@@ -1,8 +1,10 @@
-// tests/unit/rateLimit.hash.test.ts
 import { describe, it, expect } from "vitest";
 import { hashIp } from "@/lib/rateLimit";
 import { ReportRateLimitError } from "@/lib/rateLimitError";
 
+/**
+ * Unit tests for the IP hashing helper.
+ */
 describe("hashIp", () => {
   it("produces a stable hash for the same IP", () => {
     const ip = "203.0.113.42";

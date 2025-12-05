@@ -1,34 +1,39 @@
-// tests/setup/test-env.ts
-
 import { config as loadEnv } from "dotenv";
 
-// Load .env or .env.test if you want
+/**
+ * Test environment bootstrap.
+ *
+ * This file is loaded before tests and ensures that required
+ * environment variables have reasonable defaults so that:
+ *  - env.ts validation passes,
+ *  - Prisma can construct a client,
+ *  - rate limiting code has a long enough salt.
+ */
 loadEnv();
 
-// tests/setup/test-env.ts
+/**
+ * Ensure that a string-valued environment variable is set.
+ * If it is missing or empty, a fallback value is assigned.
+ */
+function ensureEnvVar(name: string, fallback: string): void {
+  const current = process.env[name];
+
+  if (current == null || current === "") {
+    process.env[name] = fallback;
+  }
+}
 
 // DATABASE_URL must exist for env.ts + Prisma
-if (process.env.DATABASE_URL == null || process.env.DATABASE_URL === "") {
-  process.env.DATABASE_URL =
-    "postgres://ghostuser:ghostpass@localhost:5432/donotghostme_test";
-}
+ensureEnvVar(
+  "DATABASE_URL",
+  "postgres://ghostuser:ghostpass@localhost:5432/donotghostme_test",
+);
 
 // Safe defaults for rate limit in tests
-if (
-  process.env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP == null ||
-  process.env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP === ""
-) {
-  process.env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP = "3";
-}
+ensureEnvVar("RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP", "3");
+ensureEnvVar("RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY", "10");
 
-if (
-  process.env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY == null ||
-  process.env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY === ""
-) {
-  process.env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY = "10";
-}
-
-// Salt must be >= 32 chars
+// Salt must be >= 32 characters
 if (
   process.env.RATE_LIMIT_IP_SALT == null ||
   process.env.RATE_LIMIT_IP_SALT.length < 32
