@@ -71,6 +71,17 @@ model ReportIpCompanyLimit {
   @@index([ipHash, companyId])
 }
 
+model ReportIpDailyLimit {
+  id        String   @id @default(cuid())
+  ipHash    String
+  day       String // UTC day key in format YYYY-MM-DD
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([ipHash, day])
+}
+
 model AdminUser {
   id        String   @id @default(cuid())
   email     String   @unique

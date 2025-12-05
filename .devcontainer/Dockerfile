@@ -11,6 +11,9 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends postgresql postgresql-contrib && \
     rm -rf /var/lib/apt/lists/*
 
+# Install Playwright system dependencies and Chromium browser
+RUN npx playwright install --with-deps chromium
+
 # Allow passwordless sudo for the "node" user inside the devcontainer
 RUN echo "node ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/node && \
     chmod 0440 /etc/sudoers.d/node

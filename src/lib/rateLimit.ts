@@ -44,7 +44,7 @@ function getMaxReportsPerCompanyPerIp(): number {
 }
 
 function getMaxReportsPerIpPerDay(): number {
-  return getEnvInt("RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY", 50, {
+  return getEnvInt("RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY", 20, {
     min: 1,
   });
 }

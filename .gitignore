@@ -13,6 +13,7 @@
 # testing
 /coverage
 .vscode-test/
+/test-results/
 
 # next.js
 /.next/

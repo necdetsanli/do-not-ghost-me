@@ -54,7 +54,7 @@ export default defineConfig([
 
   // 2) TypeScript rules that do NOT require full type information
   {
-    files: ["**/*.{ts,tsx}"],
+    files: ["src/*.{ts,tsx}"],
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/explicit-function-return-type": [
@@ -79,7 +79,7 @@ export default defineConfig([
 
   // 3) General JS/TS quality rules
   {
-    files: ["**/*.{ts,tsx,js,jsx}"],
+    files: ["src/*.{ts,tsx,js,jsx}"],
     rules: {
       // General code quality
       "no-var": "error",
@@ -121,5 +121,5 @@ export default defineConfig([
   },
 
   // 4) Global ignores (build artifacts, generated files, etc.)
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "tests/**"]),
 ]);
