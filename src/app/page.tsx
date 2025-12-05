@@ -141,7 +141,6 @@ export default function HomePage(): JSX.Element {
           : "Something went wrong.",
       );
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error("Failed to submit report", err);
       setStatus("error");
       setErrorMessage("Network error while submitting the report.");

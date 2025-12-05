@@ -12,3 +12,6 @@ trim_trailing_whitespace = true
 [*.md]
 # Do not trim trailing whitespace in markdown files (useful for lists)
 trim_trailing_whitespace = false
+
+[*.{yml,yaml,json}]
+indent_size = 2

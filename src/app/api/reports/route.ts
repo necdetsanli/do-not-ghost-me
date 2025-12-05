@@ -2,7 +2,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { reportSchema } from "@/lib/validation/reportSchema";
+import { reportSchema, type ReportInput } from "@/lib/validation/reportSchema";
 import { enforceReportLimitForIpCompanyPosition } from "@/lib/rateLimit";
 import {
   ReportRateLimitError,
@@ -12,91 +12,110 @@ import { getClientIp } from "@/lib/ip";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Common select shape for Company records so we do not repeat it.
- */
-const COMPANY_SELECT = {
-  id: true,
-  name: true,
-  country: true,
-} as const;
+type CompanyProjection = {
+  id: string;
+  name: string;
+  country: string | null;
+};
+
+type NormalizedCompanyInput = {
+  normalizedCompanyName: string;
+  normalizedCountry: string | null;
+};
 
 /**
- * Normalize an optional country string:
- * - null/undefined/empty → null
- * - otherwise → trimmed value
+ * Normalize company-related fields coming from the validated payload.
  */
-function normalizeOptionalCountry(
-  country: string | null | undefined,
-): string | null {
-  if (country === null || country === undefined) {
-    return null;
-  }
+function normalizeCompanyInput(data: ReportInput): NormalizedCompanyInput {
+  const normalizedCompanyName = data.companyName.trim();
 
-  const trimmed = country.trim();
+  const normalizedCountry =
+    data.country !== undefined && data.country.trim().length > 0
+      ? data.country.trim()
+      : null;
 
-  if (trimmed.length === 0) {
-    return null;
-  }
-
-  return trimmed;
+  return {
+    normalizedCompanyName,
+    normalizedCountry,
+  };
 }
 
 /**
- * Resolve a company by name, creating it if it does not exist.
- *
- * If the company exists without a country and we receive a non-null country,
- * we update the record to fill in the country information.
+ * Find or create the Company record and optionally back-fill the country
+ * for existing companies that do not yet have one.
  */
-async function resolveCompany(args: { name: string; country: string | null }) {
-  const { name, country } = args;
+async function upsertCompany(
+  input: NormalizedCompanyInput,
+): Promise<CompanyProjection> {
+  const { normalizedCompanyName, normalizedCountry } = input;
 
-  const existing = await prisma.company.findUnique({
-    where: { name },
-    select: COMPANY_SELECT,
+  let company = await prisma.company.findUnique({
+    where: { name: normalizedCompanyName },
+    select: {
+      id: true,
+      name: true,
+      country: true,
+    },
   });
 
-  if (existing === null) {
-    return prisma.company.create({
+  if (company == null) {
+    company = await prisma.company.create({
       data: {
-        name,
-        country,
+        name: normalizedCompanyName,
+        country: normalizedCountry,
       },
-      select: COMPANY_SELECT,
+      select: {
+        id: true,
+        name: true,
+        country: true,
+      },
+    });
+
+    return company;
+  }
+
+  if (company.country == null && normalizedCountry !== null) {
+    company = await prisma.company.update({
+      where: { id: company.id },
+      data: {
+        country: normalizedCountry,
+      },
+      select: {
+        id: true,
+        name: true,
+        country: true,
+      },
     });
   }
 
-  if (
-    (existing.country === null || existing.country === undefined) &&
-    country !== null
-  ) {
-    return prisma.company.update({
-      where: { id: existing.id },
-      data: { country },
-      select: COMPANY_SELECT,
-    });
-  }
+  return company;
+}
 
-  return existing;
+/**
+ * Convert a ReportRateLimitError into a JSON HTTP response.
+ */
+function mapRateLimitErrorToResponse(
+  error: ReportRateLimitError,
+): NextResponse {
+  return NextResponse.json(
+    {
+      error: error.message,
+    },
+    { status: error.statusCode },
+  );
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const clientIp = getClientIp(req);
 
   // Fail closed: if we cannot determine an IP, do not accept the report.
-  if (clientIp === null || clientIp.trim().length === 0) {
+  if (clientIp == null || clientIp.trim().length === 0) {
     const error = new ReportRateLimitError(
       "We could not determine your IP address. Please try again later.",
       "missing-ip",
     );
 
-    return NextResponse.json(
-      {
-        error: error.message,
-        reason: error.reason,
-      },
-      { status: error.statusCode },
-    );
+    return mapRateLimitErrorToResponse(error);
   }
 
   try {
@@ -116,23 +135,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const data = parsed.data;
 
     // Honeypot check: if this field is filled, treat as bot and ignore silently.
-    if (
-      data.honeypot !== null &&
-      data.honeypot !== undefined &&
-      data.honeypot.length > 0
-    ) {
+    if (data.honeypot !== undefined && data.honeypot.length > 0) {
       return new NextResponse(null, { status: 204 });
     }
 
-    const normalizedCompanyName = data.companyName.trim();
-    const normalizedCountry = normalizeOptionalCountry(data.country);
+    const normalizedCompanyInput = normalizeCompanyInput(data);
+    const company = await upsertCompany(normalizedCompanyInput);
 
-    const company = await resolveCompany({
-      name: normalizedCompanyName,
-      country: normalizedCountry,
-    });
-
-    // Enforce IP + company + position limits BEFORE creating the report.
+    // Enforce rate limits before actually creating the report.
     await enforceReportLimitForIpCompanyPosition({
       ip: clientIp,
       companyId: company.id,
@@ -148,7 +158,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         positionCategory: data.positionCategory,
         positionDetail: data.positionDetail,
         daysWithoutReply: data.daysWithoutReply,
-        country: normalizedCountry,
+        country: normalizedCompanyInput.normalizedCountry,
       },
       select: {
         id: true,
@@ -163,29 +173,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       },
       { status: 201 },
     );
-  } catch (error) {
-    // Domain-level rate limit errors: map to 429 with structured payload.
+  } catch (error: unknown) {
     if (isReportRateLimitError(error)) {
-      return NextResponse.json(
-        {
-          error: error.message,
-          reason: error.reason,
-        },
-        { status: error.statusCode },
-      );
+      return mapRateLimitErrorToResponse(error);
     }
 
-    // Malformed JSON body → treat as bad request instead of 500.
-    if (error instanceof SyntaxError) {
-      return NextResponse.json(
-        {
-          error: "Invalid JSON body",
-        },
-        { status: 400 },
-      );
-    }
-
-    // Everything else is an unexpected server-side failure.
+    // Unexpected error — log and return generic 500.
     console.error("[POST /api/reports] Unexpected error", error);
 
     return NextResponse.json(
