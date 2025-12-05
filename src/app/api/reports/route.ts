@@ -9,6 +9,7 @@ import {
   isReportRateLimitError,
 } from "@/lib/rateLimitError";
 import { getClientIp } from "@/lib/ip";
+import { normalizeCompanyName, normalizeCountry } from "@/lib/normalization";
 
 export const dynamic = "force-dynamic";
 
@@ -27,12 +28,8 @@ type NormalizedCompanyInput = {
  * Normalize company-related fields coming from the validated payload.
  */
 function normalizeCompanyInput(data: ReportInput): NormalizedCompanyInput {
-  const normalizedCompanyName = data.companyName.trim();
-
-  const normalizedCountry =
-    data.country !== undefined && data.country.trim().length > 0
-      ? data.country.trim()
-      : null;
+  const normalizedCompanyName = normalizeCompanyName(data.companyName);
+  const normalizedCountry = normalizeCountry(data.country);
 
   return {
     normalizedCompanyName,
