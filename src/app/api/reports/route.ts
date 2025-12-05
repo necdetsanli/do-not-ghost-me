@@ -9,84 +9,9 @@ import {
   isReportRateLimitError,
 } from "@/lib/rateLimitError";
 import { getClientIp } from "@/lib/ip";
-import { normalizeCompanyName, normalizeCountry } from "@/lib/normalization";
+import { findOrCreateCompanyForReport } from "@/lib/company";
 
 export const dynamic = "force-dynamic";
-
-type CompanyProjection = {
-  id: string;
-  name: string;
-  country: string | null;
-};
-
-type NormalizedCompanyInput = {
-  normalizedCompanyName: string;
-  normalizedCountry: string | null;
-};
-
-/**
- * Normalize company-related fields coming from the validated payload.
- */
-function normalizeCompanyInput(data: ReportInput): NormalizedCompanyInput {
-  const normalizedCompanyName = normalizeCompanyName(data.companyName);
-  const normalizedCountry = normalizeCountry(data.country);
-
-  return {
-    normalizedCompanyName,
-    normalizedCountry,
-  };
-}
-
-/**
- * Find or create the Company record and optionally back-fill the country
- * for existing companies that do not yet have one.
- */
-async function upsertCompany(
-  input: NormalizedCompanyInput,
-): Promise<CompanyProjection> {
-  const { normalizedCompanyName, normalizedCountry } = input;
-
-  let company = await prisma.company.findUnique({
-    where: { name: normalizedCompanyName },
-    select: {
-      id: true,
-      name: true,
-      country: true,
-    },
-  });
-
-  if (company == null) {
-    company = await prisma.company.create({
-      data: {
-        name: normalizedCompanyName,
-        country: normalizedCountry,
-      },
-      select: {
-        id: true,
-        name: true,
-        country: true,
-      },
-    });
-
-    return company;
-  }
-
-  if (company.country == null && normalizedCountry !== null) {
-    company = await prisma.company.update({
-      where: { id: company.id },
-      data: {
-        country: normalizedCountry,
-      },
-      select: {
-        id: true,
-        name: true,
-        country: true,
-      },
-    });
-  }
-
-  return company;
-}
 
 /**
  * Convert a ReportRateLimitError into a JSON HTTP response.
@@ -129,17 +54,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const data = parsed.data;
+    const data: ReportInput = parsed.data;
 
     // Honeypot check: if this field is filled, treat as bot and ignore silently.
-    if (data.honeypot !== undefined && data.honeypot.length > 0) {
+    if (typeof data.honeypot === "string" && data.honeypot.length > 0) {
       return new NextResponse(null, { status: 204 });
     }
 
-    const normalizedCompanyInput = normalizeCompanyInput(data);
-    const company = await upsertCompany(normalizedCompanyInput);
+    // Company lookup / creation with normalized name handled in lib/company.ts
+    const company = await findOrCreateCompanyForReport({
+      companyName: data.companyName,
+      country: data.country ?? null,
+    });
 
-    // Enforce rate limits before actually creating the report.
+    // Enforce rate limits BEFORE creating the report.
     await enforceReportLimitForIpCompanyPosition({
       ip: clientIp,
       companyId: company.id,
@@ -155,7 +83,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         positionCategory: data.positionCategory,
         positionDetail: data.positionDetail,
         daysWithoutReply: data.daysWithoutReply,
-        country: normalizedCompanyInput.normalizedCountry,
+        country: company.country,
       },
       select: {
         id: true,
@@ -175,7 +103,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return mapRateLimitErrorToResponse(error);
     }
 
-    // Unexpected error — log and return generic 500.
     console.error("[POST /api/reports] Unexpected error", error);
 
     return NextResponse.json(

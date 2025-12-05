@@ -1,32 +1,33 @@
 // src/lib/normalization.ts
 
 /**
- * Normalize a company name for consistent storage and lookups.
+ * Normalize a company name to a canonical form used for uniqueness checks.
  *
  * - Trims leading and trailing whitespace.
- * - Collapses any internal whitespace (spaces, tabs, etc.) into a single space.
+ * - Collapses multiple internal whitespace characters into a single space.
+ * - Converts to lower case.
  *
- * We deliberately do NOT change casing here, so the original capitalization
- * from the user is preserved.
+ * Examples:
+ *   "  ACME   Corp " -> "acme corp"
+ *   "Acme"          -> "acme"
  */
 export function normalizeCompanyName(raw: string): string {
   const trimmed = raw.trim();
 
   if (trimmed === "") {
-    return trimmed;
+    return "";
   }
 
-  // Collapse any sequence of whitespace (spaces, tabs, newlines) into a single space.
-  return trimmed.replace(/\s+/g, " ");
+  const collapsedWhitespace = trimmed.replace(/\s+/g, " ");
+
+  return collapsedWhitespace.toLowerCase();
 }
 
 /**
- * Normalize a country string into a cleaned value or null.
+ * Normalize an optional country string.
  *
- * - Accepts string, null, or undefined.
- * - Trims leading and trailing whitespace.
- * - Collapses internal whitespace sequences into a single space.
- * - Returns null if, after trimming, the value is empty.
+ * - null / undefined / empty-after-trim -> null
+ * - otherwise returns a trimmed string.
  */
 export function normalizeCountry(
   raw: string | null | undefined,
@@ -41,5 +42,5 @@ export function normalizeCountry(
     return null;
   }
 
-  return trimmed.replace(/\s+/g, " ");
+  return trimmed;
 }

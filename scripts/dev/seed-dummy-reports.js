@@ -8,6 +8,22 @@
 
 require("dotenv/config");
 
+/**
+ * Collapse whitespace and trim for a nice display name.
+ * e.g. "  Acme   Corp  " -> "Acme Corp"
+ */
+function normalizeCompanyNameForDisplay(raw) {
+  return raw.trim().replace(/\s+/g, " ");
+}
+
+/**
+ * Normalized key used for deduplication / uniqueness.
+ * e.g. "Acme Corp" -> "acme corp"
+ */
+function normalizeCompanyNameForKey(raw) {
+  return normalizeCompanyNameForDisplay(raw).toLowerCase();
+}
+
 const {
   PrismaClient,
   Stage,
@@ -19,7 +35,7 @@ const { Pool } = require("pg");
 
 const connectionString = process.env.DATABASE_URL;
 
-if (!connectionString) {
+if (typeof connectionString !== "string" || connectionString.trim() === "") {
   console.error("[seed] DATABASE_URL is not set. Aborting.");
   process.exit(1);
 }
@@ -67,9 +83,11 @@ async function main() {
     `[seed] Will create ${TOTAL_COMPANIES} companies with varying report counts...`,
   );
 
-  for (let i = 0; i < TOTAL_COMPANIES; i++) {
+  for (let i = 0; i < TOTAL_COMPANIES; i += 1) {
     const index = i + 1;
-    const name = `Test Company ${String(index).padStart(3, "0")}`;
+    const rawName = `Test Company ${String(index).padStart(3, "0")}`;
+    const companyName = normalizeCompanyNameForDisplay(rawName);
+    const normalizedName = normalizeCompanyNameForKey(rawName);
     const country = countries[i % countries.length];
 
     // Create a "wide and noisy" distribution of report counts:
@@ -86,14 +104,15 @@ async function main() {
 
     const company = await prisma.company.create({
       data: {
-        name,
+        name: companyName,
+        normalizedName,
         country,
       },
     });
 
     const batch = [];
 
-    for (let j = 0; j < reportCount; j++) {
+    for (let j = 0; j < reportCount; j += 1) {
       batch.push({
         companyId: company.id,
         stage: stages[(i + j) % stages.length],
@@ -109,7 +128,7 @@ async function main() {
 
     if (index % 25 === 0 || index === TOTAL_COMPANIES) {
       console.log(
-        `[seed] Seeded company ${index}/${TOTAL_COMPANIES} (${name}) with ${reportCount} reports.`,
+        `[seed] Seeded company ${index}/${TOTAL_COMPANIES} (${companyName}) with ${reportCount} reports.`,
       );
     }
   }

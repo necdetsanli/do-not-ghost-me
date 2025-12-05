@@ -39,10 +39,11 @@ enum PositionCategory {
 }
 
 model Company {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  country   String?
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  name           String   @unique
+  normalizedName String   @unique
+  country        String?
+  createdAt      DateTime @default(now())
 
   reports Report[]
 }
