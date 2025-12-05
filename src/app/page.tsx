@@ -1,7 +1,8 @@
 // src/app/page.tsx
+
 "use client";
-import type { JSX } from "react";
-import type { FormEvent } from "react";
+
+import type { JSX, FormEvent, CSSProperties } from "react";
 import { useState } from "react";
 import {
   POSITION_CATEGORY_OPTIONS,
@@ -11,6 +12,7 @@ import {
   labelForJobLevel,
   labelForStage,
 } from "@/lib/enums";
+import { JobLevel, PositionCategory, Stage } from "@prisma/client";
 
 type SubmitStatus = "idle" | "submitting" | "success" | "error";
 
@@ -22,6 +24,46 @@ type ErrorResponse = {
   };
 };
 
+// Shared layout styles for the home page
+const mainStyle: CSSProperties = {
+  padding: "2rem",
+  fontFamily: "system-ui, sans-serif",
+  maxWidth: "640px",
+  margin: "0 auto",
+};
+
+const formLabelStyle: CSSProperties = {
+  display: "grid",
+  gap: "0.25rem",
+};
+
+const formControlStyle: CSSProperties = {
+  padding: "0.5rem",
+  border: "1px solid #ccc",
+  borderRadius: 4,
+};
+
+const primaryButtonStyle: CSSProperties = {
+  padding: "0.6rem 1.2rem",
+  borderRadius: 4,
+  border: "none",
+  fontWeight: 600,
+  cursor: "pointer",
+  background: "#111827",
+  color: "#ffffff",
+  marginTop: "0.5rem",
+};
+
+// Reasonable defaults that do not depend on Prisma enums directly in the client
+const DEFAULT_STAGE = "TECHNICAL";
+const DEFAULT_JOB_LEVEL = JOB_LEVEL_OPTIONS[0];
+const DEFAULT_POSITION_CATEGORY = POSITION_CATEGORY_OPTIONS[0];
+
+/**
+ * Main “Ghost Report” page.
+ *
+ * Renders a client-side form that posts anonymous report data to /api/reports.
+ */
 export default function HomePage(): JSX.Element {
   const [status, setStatus] = useState<SubmitStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -31,22 +73,23 @@ export default function HomePage(): JSX.Element {
     setStatus("submitting");
     setErrorMessage(null);
 
-    // Capture form element before any await
     const form = e.currentTarget;
     const formData = new FormData(form);
 
+    const rawCountry = String(formData.get("country") ?? "").trim();
+
     const payload = {
       companyName: String(formData.get("companyName") ?? "").trim(),
-      stage: String(formData.get("stage") ?? "OTHER"),
-      jobLevel: String(formData.get("jobLevel") ?? "OTHER"),
-      positionCategory: String(formData.get("positionCategory") ?? "OTHER"),
+      stage: String(formData.get("stage") ?? DEFAULT_STAGE),
+      jobLevel: String(formData.get("jobLevel") ?? DEFAULT_JOB_LEVEL),
+      positionCategory: String(
+        formData.get("positionCategory") ?? DEFAULT_POSITION_CATEGORY,
+      ),
       positionDetail: String(formData.get("positionDetail") ?? "").trim(),
       daysWithoutReply: String(formData.get("daysWithoutReply") ?? "0"),
-      country:
-        String(formData.get("country") ?? "").trim() === ""
-          ? undefined
-          : String(formData.get("country") ?? "").trim(),
-      honeypot: String(formData.get("hp") ?? ""), // hidden honeypot field
+      country: rawCountry === "" ? undefined : rawCountry,
+      // Hidden honeypot field; must be empty for valid submissions
+      honeypot: String(formData.get("hp") ?? ""),
     };
 
     try {
@@ -62,43 +105,43 @@ export default function HomePage(): JSX.Element {
         setStatus("success");
         setErrorMessage(null);
         form.reset();
-      } else {
-        const data = (await res.json().catch(() => ({}))) as ErrorResponse;
-        setStatus("error");
+        return;
+      }
 
-        const details = data.details;
-        if (details != null && details.fieldErrors != null) {
-          const firstFieldError = Object.values(details.fieldErrors)
-            .flat()
-            .find(Boolean);
+      const data = (await res.json().catch(() => ({}))) as ErrorResponse;
+      setStatus("error");
 
-          if (firstFieldError != null && firstFieldError !== "") {
-            setErrorMessage(firstFieldError);
-            return;
-          }
-        }
+      const details = data.details;
 
-        if (
-          details != null &&
-          details.formErrors != null &&
-          details.formErrors.length > 0
-        ) {
-          const firstFormError = details.formErrors[0];
-          setErrorMessage(
-            firstFormError != null && firstFormError !== ""
-              ? firstFormError
-              : "Something went wrong.",
-          );
+      if (details?.fieldErrors != null) {
+        const firstFieldError = Object.values(details.fieldErrors)
+          .flat()
+          .find((msg) => msg != null && msg !== "");
+
+        if (firstFieldError !== undefined) {
+          setErrorMessage(firstFieldError);
           return;
         }
+      }
+
+      if (details?.formErrors != null && details.formErrors.length > 0) {
+        const firstFormError = details.formErrors[0];
 
         setErrorMessage(
-          data.error != null && data.error !== ""
-            ? data.error
+          firstFormError != null && firstFormError !== ""
+            ? firstFormError
             : "Something went wrong.",
         );
+        return;
       }
+
+      setErrorMessage(
+        data.error != null && data.error !== ""
+          ? data.error
+          : "Something went wrong.",
+      );
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error("Failed to submit report", err);
       setStatus("error");
       setErrorMessage("Network error while submitting the report.");
@@ -106,14 +149,7 @@ export default function HomePage(): JSX.Element {
   }
 
   return (
-    <main
-      style={{
-        padding: "2rem",
-        fontFamily: "system-ui, sans-serif",
-        maxWidth: "640px",
-        margin: "0 auto",
-      }}
-    >
+    <main style={mainStyle}>
       <h1
         style={{
           fontSize: "2rem",
@@ -147,30 +183,22 @@ export default function HomePage(): JSX.Element {
       </p>
 
       <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.75rem" }}>
-        <label style={{ display: "grid", gap: "0.25rem" }}>
+        <label style={formLabelStyle}>
           <span>Company name</span>
           <input
             name="companyName"
             required
             maxLength={120}
-            style={{
-              padding: "0.5rem",
-              border: "1px solid #ccc",
-              borderRadius: 4,
-            }}
+            style={formControlStyle}
           />
         </label>
 
-        <label style={{ display: "grid", gap: "0.25rem" }}>
+        <label style={formLabelStyle}>
           <span>Stage</span>
           <select
             name="stage"
-            defaultValue="TECHNICAL"
-            style={{
-              padding: "0.5rem",
-              border: "1px solid #ccc",
-              borderRadius: 4,
-            }}
+            defaultValue={Stage.CV_SCREEN}
+            style={formControlStyle}
           >
             {STAGE_OPTIONS.map((stage) => (
               <option key={stage} value={stage}>
@@ -180,16 +208,12 @@ export default function HomePage(): JSX.Element {
           </select>
         </label>
 
-        <label style={{ display: "grid", gap: "0.25rem" }}>
+        <label style={formLabelStyle}>
           <span>Job level</span>
           <select
             name="jobLevel"
-            defaultValue="Junior"
-            style={{
-              padding: "0.5rem",
-              border: "1px solid #ccc",
-              borderRadius: 4,
-            }}
+            defaultValue={JobLevel.JUNIOR}
+            style={formControlStyle}
           >
             {JOB_LEVEL_OPTIONS.map((lvl) => (
               <option key={lvl} value={lvl}>
@@ -199,16 +223,12 @@ export default function HomePage(): JSX.Element {
           </select>
         </label>
 
-        <label style={{ display: "grid", gap: "0.25rem" }}>
+        <label style={formLabelStyle}>
           <span>Position category</span>
           <select
             name="positionCategory"
-            defaultValue="Software Engineering"
-            style={{
-              padding: "0.5rem",
-              border: "1px solid #ccc",
-              borderRadius: 4,
-            }}
+            defaultValue={PositionCategory.SOFTWARE_ENGINEERING}
+            style={formControlStyle}
           >
             {POSITION_CATEGORY_OPTIONS.map((cat) => (
               <option key={cat} value={cat}>
@@ -218,21 +238,17 @@ export default function HomePage(): JSX.Element {
           </select>
         </label>
 
-        <label style={{ display: "grid", gap: "0.25rem" }}>
+        <label style={formLabelStyle}>
           <span>Position detail (e.g. Backend Developer)</span>
           <input
             name="positionDetail"
             required
             maxLength={80}
-            style={{
-              padding: "0.5rem",
-              border: "1px solid #ccc",
-              borderRadius: 4,
-            }}
+            style={formControlStyle}
           />
         </label>
 
-        <label style={{ display: "grid", gap: "0.25rem" }}>
+        <label style={formLabelStyle}>
           <span>Days without reply</span>
           <input
             type="number"
@@ -240,25 +256,13 @@ export default function HomePage(): JSX.Element {
             min={1}
             max={365}
             required
-            style={{
-              padding: "0.5rem",
-              border: "1px solid #ccc",
-              borderRadius: 4,
-            }}
+            style={formControlStyle}
           />
         </label>
 
-        <label style={{ display: "grid", gap: "0.25rem" }}>
+        <label style={formLabelStyle}>
           <span>Country (optional)</span>
-          <input
-            name="country"
-            maxLength={100}
-            style={{
-              padding: "0.5rem",
-              border: "1px solid #ccc",
-              borderRadius: 4,
-            }}
-          />
+          <input name="country" maxLength={100} style={formControlStyle} />
         </label>
 
         {/* Honeypot field for bots */}
@@ -272,16 +276,7 @@ export default function HomePage(): JSX.Element {
         <button
           type="submit"
           disabled={status === "submitting"}
-          style={{
-            padding: "0.6rem 1.2rem",
-            borderRadius: 4,
-            border: "none",
-            fontWeight: 600,
-            cursor: "pointer",
-            background: "#111827",
-            color: "#ffffff",
-            marginTop: "0.5rem",
-          }}
+          style={primaryButtonStyle}
         >
           {status === "submitting" ? "Submitting..." : "Submit report"}
         </button>

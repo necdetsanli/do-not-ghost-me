@@ -65,7 +65,7 @@ const JOB_LEVEL_LABELS: Partial<Record<JobLevel, string>> = {
 };
 
 const STAGE_LABELS: Partial<Record<Stage, string>> = {
-  [Stage.CV_SCREEN]: "CV Screen",
+  [Stage.CV_SCREEN]: "CV Screening",
   [Stage.FIRST_INTERVIEW]: "First Interview",
   [Stage.TECHNICAL]: "Technical Interview",
   [Stage.HR_INTERVIEW]: "HR Interview",

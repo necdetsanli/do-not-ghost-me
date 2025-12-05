@@ -1,8 +1,8 @@
 // src/app/top-companies/page.tsx
+
+import type { JSX, CSSProperties } from "react";
+import type { Prisma, PositionCategory, JobLevel, Stage } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import type { Prisma } from "@prisma/client";
-import type { PositionCategory, JobLevel, Stage } from "@prisma/client";
-import type { JSX } from "react";
 import {
   POSITION_CATEGORY_OPTIONS,
   JOB_LEVEL_OPTIONS,
@@ -21,6 +21,33 @@ import {
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 50;
+const MAX_PAGE = 1000;
+
+// Shared styles for form controls
+const formLabelStyle: CSSProperties = {
+  display: "grid",
+  gap: "0.25rem",
+};
+
+const formControlStyle: CSSProperties = {
+  padding: "0.45rem 0.6rem",
+  borderRadius: 4,
+  border: "1px solid #d1d5db",
+  fontSize: "0.9rem",
+};
+
+// Shared style for “chip” filter indicators
+const chipStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "0.15rem 0.5rem",
+  borderRadius: 9999,
+  border: "1px solid #d1d5db",
+  background: "#f3f4f6",
+  fontSize: "0.8rem",
+  color: "#374151",
+  gap: "0.25rem",
+};
 
 type TopCompanyRow = {
   id: string;
@@ -47,11 +74,15 @@ type ResolvedFilters = {
   stage?: Stage;
 };
 
+/**
+ * Parse and sanitize raw search parameters from the URL.
+ * This is the single point where we trust query string input.
+ */
 function parseFilters(searchParams?: SearchParams): ResolvedFilters {
   const pageParam = searchParams?.page ?? "1";
-  const rawPage = parseInt(pageParam, 10);
+  const rawPage = Number.parseInt(pageParam, 10);
   const safeRawPage = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
-  const page = Math.min(safeRawPage, 1000); // For example, cap at page 1000
+  const page = Math.min(safeRawPage, MAX_PAGE);
 
   const rawSearch = (searchParams?.search ?? "").trim();
   const search = rawSearch !== "" ? rawSearch.slice(0, 120) : undefined;
@@ -104,6 +135,16 @@ function parseFilters(searchParams?: SearchParams): ResolvedFilters {
   return result;
 }
 
+/**
+ * Fetch one page of “top companies” and basic pagination metadata.
+ *
+ * The query:
+ * - applies filters on the Report table,
+ * - groups by companyId,
+ * - orders by descending report count,
+ * - looks up company metadata for the current page,
+ * - computes total company count for pagination.
+ */
 async function getCompaniesPage(filters: ResolvedFilters): Promise<{
   items: TopCompanyRow[];
   totalPages: number;
@@ -116,7 +157,6 @@ async function getCompaniesPage(filters: ResolvedFilters): Promise<{
   const where: Prisma.ReportWhereInput = {};
 
   if (search !== undefined && search !== "") {
-    // Filter by company name (case-insensitive substring)
     where.company = {
       name: {
         contains: search,
@@ -126,7 +166,6 @@ async function getCompaniesPage(filters: ResolvedFilters): Promise<{
   }
 
   if (country !== undefined && country !== "") {
-    // Filter by report country (case-insensitive exact match)
     where.country = {
       equals: country,
       mode: "insensitive",
@@ -134,12 +173,10 @@ async function getCompaniesPage(filters: ResolvedFilters): Promise<{
   }
 
   if (positionCategory !== undefined) {
-    // Filter by position category
     where.positionCategory = positionCategory;
   }
 
   if (seniority !== undefined) {
-    // Filter by job level (seniority)
     where.jobLevel = seniority;
   }
 
@@ -147,7 +184,7 @@ async function getCompaniesPage(filters: ResolvedFilters): Promise<{
     where.stage = stage;
   }
 
-  // 1) Group reports by companyId with filters applied
+  // 1) Page of grouped companies ordered by report count
   const grouped = await prisma.report.groupBy({
     by: ["companyId"],
     where,
@@ -166,7 +203,7 @@ async function getCompaniesPage(filters: ResolvedFilters): Promise<{
 
   const companyIds = grouped.map((g) => g.companyId);
 
-  // 2) Load company metadata for the current page
+  // 2) Load company metadata for this page
   const companies = await prisma.company.findMany({
     where: {
       id: { in: companyIds },
@@ -184,6 +221,7 @@ async function getCompaniesPage(filters: ResolvedFilters): Promise<{
 
   const items: TopCompanyRow[] = grouped.map((g) => {
     const meta = companyMap.get(g.companyId);
+
     return {
       id: g.companyId,
       name: meta?.name ?? "Unknown company",
@@ -192,7 +230,7 @@ async function getCompaniesPage(filters: ResolvedFilters): Promise<{
     };
   });
 
-  // 3) Compute total companies matching the filters (for pagination)
+  // 3) Total count for pagination (number of distinct companies)
   const allGroups = await prisma.report.groupBy({
     by: ["companyId"],
     where,
@@ -215,13 +253,15 @@ type PageProps = {
   searchParams: Promise<SearchParams>;
 };
 
+/**
+ * Build a URL for a given page, preserving existing filter query parameters.
+ */
 function buildPageUrl(
   base: string,
   page: number,
   filters: ResolvedFilters,
 ): string {
   const params = new URLSearchParams();
-
   params.set("page", String(page));
 
   if (filters.search !== undefined && filters.search !== "") {
@@ -244,29 +284,23 @@ function buildPageUrl(
   return qs !== "" ? `${base}?${qs}` : base;
 }
 
-const chipStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  padding: "0.15rem 0.5rem",
-  borderRadius: 9999,
-  border: "1px solid #d1d5db",
-  background: "#f3f4f6",
-  fontSize: "0.8rem",
-  color: "#374151",
-  gap: "0.25rem",
-};
-
 export default async function TopCompaniesPage({
   searchParams,
 }: PageProps): Promise<JSX.Element> {
   // IMPORTANT: unwrap the Promise from Next.js
   const resolvedSearchParams = await searchParams;
-
   const filters = parseFilters(resolvedSearchParams);
-  const { page, search, country, positionCategory, seniority, stage } = filters;
 
+  const { page, search, country, positionCategory, seniority, stage } = filters;
   const { items, totalPages, totalCompanies } = await getCompaniesPage(filters);
   const hasResults = items.length > 0;
+
+  const hasActiveFilters =
+    (search !== undefined && search !== "") ||
+    (country !== undefined && country !== "") ||
+    positionCategory !== undefined ||
+    seniority !== undefined ||
+    stage !== undefined;
 
   return (
     <main
@@ -314,7 +348,7 @@ export default async function TopCompaniesPage({
           }}
         >
           {/* Company name search */}
-          <label style={{ display: "grid", gap: "0.25rem" }}>
+          <label style={formLabelStyle}>
             <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>
               Search by company name
             </span>
@@ -323,17 +357,12 @@ export default async function TopCompaniesPage({
               name="search"
               defaultValue={search ?? ""}
               placeholder="e.g. Acme"
-              style={{
-                padding: "0.45rem 0.6rem",
-                borderRadius: 4,
-                border: "1px solid #d1d5db",
-                fontSize: "0.9rem",
-              }}
+              style={formControlStyle}
             />
           </label>
 
           {/* Country filter */}
-          <label style={{ display: "grid", gap: "0.25rem" }}>
+          <label style={formLabelStyle}>
             <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>
               Country (optional)
             </span>
@@ -342,17 +371,12 @@ export default async function TopCompaniesPage({
               name="country"
               defaultValue={country ?? ""}
               placeholder="e.g. Germany"
-              style={{
-                padding: "0.45rem 0.6rem",
-                borderRadius: 4,
-                border: "1px solid #d1d5db",
-                fontSize: "0.9rem",
-              }}
+              style={formControlStyle}
             />
           </label>
 
           {/* Position category filter (slug-based) */}
-          <label style={{ display: "grid", gap: "0.25rem" }}>
+          <label style={formLabelStyle}>
             <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>
               Position category
             </span>
@@ -363,12 +387,7 @@ export default async function TopCompaniesPage({
                   ? categoryEnumToSlug(positionCategory)
                   : ""
               }
-              style={{
-                padding: "0.45rem 0.6rem",
-                borderRadius: 4,
-                border: "1px solid #d1d5db",
-                fontSize: "0.9rem",
-              }}
+              style={formControlStyle}
             >
               <option value="">All categories</option>
               {POSITION_CATEGORY_OPTIONS.map((cat) => (
@@ -380,17 +399,12 @@ export default async function TopCompaniesPage({
           </label>
 
           {/* Stage filter */}
-          <label style={{ display: "grid", gap: "0.25rem" }}>
+          <label style={formLabelStyle}>
             <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>Stage</span>
             <select
               name="stage"
               defaultValue={stage !== undefined ? stageEnumToSlug(stage) : ""}
-              style={{
-                padding: "0.45rem 0.6rem",
-                borderRadius: 4,
-                border: "1px solid #d1d5db",
-                fontSize: "0.9rem",
-              }}
+              style={formControlStyle}
             >
               <option value="">All stages</option>
               {STAGE_OPTIONS.map((st) => (
@@ -402,7 +416,7 @@ export default async function TopCompaniesPage({
           </label>
 
           {/* Seniority filter (slug-based JobLevel) */}
-          <label style={{ display: "grid", gap: "0.25rem" }}>
+          <label style={formLabelStyle}>
             <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>
               Seniority
             </span>
@@ -411,12 +425,7 @@ export default async function TopCompaniesPage({
               defaultValue={
                 seniority !== undefined ? seniorityEnumToSlug(seniority) : ""
               }
-              style={{
-                padding: "0.45rem 0.6rem",
-                borderRadius: 4,
-                border: "1px solid #d1d5db",
-                fontSize: "0.9rem",
-              }}
+              style={formControlStyle}
             >
               <option value="">All seniorities</option>
               {JOB_LEVEL_OPTIONS.map((lvl) => (
@@ -449,16 +458,13 @@ export default async function TopCompaniesPage({
         </form>
       </section>
 
+      {/* Active filters summary */}
       <section
         style={{
           marginBottom: "0.75rem",
         }}
       >
-        {((search !== undefined && search !== "") ||
-          (country !== undefined && country !== "") ||
-          positionCategory !== undefined ||
-          seniority !== undefined ||
-          stage !== undefined) && (
+        {hasActiveFilters && (
           <div
             style={{
               padding: "0.5rem 0.75rem",
@@ -484,7 +490,6 @@ export default async function TopCompaniesPage({
 
             {search !== undefined && search !== "" && (
               <span style={chipStyle}>
-                {/* React escapes all values here, so it is safe */}
                 <span>Search:</span>
                 <strong>&quot;{search}&quot;</strong>
               </span>
