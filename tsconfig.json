@@ -31,10 +31,15 @@
   },
   "include": [
     "next-env.d.ts",
+    "next.config.ts",
     "next.config.mjs",
+    "vitest.config.ts",
+    "playwright.config.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     "scripts/**/*.ts",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],

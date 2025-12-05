@@ -32,7 +32,8 @@ export default defineConfig([
         "error",
         {
           checksVoidReturn: {
-            attributes: false, // do not over-enforce on onClick handlers, etc.
+            // Do not over-enforce on JSX attributes (onClick, etc.)
+            attributes: false,
             properties: true,
           },
         },
@@ -52,9 +53,9 @@ export default defineConfig([
     },
   },
 
-  // 2) TypeScript rules that do NOT require full type information
+  // 2) TypeScript rules that do NOT require full type information (app source)
   {
-    files: ["src/*.{ts,tsx}"],
+    files: ["src/**/*.{ts,tsx}"],
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/explicit-function-return-type": [
@@ -77,9 +78,9 @@ export default defineConfig([
     },
   },
 
-  // 3) General JS/TS quality rules
+  // 3) General JS/TS quality rules for all app *and test* source
   {
-    files: ["src/*.{ts,tsx,js,jsx}"],
+    files: ["src/**/*.{ts,tsx,js,jsx}", "tests/**/*.{ts,tsx,js,jsx}"],
     rules: {
       // General code quality
       "no-var": "error",
@@ -120,6 +121,36 @@ export default defineConfig([
     },
   },
 
-  // 4) Global ignores (build artifacts, generated files, etc.)
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "tests/**"]),
+  // 4) Test-specific config (Vitest globals, etc.)
+  {
+    files: ["tests/**/*.{ts,tsx,js,jsx}"],
+    languageOptions: {
+      // Tell ESLint about Vitest globals so it does not flag them as undefined
+      globals: {
+        describe: "readonly",
+        it: "readonly",
+        test: "readonly",
+        expect: "readonly",
+        beforeEach: "readonly",
+        afterEach: "readonly",
+        beforeAll: "readonly",
+        afterAll: "readonly",
+        vi: "readonly",
+      },
+    },
+    rules: {
+     
+    },
+  },
+
+  // 5) Global ignores (build artifacts, generated files, etc.)
+  globalIgnores([
+    ".next/**",
+    "out/**",
+    "build/**",
+    "coverage/**",
+    "test-results/**",
+    "playwright-report/**",
+    "next-env.d.ts",
+  ]),
 ]);

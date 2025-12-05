@@ -14,6 +14,8 @@
 /coverage
 .vscode-test/
 /test-results/
+/playwright-report/
+/blob-report/
 
 # next.js
 /.next/
@@ -34,10 +36,11 @@ yarn-error.log*
 .pnpm-debug.log*
 logs
 *.log
-*.log.*
+
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -54,4 +57,5 @@ next-env.d.ts
 .vscode/*
 !.vscode/extensions.json
 
+# Generated code
 /src/generated/prisma
