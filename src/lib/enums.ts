@@ -1,13 +1,22 @@
 // src/lib/enums.ts
-// Shared enum helpers for labels and slugs
+// Shared enum helpers for labels and URL slugs.
 
 import { PositionCategory, JobLevel, Stage } from "@prisma/client";
 
-// Generic helpers
+/**
+ * Convert an enum value (e.g. "DEVOPS_SRE_PLATFORM") to a URL-safe slug
+ * (e.g. "devops-sre-platform").
+ */
 export function enumToSlug(value: string): string {
   return value.toLowerCase().replace(/_/g, "-");
 }
 
+/**
+ * Convert an enum value (e.g. "DEVOPS_SRE_PLATFORM") to a human-readable label
+ * (e.g. "Devops Sre Platform").
+ *
+ * Note: For nicer labels, we usually override this with custom maps below.
+ */
 export function formatEnumLabel(value: string): string {
   return value
     .toLowerCase()
@@ -16,7 +25,10 @@ export function formatEnumLabel(value: string): string {
     .join(" ");
 }
 
+// ---------------------------------------------------------------------------
 // Base enum value arrays
+// ---------------------------------------------------------------------------
+
 export const POSITION_CATEGORY_OPTIONS = Object.values(
   PositionCategory,
 ) as PositionCategory[];
@@ -25,7 +37,10 @@ export const JOB_LEVEL_OPTIONS = Object.values(JobLevel) as JobLevel[];
 
 export const STAGE_OPTIONS = Object.values(Stage) as Stage[];
 
-// Custom labels (override map)
+// ---------------------------------------------------------------------------
+// Custom labels (override maps)
+// ---------------------------------------------------------------------------
+
 const POSITION_CATEGORY_LABELS: Partial<Record<PositionCategory, string>> = {
   [PositionCategory.DEVOPS_SRE_PLATFORM]: "DevOps/SRE/Platform",
   [PositionCategory.SOFTWARE_ENGINEERING]: "Software Engineering",
@@ -58,94 +73,103 @@ const STAGE_LABELS: Partial<Record<Stage, string>> = {
   [Stage.OTHER]: "Other",
 };
 
+// ---------------------------------------------------------------------------
 // Public label helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Human-readable label for a given PositionCategory.
+ * Falls back to a generic formatter if not explicitly mapped.
+ */
 export function labelForCategory(cat: PositionCategory): string {
   return POSITION_CATEGORY_LABELS[cat] ?? formatEnumLabel(cat);
 }
 
+/**
+ * Human-readable label for a given JobLevel.
+ * Falls back to a generic formatter if not explicitly mapped.
+ */
 export function labelForJobLevel(level: JobLevel): string {
   return JOB_LEVEL_LABELS[level] ?? formatEnumLabel(level);
 }
 
+/**
+ * Human-readable label for a given Stage.
+ * Falls back to a generic formatter if not explicitly mapped.
+ */
 export function labelForStage(stage: Stage): string {
   return STAGE_LABELS[stage] ?? formatEnumLabel(stage);
 }
 
-// Slug maps for categories
-const CATEGORY_ENUM_TO_SLUG_INTERNAL: Record<PositionCategory, string> =
-  POSITION_CATEGORY_OPTIONS.reduce(
-    (acc, value) => {
-      acc[value] = enumToSlug(value);
-      return acc;
-    },
-    {} as Record<PositionCategory, string>,
-  );
+// ---------------------------------------------------------------------------
+// Generic slug-map builder
+// ---------------------------------------------------------------------------
 
-const CATEGORY_SLUG_TO_ENUM_INTERNAL: Record<string, PositionCategory> =
-  POSITION_CATEGORY_OPTIONS.reduce(
-    (acc, value) => {
-      const slug = enumToSlug(value);
-      acc[slug] = value;
-      return acc;
-    },
-    {} as Record<string, PositionCategory>,
-  );
+/**
+ * Build bidirectional slug maps for a set of enum values.
+ *
+ * enumValue -> slug   (e.g. "DEVOPS_SRE_PLATFORM" -> "devops-sre-platform")
+ * slug      -> enum   (e.g. "devops-sre-platform" -> "DEVOPS_SRE_PLATFORM")
+ */
+function buildSlugMaps<E extends string>(
+  values: readonly E[],
+): {
+  enumToSlug: Record<E, string>;
+  slugToEnum: Record<string, E>;
+} {
+  const enumToSlugMap = {} as Record<E, string>;
+  const slugToEnumMap: Record<string, E> = {};
+
+  for (const value of values) {
+    const slug = enumToSlug(value);
+    enumToSlugMap[value] = slug;
+    slugToEnumMap[slug] = value;
+  }
+
+  return {
+    enumToSlug: enumToSlugMap,
+    slugToEnum: slugToEnumMap,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Slug maps for PositionCategory (category filters in URLs)
+// ---------------------------------------------------------------------------
+
+const CATEGORY_SLUG_MAPS = buildSlugMaps(POSITION_CATEGORY_OPTIONS);
 
 export function categoryEnumToSlug(cat: PositionCategory): string {
-  return CATEGORY_ENUM_TO_SLUG_INTERNAL[cat];
+  return CATEGORY_SLUG_MAPS.enumToSlug[cat];
 }
 
 export function categorySlugToEnum(slug: string): PositionCategory | undefined {
-  return CATEGORY_SLUG_TO_ENUM_INTERNAL[slug];
+  return CATEGORY_SLUG_MAPS.slugToEnum[slug];
 }
 
-// Slug maps for seniority (job level)
-const SENIORITY_ENUM_TO_SLUG_INTERNAL: Record<JobLevel, string> =
-  JOB_LEVEL_OPTIONS.reduce(
-    (acc, value) => {
-      acc[value] = enumToSlug(value);
-      return acc;
-    },
-    {} as Record<JobLevel, string>,
-  );
+// ---------------------------------------------------------------------------
+// Slug maps for JobLevel (seniority filters in URLs)
+// ---------------------------------------------------------------------------
 
-const SENIORITY_SLUG_TO_ENUM_INTERNAL: Record<string, JobLevel> =
-  JOB_LEVEL_OPTIONS.reduce(
-    (acc, value) => {
-      const slug = enumToSlug(value);
-      acc[slug] = value;
-      return acc;
-    },
-    {} as Record<string, JobLevel>,
-  );
+const SENIORITY_SLUG_MAPS = buildSlugMaps(JOB_LEVEL_OPTIONS);
 
 export function seniorityEnumToSlug(level: JobLevel): string {
-  return SENIORITY_ENUM_TO_SLUG_INTERNAL[level];
+  return SENIORITY_SLUG_MAPS.enumToSlug[level];
 }
 
 export function senioritySlugToEnum(slug: string): JobLevel | undefined {
-  return SENIORITY_SLUG_TO_ENUM_INTERNAL[slug];
+  return SENIORITY_SLUG_MAPS.slugToEnum[slug];
 }
 
-// Slug maps for Stage
+// ---------------------------------------------------------------------------
+// Slug maps for Stage (pipeline stage filters in URLs)
+// ---------------------------------------------------------------------------
 
-const STAGE_ENUM_TO_SLUG_INTERNAL: Record<Stage, string> =
-  STAGE_OPTIONS.reduce((acc, value) => {
-    acc[value] = enumToSlug(value);
-    return acc;
-  }, {} as Record<Stage, string>);
-
-const STAGE_SLUG_TO_ENUM_INTERNAL: Record<string, Stage> =
-  STAGE_OPTIONS.reduce((acc, value) => {
-    const slug = enumToSlug(value);
-    acc[slug] = value;
-    return acc;
-  }, {} as Record<string, Stage>);
+const STAGE_SLUG_MAPS = buildSlugMaps(STAGE_OPTIONS);
 
 export function stageEnumToSlug(stage: Stage): string {
-  return STAGE_ENUM_TO_SLUG_INTERNAL[stage];
+  return STAGE_SLUG_MAPS.enumToSlug[stage];
 }
 
 export function stageSlugToEnum(slug: string): Stage | undefined {
-  return STAGE_SLUG_TO_ENUM_INTERNAL[slug];
+  return STAGE_SLUG_MAPS.slugToEnum[slug];
 }

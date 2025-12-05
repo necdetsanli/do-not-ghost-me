@@ -3,32 +3,33 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { reportSchema } from "@/lib/validation/reportSchema";
-import {
-  enforceReportLimitForIpCompanyPosition,
-  ReportRateLimitError,
-} from "@/lib/rateLimit";
+import { enforceReportLimitForIpCompanyPosition } from "@/lib/rateLimit";
+import { ReportRateLimitError } from "@/lib/rateLimitError";
+import { getClientIp } from "@/lib/ip";
 
-function getClientIp(req: NextRequest): string {
-  const forwardedFor = req.headers.get("x-forwarded-for");
-  if (forwardedFor !== null && forwardedFor.length > 0) {
-    const [first] = forwardedFor.split(",");
-    const ip = first?.trim();
-    if (ip !== undefined && ip.length > 0) {
-      return ip;
-    }
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const directIp = (req as any).ip as string | undefined;
-  if (directIp !== undefined && directIp !== null && directIp.length > 0) {
-    return directIp;
-  }
-
-  return "unknown";
-}
+export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const clientIp = getClientIp(req);
+
+  // Fail closed: if we cannot determine an IP, do not accept the report
+  if (
+    clientIp === null ||
+    clientIp === undefined ||
+    clientIp.trim().length === 0
+  ) {
+    const error = new ReportRateLimitError(
+      "We could not determine your IP address. Please try again later.",
+      "missing-ip",
+    );
+
+    return NextResponse.json(
+      {
+        error: error.message,
+      },
+      { status: 429 },
+    );
+  }
 
   try {
     const json = await req.json();
@@ -64,7 +65,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         ? data.country.trim()
         : null;
 
-    // Find or create the company record, and keep country on the Company.
     let company = await prisma.company.findUnique({
       where: { name: normalizedCompanyName },
       select: {
@@ -103,7 +103,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // Enforce IP + company + position limits BEFORE creating the report.
     await enforceReportLimitForIpCompanyPosition({
       ip: clientIp,
       companyId: company.id,
@@ -136,10 +135,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   } catch (error) {
     if (error instanceof ReportRateLimitError) {
-      return NextResponse.json({ error: error.message }, { status: 429 });
+      return NextResponse.json(
+        {
+          error: error.message,
+        },
+        { status: 429 },
+      );
     }
 
-    // In production you may want to plug this into a proper logger
     console.error("[POST /api/reports] Unexpected error", error);
 
     return NextResponse.json(

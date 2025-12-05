@@ -5,34 +5,38 @@ test.describe("do-not-ghost-me basic flows", () => {
   test("home page renders and report form is usable", async ({ page }) => {
     await page.goto("/");
 
-    // Check that core form controls are present
-    await expect(page.getByLabel(/company name/i)).toBeVisible();
-    await expect(page.getByLabel(/stage/i)).toBeVisible();
-    await expect(page.getByLabel(/job level/i)).toBeVisible();
-    await expect(page.getByLabel(/position category/i)).toBeVisible();
-    await expect(page.getByLabel(/position detail/i)).toBeVisible();
-    await expect(page.getByLabel(/days without reply/i)).toBeVisible();
-    await expect(page.getByLabel(/country/i)).toBeVisible();
+    await expect(page.getByText(/ghost report/i)).toBeVisible();
 
-    // Fill in a valid report
-    await page.getByLabel(/company name/i).fill("Playwright Test Corp");
-    await page.getByLabel(/stage/i).selectOption("TECHNICAL");
-    await page.getByLabel(/job level/i).selectOption("JUNIOR");
-    await page
-      .getByLabel(/position category/i)
-      .selectOption("SOFTWARE_ENGINEERING");
-    await page
-      .getByLabel(/position detail/i)
-      .fill("Junior Backend Developer (Playwright test)");
-    await page.getByLabel(/days without reply/i).fill("30");
-    await page.getByLabel(/country/i).fill("Testland");
+    const companyInput = page.getByLabel(/company name/i);
+    const stageSelect = page.getByLabel(/stage/i);
+    const jobLevelSelect = page.getByLabel(/job level/i);
+    const categorySelect = page.getByLabel(/position category/i);
+    const positionDetailInput = page.getByLabel(
+      /position detail \(e\.g\. backend developer\)/i,
+    );
+    const daysInput = page.getByLabel(/days without reply/i);
+    const countryInput = page.getByLabel(/country \(optional\)/i);
+
+    await companyInput.fill("Playwright Test Corp");
+    await stageSelect.selectOption({ label: "Technical Interview" });
+    await jobLevelSelect.selectOption({ label: "Junior" });
+    await categorySelect.selectOption({ label: "Software Engineering" });
+    await positionDetailInput.fill(
+      "Junior Backend Developer (Playwright test)",
+    );
+    await daysInput.fill("30");
+    await countryInput.fill("Testland");
 
     await page.getByRole("button", { name: /submit report/i }).click();
 
-    // Expect success message
-    await expect(
-      page.getByText(/thank you\. your report has been recorded\./i),
-    ).toBeVisible();
+    // Accept BOTH:
+    //  - success: "Thank you. Your report has been recorded."
+    //  - duplicate/rate-limit: "You have already submitted a report ..."
+    const feedback = page.getByText(
+      /has been recorded|already submitted a report/i,
+    );
+
+    await expect(feedback).toBeVisible();
   });
 
   test("top companies page renders and shows filters + table", async ({

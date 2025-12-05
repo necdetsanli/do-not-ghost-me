@@ -1,47 +1,30 @@
 // tests/unit/rateLimit.hash.test.ts
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { hashIp } from "@/lib/rateLimit";
-
-const ORIGINAL_ENV = { ...process.env };
+import { ReportRateLimitError } from "@/lib/rateLimitError";
 
 describe("hashIp", () => {
-  beforeEach(() => {
-    process.env = { ...ORIGINAL_ENV };
-  });
-
-  it("produces a stable hash for the same IP and salt", () => {
-    process.env.RATE_LIMIT_IP_SALT = "very-long-and-random-test-salt";
-
+  it("produces a stable hash for the same IP", () => {
     const ip = "203.0.113.42";
 
     const h1 = hashIp(ip);
     const h2 = hashIp(ip);
 
     expect(h1).toBe(h2);
-    expect(h1).toHaveLength(64);
-    expect(h1).not.toContain(ip);
+    expect(h1).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("produces different hashes for different salts", () => {
-    const ip = "203.0.113.99";
+  it("produces different hashes for different IPs", () => {
+    const ip1 = "203.0.113.42";
+    const ip2 = "203.0.113.43";
 
-    process.env.RATE_LIMIT_IP_SALT = "salt-one-for-testing";
-    const h1 = hashIp(ip);
-
-    process.env.RATE_LIMIT_IP_SALT = "salt-two-for-testing";
-    const h2 = hashIp(ip);
+    const h1 = hashIp(ip1);
+    const h2 = hashIp(ip2);
 
     expect(h1).not.toBe(h2);
   });
 
-  it("falls back to dev salt when RATE_LIMIT_IP_SALT is missing or too short", () => {
-    delete process.env.RATE_LIMIT_IP_SALT;
-
-    const ip = "192.0.2.1";
-    const h1 = hashIp(ip);
-    const h2 = hashIp(ip);
-
-    expect(h1).toBe(h2);
-    expect(h1).toHaveLength(64);
+  it("throws a ReportRateLimitError for an empty IP string", () => {
+    expect(() => hashIp("   ")).toThrow(ReportRateLimitError);
   });
 });
