@@ -1,5 +1,4 @@
 // src/app/top-companies/page.tsx
-
 import type { JSX } from "react";
 import type { CountryCode, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";

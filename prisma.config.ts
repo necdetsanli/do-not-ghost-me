@@ -1,6 +1,5 @@
 // prisma.config.ts
 // Central Prisma CLI configuration (migrate, generate, studio, etc.)
-
 import "dotenv/config";
 import { defineConfig, env } from "prisma/config";
 

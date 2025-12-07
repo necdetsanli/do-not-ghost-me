@@ -1,5 +1,4 @@
 // src/app/api/admin/login/route.ts
-
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { env } from "@/env";
@@ -10,6 +9,7 @@ import {
 } from "@/lib/adminAuth";
 import { getClientIp } from "@/lib/ip";
 import { verifyCsrfToken } from "@/lib/csrf";
+import { logWarn, logError } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -103,11 +103,12 @@ function registerFailedLoginAttempt(ip: string, now: number): void {
   if (state.attempts >= LOGIN_RATE_LIMIT_MAX_ATTEMPTS) {
     state.lockedUntil = now + LOGIN_RATE_LIMIT_LOCK_MS;
 
-    console.warn("[admin-login] IP locked due to too many failed attempts", {
+    logWarn("[admin-login] IP locked due to too many failed attempts", {
       ip,
       attempts: state.attempts,
       windowMs: LOGIN_RATE_LIMIT_WINDOW_MS,
       lockMs: LOGIN_RATE_LIMIT_LOCK_MS,
+      lockedUntil: state.lockedUntil,
     });
   }
 
@@ -352,10 +353,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     return buildSuccessRedirectResponse(req, sessionToken);
   } catch (error: unknown) {
-    console.error(
-      "[POST /api/admin/login] Unexpected error during admin login",
+    logError("[POST /api/admin/login] Unexpected error during admin login", {
       error,
-    );
+      ip: clientIp,
+    });
 
     return NextResponse.json(
       {

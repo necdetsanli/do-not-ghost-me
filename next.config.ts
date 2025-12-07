@@ -1,3 +1,4 @@
+//next.config.ts
 // Next.js root config: React strict mode, basic hardening, and security headers.
 
 /**

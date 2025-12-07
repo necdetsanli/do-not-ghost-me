@@ -1,3 +1,4 @@
+//tests/unit/rateLimit.hash.test.ts
 import { describe, it, expect } from "vitest";
 import { hashIp } from "@/lib/rateLimit";
 import { ReportRateLimitError } from "@/lib/rateLimitError";

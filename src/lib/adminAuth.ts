@@ -1,6 +1,8 @@
+// src/lib/adminAuth.ts
 import crypto from "node:crypto";
 import type { NextRequest, NextResponse } from "next/server";
 import { env } from "@/env";
+import { logInfo, logWarn, logError } from "@/lib/logger";
 
 export const ADMIN_SESSION_COOKIE_NAME = "dg_admin";
 const ADMIN_SESSION_MAX_AGE_SECONDS =
@@ -34,6 +36,10 @@ function b64urlDecode(str: string): Buffer {
   return Buffer.from(base64, "base64");
 }
 
+// Track misconfiguration logs so we don't spam on every call.
+let hasLoggedMissingSessionSecret = false;
+let hasLoggedMissingAdminPassword = false;
+
 /**
  * HMAC-SHA256 signer using ADMIN_SESSION_SECRET.
  *
@@ -42,6 +48,13 @@ function b64urlDecode(str: string): Buffer {
  */
 function sign(data: string): string {
   if (env.ADMIN_SESSION_SECRET === undefined) {
+    if (!hasLoggedMissingSessionSecret) {
+      logError(
+        "ADMIN_SESSION_SECRET is not set. Admin sessions are not available.",
+      );
+      hasLoggedMissingSessionSecret = true;
+    }
+
     throw new Error(
       "ADMIN_SESSION_SECRET is not set. Admin sessions are not available.",
     );
@@ -64,6 +77,13 @@ export function verifyAdminPassword(candidate: string): boolean {
 
   // If no admin password is configured, never authenticate anyone.
   if (configured === undefined) {
+    if (!hasLoggedMissingAdminPassword) {
+      logError(
+        "ADMIN_PASSWORD is not set. Rejecting all admin login attempts.",
+      );
+      hasLoggedMissingAdminPassword = true;
+    }
+
     return false;
   }
 
@@ -127,6 +147,10 @@ export function verifyAdminSessionToken(
 
   const parts = token.split(".");
   if (parts.length !== 2) {
+    logWarn("Received admin session token with invalid format", {
+      // Do NOT log the token itself for security reasons.
+      tokenLength: token.length,
+    });
     return null;
   }
 
@@ -137,9 +161,23 @@ export function verifyAdminSessionToken(
     sig === undefined ||
     sig === ""
   ) {
+    logWarn("Received admin session token with empty payload or signature", {
+      tokenLength: token.length,
+    });
     return null;
   }
-  const expectedSig = sign(payloadB64);
+
+  let expectedSig: string;
+  try {
+    expectedSig = sign(payloadB64);
+  } catch (error) {
+    // Misconfiguration (e.g. missing secret) is already logged in sign().
+    logError("Failed to compute expected signature for admin session token", {
+      error:
+        error instanceof Error ? error.message : /** fallback */ String(error),
+    });
+    return null;
+  }
 
   const sigBuf = Buffer.from(sig, "utf8");
   const expectedBuf = Buffer.from(expectedSig, "utf8");
@@ -148,6 +186,9 @@ export function verifyAdminSessionToken(
     sigBuf.length !== expectedBuf.length ||
     !crypto.timingSafeEqual(sigBuf, expectedBuf)
   ) {
+    logWarn("Admin session token signature mismatch", {
+      tokenLength: token.length,
+    });
     return null;
   }
 
@@ -158,15 +199,25 @@ export function verifyAdminSessionToken(
     const now = Math.floor(Date.now() / 1000);
 
     if (payload.sub !== "admin") {
+      logWarn("Admin session token has invalid subject", {
+        sub: payload.sub,
+      });
       return null;
     }
 
     if (payload.exp < now) {
+      logWarn("Admin session token has expired", {
+        exp: payload.exp,
+        now,
+      });
       return null;
     }
 
     return payload;
-  } catch {
+  } catch (error) {
+    logWarn("Failed to decode or parse admin session token payload", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 }
@@ -198,6 +249,10 @@ export function isAllowedAdminHost(req: NextRequest): boolean {
  */
 export function requireAdminRequest(req: NextRequest): AdminSessionPayload {
   if (!isAllowedAdminHost(req)) {
+    logWarn("Blocked admin request from disallowed host", {
+      host: req.headers.get("host") ?? null,
+    });
+
     throw new Error("Admin access is not allowed from this host.");
   }
 
@@ -205,8 +260,17 @@ export function requireAdminRequest(req: NextRequest): AdminSessionPayload {
   const session = verifyAdminSessionToken(cookieValue);
 
   if (session === null) {
+    logWarn("Blocked admin request with missing or invalid session", {
+      host: req.headers.get("host") ?? null,
+      hasCookie: cookieValue !== null,
+    });
+
     throw new Error("Missing or invalid admin session.");
   }
+
+  logInfo("Admin request authorized", {
+    host: req.headers.get("host") ?? null,
+  });
 
   return session;
 }

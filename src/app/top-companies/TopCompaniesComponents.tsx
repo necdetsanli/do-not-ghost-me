@@ -1,5 +1,4 @@
 // src/app/top-companies/TopCompaniesComponents.tsx
-
 import type { CSSProperties, JSX } from "react";
 import type { CountryCode } from "@prisma/client";
 import {

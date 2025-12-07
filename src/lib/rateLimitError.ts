@@ -1,3 +1,4 @@
+//src/lib/rateLimitError.ts
 /**
  * Narrow reasons for why a report was rate limited.
  *

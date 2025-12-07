@@ -1,5 +1,7 @@
+//src/lib/company.ts
 import { prisma } from "@/lib/db";
 import { normalizeCompanyName } from "@/lib/normalization";
+import { logError, logInfo } from "@/lib/logger";
 
 /**
  * Minimal shape of a company record as used in the API layer.
@@ -41,6 +43,10 @@ export async function findOrCreateCompanyForReport(args: {
 
   if (normalizedName === "") {
     // Should not happen with validated input, but we guard defensively.
+    logError(
+      "Company name is empty after normalization. This should not happen with validated input.",
+      { companyName },
+    );
     throw new Error("Company name must not be empty after normalization.");
   }
 
@@ -66,6 +72,11 @@ export async function findOrCreateCompanyForReport(args: {
         name: true,
         normalizedName: true,
       },
+    });
+
+    logInfo("Created new company for report", {
+      companyId: company.id,
+      normalizedName: company.normalizedName,
     });
   }
 

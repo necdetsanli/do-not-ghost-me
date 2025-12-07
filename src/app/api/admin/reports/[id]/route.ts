@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdminRequest } from "@/lib/adminAuth";
 import type { ReportStatus } from "@prisma/client";
+import { logInfo, logWarn, logError } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,11 @@ export async function POST(
   const reportId = typeof reportIdRaw === "string" ? reportIdRaw.trim() : "";
 
   if (reportId === "") {
+    logWarn("[admin] Missing or invalid report id in moderation request", {
+      path: req.nextUrl.pathname,
+      method: req.method,
+    });
+
     return NextResponse.json(
       { error: "Missing or invalid report id" },
       { status: 400 },
@@ -66,6 +72,12 @@ export async function POST(
   const actionRaw = formData.get("action");
 
   if (typeof actionRaw !== "string") {
+    logWarn("[admin] Missing moderation action in admin report request", {
+      reportId,
+      path: req.nextUrl.pathname,
+      method: req.method,
+    });
+
     return NextResponse.json(
       { error: "Missing moderation action" },
       { status: 400 },
@@ -86,6 +98,12 @@ export async function POST(
           flaggedReason: reason,
         },
       });
+
+      logInfo("[admin] Report flagged", {
+        reportId,
+        action: "flag",
+        reason,
+      });
     } else if (action === "restore") {
       await prisma.report.update({
         where: { id: reportId },
@@ -96,6 +114,11 @@ export async function POST(
           deletedAt: null,
         },
       });
+
+      logInfo("[admin] Report restored", {
+        reportId,
+        action: "restore",
+      });
     } else if (action === "delete") {
       // Soft delete: keep the row, hide from public stats.
       await prisma.report.update({
@@ -105,12 +128,27 @@ export async function POST(
           deletedAt: new Date(),
         },
       });
+
+      logInfo("[admin] Report soft-deleted", {
+        reportId,
+        action: "delete",
+      });
     } else if (action === "hard-delete") {
       // Hard delete: permanently remove the row.
       await prisma.report.delete({
         where: { id: reportId },
       });
+
+      logInfo("[admin] Report hard-deleted", {
+        reportId,
+        action: "hard-delete",
+      });
     } else {
+      logWarn("[admin] Unknown moderation action", {
+        reportId,
+        action,
+      });
+
       return NextResponse.json(
         { error: `Unknown moderation action: ${action}` },
         { status: 400 },
@@ -121,7 +159,7 @@ export async function POST(
     const redirectUrl = new URL("/admin", req.url);
     return NextResponse.redirect(redirectUrl, 303);
   } catch (error) {
-    console.error("[admin] Failed to moderate report", {
+    logError("[admin] Failed to moderate report", {
       reportId,
       action,
       error,

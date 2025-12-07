@@ -1,5 +1,5 @@
+//src/lib/enums.ts
 // Shared enum helpers for labels and URL slugs.
-
 import { PositionCategory, JobLevel, Stage, CountryCode } from "@prisma/client";
 
 /**

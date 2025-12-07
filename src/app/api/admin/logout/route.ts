@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { env } from "@/env";
 import { adminSessionCookieOptions } from "@/lib/adminAuth";
+import { logInfo, logWarn } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,11 @@ function buildHostForbiddenResponse(): NextResponse {
  */
 export function POST(req: NextRequest): NextResponse {
   if (!isHostAllowed(req)) {
+    logWarn("[POST /api/admin/logout] Logout blocked due to disallowed host", {
+      host: req.headers.get("host"),
+      allowedHost: env.ADMIN_ALLOWED_HOST ?? null,
+    });
+
     return buildHostForbiddenResponse();
   }
 
@@ -79,6 +85,14 @@ export function POST(req: NextRequest): NextResponse {
     path: cookieOpts.path,
     maxAge: 0,
   });
+
+  logInfo(
+    "[POST /api/admin/logout] Admin logout successful, session cookie cleared",
+    {
+      host: req.headers.get("host"),
+      cookieName: cookieOpts.name,
+    },
+  );
 
   return response;
 }

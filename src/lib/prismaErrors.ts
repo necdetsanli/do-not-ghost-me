@@ -1,3 +1,4 @@
+//src/lib/prismaErrors.ts
 /**
  * Checks whether an unknown error value looks like a Prisma error
  * with the given error code (e.g. "P2002").

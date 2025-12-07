@@ -1,5 +1,4 @@
 // src/app/top-companies/types.ts
-
 import type {
   CountryCode,
   JobLevel,

@@ -3,10 +3,25 @@
 /* eslint-env node */
 /* eslint-disable @typescript-eslint/no-require-imports */
 
+// scripts/seed-large-scenario.js
 // Development-only seed script to generate a large set of dummy reports
 // for testing the /top-companies aggregation logic with many companies.
 
 require("dotenv/config");
+
+const {
+  PrismaClient,
+  Stage,
+  JobLevel,
+  PositionCategory,
+  CountryCode,
+} = require("@prisma/client");
+const { PrismaPg } = require("@prisma/adapter-pg");
+const { Pool } = require("pg");
+
+// -----------------------------------------------------------------------------
+// Helpers: company name normalization
+// -----------------------------------------------------------------------------
 
 /**
  * Collapse whitespace and trim for a nice display name.
@@ -30,15 +45,9 @@ function normalizeCompanyNameForKey(raw) {
   return normalizeCompanyNameForDisplay(raw).toLowerCase();
 }
 
-const {
-  PrismaClient,
-  Stage,
-  JobLevel,
-  PositionCategory,
-  CountryCode,
-} = require("@prisma/client");
-const { PrismaPg } = require("@prisma/adapter-pg");
-const { Pool } = require("pg");
+// -----------------------------------------------------------------------------
+// Environment & Prisma setup
+// -----------------------------------------------------------------------------
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -47,9 +56,22 @@ if (typeof connectionString !== "string" || connectionString.trim() === "") {
   process.exit(1);
 }
 
+if (process.env.NODE_ENV !== "development") {
+  console.error(
+    "[seed] Refusing to run because NODE_ENV is not 'development'.",
+  );
+  process.exit(1);
+}
+
 const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
+
+// -----------------------------------------------------------------------------
+// Main seed routine
+// -----------------------------------------------------------------------------
+
+const TOTAL_COMPANIES = 200;
 
 /**
  * Main entrypoint for the development seed script.
@@ -58,21 +80,11 @@ const prisma = new PrismaClient({ adapter });
  * - Creates a “noisy” distribution of report counts per company
  */
 async function main() {
-  if (process.env.NODE_ENV !== "development") {
-    console.error(
-      "[seed] Refusing to run because NODE_ENV is not 'development'.",
-    );
-    process.exit(1);
-  }
-
   console.log("[seed] Starting dummy data generation for a large scenario...");
 
   console.log("[seed] Deleting existing reports and companies...");
   await prisma.report.deleteMany({});
   await prisma.company.deleteMany({});
-
-  const TOTAL_COMPANIES = 200;
-
 
   const stages = Object.values(Stage);
   const levels = Object.values(JobLevel);
@@ -120,7 +132,7 @@ async function main() {
         positionCategory: categories[(i + j) % categories.length],
         positionDetail: `Dummy position ${(j % 7) + 1}`,
         daysWithoutReply: 1 + ((i + j) % 180),
-        country: countries[(i + j) % countries.length]
+        country: countries[(i + j) % countries.length],
       });
     }
 
@@ -137,6 +149,10 @@ async function main() {
     `[seed] Dummy data generation finished successfully: ${TOTAL_COMPANIES} companies, ${totalReports} reports.`,
   );
 }
+
+// -----------------------------------------------------------------------------
+// Entrypoint
+// -----------------------------------------------------------------------------
 
 main()
   .catch((err) => {

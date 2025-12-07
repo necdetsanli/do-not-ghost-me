@@ -1,3 +1,4 @@
+//src/app/admin/page.tsx
 import type { JSX } from "react";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";

@@ -10,6 +10,7 @@ import {
 } from "@/lib/rateLimitError";
 import { getClientIp } from "@/lib/ip";
 import { findOrCreateCompanyForReport } from "@/lib/company";
+import { logInfo, logWarn, logError } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       "missing-ip",
     );
 
+    logWarn("[POST /api/reports] Missing client IP address", {
+      path: req.nextUrl.pathname,
+      method: req.method,
+      ip: clientIpRaw,
+    });
+
     return mapRateLimitErrorToResponse(error);
   }
 
@@ -68,6 +75,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       "missing-ip",
     );
 
+    logWarn("[POST /api/reports] Empty client IP after trim", {
+      path: req.nextUrl.pathname,
+      method: req.method,
+      ip: clientIpRaw,
+    });
+
     return mapRateLimitErrorToResponse(error);
   }
 
@@ -76,7 +89,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     json = await req.json();
   } catch (parseError) {
-    console.error("[POST /api/reports] Invalid JSON payload", parseError);
+    logWarn("[POST /api/reports] Invalid JSON payload", {
+      path: req.nextUrl.pathname,
+      method: req.method,
+      ip: clientIp,
+      error: parseError,
+    });
 
     return NextResponse.json(
       {
@@ -91,12 +109,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const rawHoneypot = (json as Record<string, unknown>).honeypot;
 
     if (typeof rawHoneypot === "string" && rawHoneypot.trim().length > 0) {
+      logInfo("[POST /api/reports] Honeypot triggered (early)", {
+        ip: clientIp,
+        path: req.nextUrl.pathname,
+        userAgent: req.headers.get("user-agent") ?? undefined,
+      });
+
       return new NextResponse(null, { status: 204 });
     }
 
     const parsed = reportSchema.safeParse(json);
 
     if (!parsed.success) {
+      logWarn("[POST /api/reports] Report validation failed", {
+        ip: clientIp,
+        path: req.nextUrl.pathname,
+        issues: parsed.error.issues,
+      });
+
       return NextResponse.json(
         {
           error: "Invalid input",
@@ -110,6 +140,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     // Honeypot check after parsing as well, in case the schema changes later.
     if (typeof data.honeypot === "string" && data.honeypot.length > 0) {
+      logInfo("[POST /api/reports] Honeypot triggered (post-parse)", {
+        ip: clientIp,
+        path: req.nextUrl.pathname,
+        userAgent: req.headers.get("user-agent") ?? undefined,
+      });
+
       return new NextResponse(null, { status: 204 });
     }
 
@@ -143,6 +179,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       },
     });
 
+    logInfo("[POST /api/reports] Report created", {
+      reportId: report.id,
+      companyId: company.id,
+      ip: clientIp,
+      positionCategory: data.positionCategory,
+      positionDetail: data.positionDetail,
+    });
+
     return NextResponse.json(
       {
         id: report.id,
@@ -152,10 +196,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   } catch (error: unknown) {
     if (isReportRateLimitError(error)) {
+      logWarn("[POST /api/reports] Rate limit hit for report creation", {
+        ip: clientIp,
+        path: req.nextUrl.pathname,
+        error,
+      });
+
       return mapRateLimitErrorToResponse(error);
     }
 
-    console.error("[POST /api/reports] Unexpected error", error);
+    logError("[POST /api/reports] Unexpected error", {
+      ip: clientIp,
+      path: req.nextUrl.pathname,
+      error,
+    });
 
     return NextResponse.json(
       { error: "Internal server error" },

@@ -1,3 +1,4 @@
+//src/lib/dates.ts
 /**
  * Builds a UTC day key for a given Date in "YYYY-MM-DD" format.
  *

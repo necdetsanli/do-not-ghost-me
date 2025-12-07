@@ -6,6 +6,7 @@ import { env } from "@/env";
 import { MISSING_IP_MESSAGE, ReportRateLimitError } from "@/lib/rateLimitError";
 import { toUtcDayKey } from "@/lib/dates";
 import { hasPrismaErrorCode } from "@/lib/prismaErrors";
+import { logWarn, logError } from "@/lib/logger";
 
 const MAX_REPORTS_PER_COMPANY_PER_IP =
   env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP;
@@ -121,6 +122,11 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
         });
       } catch (error) {
         if (!hasPrismaErrorCode(error, "P2002")) {
+          logError("[rateLimit] Unexpected error creating daily IP limit row", {
+            ipHash,
+            day: dayKey,
+            error,
+          });
           throw error;
         }
 
@@ -134,10 +140,21 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
         });
 
         if (concurrentDaily === null) {
+          logError(
+            "[rateLimit] Concurrent daily limit insert failed and follow-up lookup returned null",
+            { ipHash, day: dayKey },
+          );
           throw error;
         }
 
         if (concurrentDaily.count >= maxPerDay) {
+          logWarn("[rateLimit] Daily IP limit exceeded (concurrent path)", {
+            ipHash,
+            day: dayKey,
+            maxPerDay,
+            currentCount: concurrentDaily.count,
+          });
+
           throw new ReportRateLimitError(
             "You have reached the daily report limit for this IP address.",
             "daily-ip-limit",
@@ -157,6 +174,13 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
       }
     } else {
       if (existingDaily.count >= maxPerDay) {
+        logWarn("[rateLimit] Daily IP limit exceeded", {
+          ipHash,
+          day: dayKey,
+          maxPerDay,
+          currentCount: existingDaily.count,
+        });
+
         throw new ReportRateLimitError(
           "You have reached the daily report limit for this IP address.",
           "daily-ip-limit",
@@ -184,6 +208,13 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
     });
 
     if (existingCompanyCount >= maxPerCompany) {
+      logWarn("[rateLimit] Per-company IP limit exceeded", {
+        ipHash,
+        companyId,
+        maxPerCompany,
+        currentCount: existingCompanyCount,
+      });
+
       throw new ReportRateLimitError(
         "You have reached the maximum number of reports for this company from this IP address.",
         "company-position-limit",
@@ -201,13 +232,32 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
       });
     } catch (error) {
       if (hasPrismaErrorCode(error, "P2002")) {
+        logWarn(
+          "[rateLimit] Duplicate report for company + position from this IP",
+          {
+            ipHash,
+            companyId,
+            positionKey,
+          },
+        );
+
         throw new ReportRateLimitError(
           "You have already submitted a report for this position at this company from this IP address.",
           "company-position-limit",
         );
       }
 
-      // Unknown error (DB/network/etc.) – rethrow to be handled by the caller.
+      // Unknown error (DB/network/etc.) – log and rethrow to be handled by the caller.
+      logError(
+        "[rateLimit] Unexpected error while enforcing company/position limit",
+        {
+          ipHash,
+          companyId,
+          positionKey,
+          error,
+        },
+      );
+
       throw error;
     }
   });
