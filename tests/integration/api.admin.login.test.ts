@@ -1,137 +1,230 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+// tests/integration/api.admin.login.test.ts
 
-/**
- * Hoisted mocks for the admin auth helpers used in the login route.
- */
-const {
-  isAllowedAdminHostMock,
-  verifyAdminPasswordMock,
-  createAdminSessionTokenMock,
-  withAdminSessionCookieMock,
-} = vi.hoisted(() => ({
-  isAllowedAdminHostMock: vi.fn(),
-  verifyAdminPasswordMock: vi.fn(),
-  createAdminSessionTokenMock: vi.fn(),
-  // Varsayılan: sadece response'u aynen geri döndür.
-  withAdminSessionCookieMock: vi.fn((res: NextResponse) => res),
-}));
-
-vi.mock("@/lib/adminAuth", () => ({
-  isAllowedAdminHost: isAllowedAdminHostMock,
-  verifyAdminPassword: verifyAdminPasswordMock,
-  createAdminSessionToken: createAdminSessionTokenMock,
-  withAdminSessionCookie: withAdminSessionCookieMock,
-}));
-
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { NextRequest, type NextResponse } from "next/server";
 import { POST } from "@/app/api/admin/login/route";
+import {
+  verifyAdminPassword,
+  createAdminSessionToken,
+  withAdminSessionCookie,
+} from "@/lib/adminAuth";
+import { verifyCsrfToken } from "@/lib/csrf";
 
-/**
- * Build a minimal NextRequest-like object that only supports:
- * - url
- * - formData()
- */
-function createFormRequest(
-  password: string | null,
-  url = "https://example.test/admin/login",
-): NextRequest {
-  const fakeFormData = {
-    get(name: string): FormDataEntryValue | null {
-      if (name === "password") {
-        return password;
-      }
-      return null;
-    },
-  } as unknown as FormData;
+// Mock env so ADMIN_ALLOWED_HOST is stable in tests.
+vi.mock("@/env", () => ({
+  env: {
+    ADMIN_ALLOWED_HOST: "127.0.0.1:3000",
+  },
+}));
 
-  return {
-    url,
-    formData: async () => fakeFormData,
-  } as unknown as NextRequest;
+// Mock admin auth helpers.
+vi.mock("@/lib/adminAuth", () => ({
+  verifyAdminPassword: vi.fn(),
+  createAdminSessionToken: vi.fn(),
+  withAdminSessionCookie: vi.fn((res, _token) => res),
+}));
+
+// Mock CSRF verification. We test the login flow, not HMAC details.
+vi.mock("@/lib/csrf", () => ({
+  verifyCsrfToken: vi.fn(),
+}));
+
+const ADMIN_HOST = "127.0.0.1:3000";
+const LOGIN_URL = `http://${ADMIN_HOST}/api/admin/login`;
+const CSRF_FIELD_NAME = "_csrf";
+const PASSWORD_FIELD_NAME = "password";
+
+function buildFormBody(form: Record<string, string>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(form)) {
+    params.set(key, value);
+  }
+  return params.toString();
 }
 
+function makeRequestWithForm({
+  host = ADMIN_HOST,
+  origin = `http://${ADMIN_HOST}`,
+  form,
+}: {
+  host?: string;
+  origin?: string;
+  form: Record<string, string>;
+}): NextRequest {
+  const headers = new Headers();
+  headers.set("host", host);
+  headers.set("origin", origin);
+  headers.set("content-type", "application/x-www-form-urlencoded");
+
+  const body = buildFormBody(form);
+
+  return new NextRequest(LOGIN_URL, {
+    method: "POST",
+    headers,
+    body,
+  });
+}
+
+beforeEach(() => {
+  // Reset all mocks to a known state before each test.
+  vi.mocked(verifyCsrfToken).mockReset().mockReturnValue(true);
+  vi.mocked(verifyAdminPassword).mockReset();
+  vi.mocked(createAdminSessionToken).mockReset();
+  vi.mocked(withAdminSessionCookie)
+    .mockReset()
+    .mockImplementation((res) => res);
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
+
 describe("POST /api/admin/login", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("returns 403 when admin host is not allowed", async () => {
-    isAllowedAdminHostMock.mockReturnValue(false);
+    const headers = new Headers();
+    headers.set("host", "evil.example.com");
+    headers.set("origin", "http://evil.example.com");
+    headers.set("content-type", "application/x-www-form-urlencoded");
 
-    const req = createFormRequest("any-password");
-    const res = await POST(req);
+    const body = buildFormBody({
+      [PASSWORD_FIELD_NAME]: "irrelevant",
+      [CSRF_FIELD_NAME]: "test-csrf-token",
+    });
 
-    expect(res.status).toBe(403);
+    const request = new NextRequest(LOGIN_URL, {
+      method: "POST",
+      headers,
+      body,
+    });
 
-    const json = (await res.json()) as { error?: string };
-    expect(json.error).toMatch(/not allowed from this host/i);
+    const response = await POST(request);
 
-    expect(verifyAdminPasswordMock).not.toHaveBeenCalled();
-    expect(withAdminSessionCookieMock).not.toHaveBeenCalled();
+    expect(response.status).toBe(403);
+
+    const json = (await response.json()) as { error: string };
+    expect(json).toEqual({
+      error: "Admin access is not allowed from this host.",
+    });
+
+    // When host is forbidden, we should not even attempt authentication.
+    expect(verifyAdminPassword).not.toHaveBeenCalled();
+    expect(createAdminSessionToken).not.toHaveBeenCalled();
+    expect(withAdminSessionCookie).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when password field is missing", async () => {
-    isAllowedAdminHostMock.mockReturnValue(true);
+  it("redirects back to /admin/login?error=1 when password field is missing", async () => {
+    const request = makeRequestWithForm({
+      form: {
+        [CSRF_FIELD_NAME]: "test-csrf-token",
+      },
+    });
 
-    // password=null -> formData().get("password") returns null
-    const req = createFormRequest(null);
-    const res = await POST(req);
+    // CSRF is considered valid in this test.
+    vi.mocked(verifyCsrfToken).mockReturnValue(true);
 
-    expect(res.status).toBe(400);
+    const response = await POST(request);
 
-    const json = (await res.json()) as { error?: string };
-    expect(json.error).toBe("Missing password");
+    // NextResponse.redirect uses 307 for temporary redirects.
+    expect(response.status).toBe(307);
 
-    expect(verifyAdminPasswordMock).not.toHaveBeenCalled();
+    const location = response.headers.get("location");
+    expect(location).not.toBeNull();
+
+    const redirectedUrl = new URL(location ?? "");
+    expect(redirectedUrl.pathname).toBe("/admin/login");
+    expect(redirectedUrl.search).toBe("?error=1");
+
+    // No password → we should not hit auth or session creation.
+    expect(verifyAdminPassword).not.toHaveBeenCalled();
+    expect(createAdminSessionToken).not.toHaveBeenCalled();
+    expect(withAdminSessionCookie).not.toHaveBeenCalled();
   });
 
   it("redirects back to /admin/login?error=1 when password is invalid", async () => {
-    isAllowedAdminHostMock.mockReturnValue(true);
-    verifyAdminPasswordMock.mockReturnValue(false);
+    const request = makeRequestWithForm({
+      form: {
+        [PASSWORD_FIELD_NAME]: "wrong-password",
+        [CSRF_FIELD_NAME]: "test-csrf-token",
+      },
+    });
 
-    const req = createFormRequest("wrong-password");
-    const res = await POST(req);
+    const verifyMock = vi.mocked(verifyAdminPassword);
+    verifyMock.mockResolvedValue(false);
+    vi.mocked(verifyCsrfToken).mockReturnValue(true);
 
-    expect(res.status).toBe(303);
+    const response = await POST(request);
 
-    const location = res.headers.get("location");
+    expect(response.status).toBe(307);
+
+    const location = response.headers.get("location");
     expect(location).not.toBeNull();
 
-    const url = new URL(location as string);
-    expect(url.pathname).toBe("/admin/login");
-    expect(url.searchParams.get("error")).toBe("1");
+    const redirectedUrl = new URL(location ?? "");
+    expect(redirectedUrl.pathname).toBe("/admin/login");
+    expect(redirectedUrl.search).toBe("?error=1");
 
-    expect(verifyAdminPasswordMock).toHaveBeenCalledTimes(1);
-    expect(withAdminSessionCookieMock).not.toHaveBeenCalled();
+    expect(verifyMock).toHaveBeenCalledTimes(1);
+    expect(verifyMock).toHaveBeenCalledWith("wrong-password");
+
+    expect(createAdminSessionToken).not.toHaveBeenCalled();
+    expect(withAdminSessionCookie).not.toHaveBeenCalled();
   });
 
-  it("on successful login, creates a session token and passes it to withAdminSessionCookie", async () => {
-    isAllowedAdminHostMock.mockReturnValue(true);
-    verifyAdminPasswordMock.mockReturnValue(true);
-    createAdminSessionTokenMock.mockReturnValue("test-session-token");
+  it("on successful login, verifies password, creates a session token and passes it to withAdminSessionCookie", async () => {
+    const request = makeRequestWithForm({
+      form: {
+        [PASSWORD_FIELD_NAME]: "test-admin-password",
+        [CSRF_FIELD_NAME]: "test-csrf-token",
+      },
+    });
 
-    // Implementasyonu sade tut: argümanları testten okuyacağız.
-    withAdminSessionCookieMock.mockImplementation((res: NextResponse) => res);
+    const verifyMock = vi.mocked(verifyAdminPassword);
+    const createTokenMock = vi.mocked(createAdminSessionToken);
+    const withCookieMock = vi.mocked(withAdminSessionCookie);
 
-    const req = createFormRequest("correct-password");
-    const res = await POST(req);
+    vi.mocked(verifyCsrfToken).mockReturnValue(true);
+    verifyMock.mockResolvedValue(true);
+    createTokenMock.mockResolvedValue("test-session-token");
 
-    // Should be a redirect to /admin
-    expect(res.status).toBe(303);
-    const location = res.headers.get("location");
-    expect(location).not.toBeNull();
-    expect(new URL(location as string).pathname).toBe("/admin");
+    // By default our mock returns the base response, but we also inspect args.
+    withCookieMock.mockImplementation((res, _token) => res);
 
-    // Verify helper calls
-    expect(verifyAdminPasswordMock).toHaveBeenCalledTimes(1);
-    expect(createAdminSessionTokenMock).toHaveBeenCalledTimes(1);
-    expect(withAdminSessionCookieMock).toHaveBeenCalledTimes(1);
+    const response = await POST(request);
 
-    const firstCall = withAdminSessionCookieMock.mock.calls[0] as unknown[];
-    const tokenArg = firstCall[1] as unknown;
+    // Password verification
+    expect(verifyMock).toHaveBeenCalledTimes(1);
+    expect(verifyMock).toHaveBeenCalledWith("test-admin-password");
 
-    expect(typeof tokenArg).toBe("string");
+    // Session token creation
+    expect(createTokenMock).toHaveBeenCalledTimes(1);
+    expect(createTokenMock).toHaveBeenCalledWith();
+
+    // Cookie attachment
+    expect(withCookieMock).toHaveBeenCalledTimes(1);
+
+    const firstCall = withCookieMock.mock.calls[0] as unknown as [
+      NextResponse<unknown>,
+      string,
+    ];
+    const [cookieResponseArg, tokenArg] = firstCall;
+
     expect(tokenArg).toBe("test-session-token");
+
+    const cookieLocation = cookieResponseArg.headers.get("location");
+    expect(cookieLocation).not.toBeNull();
+
+    const cookieRedirectUrl = new URL(cookieLocation ?? "");
+    expect(cookieRedirectUrl.pathname).toBe("/admin");
+    expect(cookieRedirectUrl.search).toBe("");
+
+    // Final response returned from POST should be the redirected response.
+    expect(response.status).toBe(307);
+
+    const finalLocation = response.headers.get("location");
+    expect(finalLocation).not.toBeNull();
+
+    const finalRedirectUrl = new URL(finalLocation ?? "");
+    expect(finalRedirectUrl.pathname).toBe("/admin");
+    expect(finalRedirectUrl.search).toBe("");
   });
 });
