@@ -21,7 +21,7 @@ vi.mock("@/env", () => ({
 vi.mock("@/lib/adminAuth", () => ({
   verifyAdminPassword: vi.fn(),
   createAdminSessionToken: vi.fn(),
-  withAdminSessionCookie: vi.fn((res, _token) => res),
+  withAdminSessionCookie: vi.fn((res) => res),
 }));
 
 // Mock CSRF verification. We test the login flow, not HMAC details.
@@ -187,7 +187,7 @@ describe("POST /api/admin/login", () => {
     createTokenMock.mockResolvedValue("test-session-token");
 
     // By default our mock returns the base response, but we also inspect args.
-    withCookieMock.mockImplementation((res, _token) => res);
+    withCookieMock.mockImplementation((res) => res);
 
     const response = await POST(request);
 
