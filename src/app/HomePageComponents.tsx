@@ -120,16 +120,24 @@ export function CountrySelect({
     const value = event.target.value;
     setQuery(value);
     setIsOpen(true);
+
     // User started typing again → clear previous selection.
-    setSelectedCode("");
-    if (onChangeCode !== undefined) {
-      onChangeCode("");
+    if (selectedCode !== "") {
+      setSelectedCode("");
+      if (onChangeCode !== undefined) {
+        onChangeCode("");
+      }
     }
   }
 
   function handleContainerBlur(event: FocusEvent<HTMLDivElement>): void {
+    const relatedTarget = event.relatedTarget as Node | null;
+
     // Close the dropdown when focus leaves the whole component.
-    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+    if (
+      relatedTarget === null ||
+      event.currentTarget.contains(relatedTarget) === false
+    ) {
       setIsOpen(false);
     }
   }
@@ -169,7 +177,7 @@ export function CountrySelect({
         {/* Hidden field carrying the actual CountryCode enum value */}
         <input type="hidden" name={name} value={selectedCode} />
 
-        {isOpen && filteredOptions.length > 0 && (
+        {isOpen === true && filteredOptions.length > 0 && (
           <ul style={dropdownStyle}>
             {filteredOptions.slice(0, 20).map((option) => (
               <li key={option.code}>

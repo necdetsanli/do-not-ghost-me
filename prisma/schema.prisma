@@ -332,7 +332,7 @@ model Report {
   positionDetail String @db.VarChar(80)
 
   /// Number of days the candidate has waited without receiving a reply.
-  daysWithoutReply Int
+  daysWithoutReply Int? @db.SmallInt
 
   createdAt DateTime @default(now())
 

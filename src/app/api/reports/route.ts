@@ -49,10 +49,10 @@ function mapRateLimitErrorToResponse(
  * On unexpected failures: logs the error and responds with HTTP 500.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const clientIp = getClientIp(req);
+  const clientIpRaw = getClientIp(req);
 
   // Fail closed: if we cannot determine an IP, do not accept the report.
-  if (clientIp == null || clientIp.trim().length === 0) {
+  if (clientIpRaw == null) {
     const error = new ReportRateLimitError(
       "We could not determine your IP address. Please try again later.",
       "missing-ip",
@@ -61,10 +61,36 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return mapRateLimitErrorToResponse(error);
   }
 
-  try {
-    const json = await req.json();
+  const clientIp = clientIpRaw.trim();
+  if (clientIp.length === 0) {
+    const error = new ReportRateLimitError(
+      "We could not determine your IP address. Please try again later.",
+      "missing-ip",
+    );
 
-    if (typeof json.honeypot === "string" && json.honeypot.trim().length > 0) {
+    return mapRateLimitErrorToResponse(error);
+  }
+
+  let json: unknown;
+
+  try {
+    json = await req.json();
+  } catch (parseError) {
+    console.error("[POST /api/reports] Invalid JSON payload", parseError);
+
+    return NextResponse.json(
+      {
+        error: "Invalid JSON payload",
+      },
+      { status: 400 },
+    );
+  }
+
+  try {
+    // Early honeypot check: if this looks like a bot, ignore silently.
+    const rawHoneypot = (json as Record<string, unknown>).honeypot;
+
+    if (typeof rawHoneypot === "string" && rawHoneypot.trim().length > 0) {
       return new NextResponse(null, { status: 204 });
     }
 
@@ -82,19 +108,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const data: ReportInput = parsed.data;
 
-    // Honeypot check: if this field is filled, treat as bot and ignore silently.
+    // Honeypot check after parsing as well, in case the schema changes later.
     if (typeof data.honeypot === "string" && data.honeypot.length > 0) {
       return new NextResponse(null, { status: 204 });
     }
 
-    // Company lookup / creation with normalized name handled in lib/company.ts
+    // Company lookup / creation with normalized name handled in lib/company.ts.
     const company = await findOrCreateCompanyForReport({
       companyName: data.companyName,
     });
-    // Decide which country value to store on the report:
-    // - Prefer the country provided with this report (per-office / per-location).
-    // - Fall back to the company’s known country if the report did not specify one.
-    //const reportCountry = data.country ?? null;
 
     // Enforce rate limits BEFORE creating the report.
     await enforceReportLimitForIpCompanyPosition({
@@ -111,7 +133,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         jobLevel: data.jobLevel,
         positionCategory: data.positionCategory,
         positionDetail: data.positionDetail,
-        daysWithoutReply: data.daysWithoutReply,
+        // daysWithoutReply is now optional/nullable in validation and schema.
+        daysWithoutReply: data.daysWithoutReply ?? null,
         country: data.country,
       },
       select: {
