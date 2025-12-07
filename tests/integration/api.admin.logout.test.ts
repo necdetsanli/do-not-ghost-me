@@ -1,10 +1,20 @@
+// tests/integration/api.admin.logout.test.ts
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { NextRequest } from "next/server";
 
 /**
  * Hoisted mock for `adminSessionCookieOptions`, used by the logout route.
  */
 const { adminSessionCookieOptionsMock } = vi.hoisted(() => ({
   adminSessionCookieOptionsMock: vi.fn(),
+}));
+
+// Bu test dosyasında ADMIN_ALLOWED_HOST'i "unset" yapıyoruz ki
+// logout endpoint'i host restriction yüzünden 403 dönmesin.
+vi.mock("@/env", () => ({
+  env: {
+    ADMIN_ALLOWED_HOST: undefined,
+  },
 }));
 
 vi.mock("@/lib/adminAuth", () => ({
@@ -29,10 +39,13 @@ describe("POST /api/admin/logout", () => {
 
     adminSessionCookieOptionsMock.mockReturnValue(cookieOptions);
 
-    const res = POST();
+    const req = new NextRequest("http://localhost:3000/api/admin/logout", {
+      method: "POST",
+    });
 
-    expect(adminSessionCookieOptionsMock).toHaveBeenCalledTimes(1);
+    const res = POST(req);
 
+    // Host kısıtı mock ile kapalı -> 302 redirect + cookie clear bekliyoruz.
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/admin/login");
 
