@@ -14,19 +14,6 @@ import { z } from "zod";
 export const NAME_LIKE_REGEX = /^[\p{L}\p{N}\s_\-\/&()'",.+#]+$/u;
 
 /**
- * Pattern for country names.
- *
- * Allowed:
- * - Unicode letters
- * - Spaces
- * - Minimal punctuation: - ' . ( ) ,
- *
- * Not allowed:
- * - Digits
- */
-export const COUNTRY_REGEX = /^[\p{L}\s\-'.(),]+$/u;
-
-/**
  * Ensure that a string contains at least one letter.
  * Uses Unicode property escapes so it works for non-ASCII alphabets as well.
  */

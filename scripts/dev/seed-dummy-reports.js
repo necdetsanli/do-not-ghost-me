@@ -11,6 +11,9 @@ require("dotenv/config");
 /**
  * Collapse whitespace and trim for a nice display name.
  * e.g. "  Acme   Corp  " -> "Acme Corp"
+ *
+ * @param {string} raw - Raw company name as stored in the seed generator.
+ * @returns {string} Normalized display name with collapsed whitespace.
  */
 function normalizeCompanyNameForDisplay(raw) {
   return raw.trim().replace(/\s+/g, " ");
@@ -19,6 +22,9 @@ function normalizeCompanyNameForDisplay(raw) {
 /**
  * Normalized key used for deduplication / uniqueness.
  * e.g. "Acme Corp" -> "acme corp"
+ *
+ * @param {string} raw - Raw company name.
+ * @returns {string} Lowercased normalized key for uniqueness checks.
  */
 function normalizeCompanyNameForKey(raw) {
   return normalizeCompanyNameForDisplay(raw).toLowerCase();
@@ -29,6 +35,7 @@ const {
   Stage,
   JobLevel,
   PositionCategory,
+  CountryCode,
 } = require("@prisma/client");
 const { PrismaPg } = require("@prisma/adapter-pg");
 const { Pool } = require("pg");
@@ -44,6 +51,12 @@ const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
+/**
+ * Main entrypoint for the development seed script.
+ * - Clears existing companies/reports
+ * - Inserts a controlled set of companies
+ * - Creates a “noisy” distribution of report counts per company
+ */
 async function main() {
   if (process.env.NODE_ENV !== "development") {
     console.error(
@@ -60,22 +73,11 @@ async function main() {
 
   const TOTAL_COMPANIES = 200;
 
-  const countries = [
-    "United States",
-    "Germany",
-    "United Kingdom",
-    "France",
-    "Netherlands",
-    "Sweden",
-    "Canada",
-    "Turkey",
-    "Japan",
-    "India",
-  ];
 
   const stages = Object.values(Stage);
   const levels = Object.values(JobLevel);
   const categories = Object.values(PositionCategory);
+  const countries = Object.values(CountryCode);
 
   let totalReports = 0;
 
@@ -88,7 +90,6 @@ async function main() {
     const rawName = `Test Company ${String(index).padStart(3, "0")}`;
     const companyName = normalizeCompanyNameForDisplay(rawName);
     const normalizedName = normalizeCompanyNameForKey(rawName);
-    const country = countries[i % countries.length];
 
     // Create a "wide and noisy" distribution of report counts:
     // - base: 5..44 (mod 40)
@@ -106,7 +107,6 @@ async function main() {
       data: {
         name: companyName,
         normalizedName,
-        country,
       },
     });
 
@@ -120,7 +120,7 @@ async function main() {
         positionCategory: categories[(i + j) % categories.length],
         positionDetail: `Dummy position ${(j % 7) + 1}`,
         daysWithoutReply: 1 + ((i + j) % 180),
-        country,
+        country: countries[(i + j) % countries.length]
       });
     }
 

@@ -1,82 +1,34 @@
 // src/app/top-companies/page.tsx
 
-import type { JSX, CSSProperties } from "react";
-import type { Prisma, PositionCategory, JobLevel, Stage } from "@prisma/client";
+import type { JSX } from "react";
+import type { CountryCode, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
-  POSITION_CATEGORY_OPTIONS,
-  JOB_LEVEL_OPTIONS,
-  STAGE_OPTIONS,
-  labelForCategory,
-  labelForJobLevel,
-  labelForStage,
-  categoryEnumToSlug,
+  COUNTRY_OPTIONS,
   categorySlugToEnum,
-  seniorityEnumToSlug,
   senioritySlugToEnum,
-  stageEnumToSlug,
   stageSlugToEnum,
+  categoryEnumToSlug,
+  seniorityEnumToSlug,
+  stageEnumToSlug,
 } from "@/lib/enums";
+import {
+  TopCompaniesActiveFilters,
+  TopCompaniesFilterForm,
+  TopCompaniesPagination,
+  TopCompaniesResultSummary,
+  TopCompaniesTable,
+} from "./TopCompaniesComponents";
+import type { ResolvedFilters, SearchParams, TopCompanyRow } from "./types";
 
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 50;
 const MAX_PAGE = 1000;
 
-// Shared styles for form controls
-const formLabelStyle: CSSProperties = {
-  display: "grid",
-  gap: "0.25rem",
-};
-
-const formControlStyle: CSSProperties = {
-  padding: "0.45rem 0.6rem",
-  borderRadius: 4,
-  border: "1px solid #d1d5db",
-  fontSize: "0.9rem",
-};
-
-// Shared style for “chip” filter indicators
-const chipStyle: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  padding: "0.15rem 0.5rem",
-  borderRadius: 9999,
-  border: "1px solid #d1d5db",
-  background: "#f3f4f6",
-  fontSize: "0.8rem",
-  color: "#374151",
-  gap: "0.25rem",
-};
-
-type TopCompanyRow = {
-  id: string;
-  name: string;
-  country: string | null;
-  reportsCount: number;
-};
-
-type SearchParams = {
-  page?: string;
-  search?: string;
-  country?: string;
-  category?: string;
-  seniority?: string;
-  stage?: string;
-};
-
-type ResolvedFilters = {
-  page: number;
-  search?: string;
-  country?: string;
-  positionCategory?: PositionCategory;
-  seniority?: JobLevel;
-  stage?: Stage;
-};
-
 /**
- * Parse and sanitize raw search parameters from the URL.
- * This is the single point where we trust query string input.
+ * Parse and sanitise raw search parameters from the URL.
+ * This is the single place where we trust query-string input.
  */
 function parseFilters(searchParams?: SearchParams): ResolvedFilters {
   const pageParam = searchParams?.page ?? "1";
@@ -87,63 +39,57 @@ function parseFilters(searchParams?: SearchParams): ResolvedFilters {
   const rawSearch = (searchParams?.search ?? "").trim();
   const search = rawSearch !== "" ? rawSearch.slice(0, 120) : undefined;
 
-  const rawCountry = (searchParams?.country ?? "").trim();
-  const country = rawCountry !== "" ? rawCountry.slice(0, 80) : undefined;
+  const rawCountry = (searchParams?.country ?? "").trim().toUpperCase();
+  let country: CountryCode | undefined;
+  if (rawCountry !== "") {
+    if ((COUNTRY_OPTIONS as readonly string[]).includes(rawCountry)) {
+      country = rawCountry as CountryCode;
+    }
+  }
 
   const categorySlugRaw = (searchParams?.category ?? "").trim().toLowerCase();
-  const categorySlug = categorySlugRaw !== "" ? categorySlugRaw : undefined;
+  const categorySlug =
+    categorySlugRaw === "" || categorySlugRaw === "all"
+      ? undefined
+      : categorySlugRaw;
+  const positionCategory =
+    categorySlug !== undefined ? categorySlugToEnum(categorySlug) : undefined;
 
   const senioritySlugRaw = (searchParams?.seniority ?? "").trim().toLowerCase();
-  const senioritySlug = senioritySlugRaw !== "" ? senioritySlugRaw : undefined;
+  const senioritySlug =
+    senioritySlugRaw === "" || senioritySlugRaw === "all"
+      ? undefined
+      : senioritySlugRaw;
+  const seniority =
+    senioritySlug !== undefined
+      ? senioritySlugToEnum(senioritySlug)
+      : undefined;
 
   const stageSlugRaw = (searchParams?.stage ?? "").trim().toLowerCase();
-  const stageSlug = stageSlugRaw !== "" ? stageSlugRaw : undefined;
+  const stageSlug =
+    stageSlugRaw === "" || stageSlugRaw === "all" ? undefined : stageSlugRaw;
+  const stage =
+    stageSlug !== undefined ? stageSlugToEnum(stageSlug) : undefined;
 
-  let positionCategory: PositionCategory | undefined;
-  if (categorySlug !== undefined && categorySlug !== "all") {
-    positionCategory = categorySlugToEnum(categorySlug);
-  }
-
-  let seniority: JobLevel | undefined;
-  if (senioritySlug !== undefined && senioritySlug !== "all") {
-    seniority = senioritySlugToEnum(senioritySlug);
-  }
-
-  let stage: Stage | undefined;
-  if (stageSlug !== undefined && stageSlug !== "all") {
-    stage = stageSlugToEnum(stageSlug);
-  }
-
-  const result: ResolvedFilters = { page };
-
-  if (search !== undefined) {
-    result.search = search;
-  }
-  if (country !== undefined) {
-    result.country = country;
-  }
-  if (positionCategory !== undefined) {
-    result.positionCategory = positionCategory;
-  }
-  if (seniority !== undefined) {
-    result.seniority = seniority;
-  }
-  if (stage !== undefined) {
-    result.stage = stage;
-  }
-
-  return result;
+  return {
+    page,
+    search,
+    country,
+    positionCategory,
+    seniority,
+    stage,
+  };
 }
 
 /**
- * Fetch one page of “top companies” and basic pagination metadata.
+ * Fetch one page of "top companies" and basic pagination metadata.
  *
  * The query:
  * - applies filters on the Report table,
- * - groups by companyId,
+ * - groups by (companyId, country),
  * - orders by descending report count,
- * - looks up company metadata for the current page,
- * - computes total company count for pagination.
+ * - looks up company names for the current page,
+ * - computes total row count for pagination.
  */
 async function getCompaniesPage(filters: ResolvedFilters): Promise<{
   items: TopCompanyRow[];
@@ -165,11 +111,8 @@ async function getCompaniesPage(filters: ResolvedFilters): Promise<{
     };
   }
 
-  if (country !== undefined && country !== "") {
-    where.country = {
-      equals: country,
-      mode: "insensitive",
-    };
+  if (country !== undefined) {
+    where.country = country;
   }
 
   if (positionCategory !== undefined) {
@@ -184,13 +127,12 @@ async function getCompaniesPage(filters: ResolvedFilters): Promise<{
     where.stage = stage;
   }
 
-  // 1) Page of grouped companies ordered by report count
+  // 1) Page of grouped (companyId, country) pairs ordered by report count.
   const grouped = await prisma.report.groupBy({
-    by: ["companyId"],
+    by: ["companyId", "country"],
     where,
     _count: {
       _all: true,
-      id: true,
     },
     orderBy: {
       _count: {
@@ -203,7 +145,7 @@ async function getCompaniesPage(filters: ResolvedFilters): Promise<{
 
   const companyIds = grouped.map((g) => g.companyId);
 
-  // 2) Load company metadata for this page
+  // 2) Load company names for this page.
   const companies = await prisma.company.findMany({
     where: {
       id: { in: companyIds },
@@ -211,28 +153,32 @@ async function getCompaniesPage(filters: ResolvedFilters): Promise<{
     select: {
       id: true,
       name: true,
-      country: true,
     },
   });
 
-  const companyMap = new Map(
-    companies.map((c) => [c.id, { name: c.name, country: c.country }]),
+  const companyMap = new Map<string, string>(
+    companies.map((c) => [c.id, c.name]),
   );
 
   const items: TopCompanyRow[] = grouped.map((g) => {
-    const meta = companyMap.get(g.companyId);
+    type CountAll = { _all: number };
+
+    const countAll =
+      typeof g._count === "object" && g._count !== null
+        ? (g._count as CountAll)._all
+        : 0;
 
     return {
       id: g.companyId,
-      name: meta?.name ?? "Unknown company",
-      country: meta?.country ?? null,
-      reportsCount: g._count._all,
+      name: companyMap.get(g.companyId) ?? "Unknown company",
+      country: g.country,
+      reportsCount: countAll,
     };
   });
 
-  // 3) Total count for pagination (number of distinct companies)
+  // 3) Total count for pagination (number of distinct companyId+country pairs).
   const allGroups = await prisma.report.groupBy({
-    by: ["companyId"],
+    by: ["companyId", "country"],
     where,
     _count: {
       _all: true,
@@ -248,11 +194,6 @@ async function getCompaniesPage(filters: ResolvedFilters): Promise<{
   return { items, totalPages, totalCompanies };
 }
 
-type PageProps = {
-  // In Next.js 16, searchParams is a Promise and must be awaited
-  searchParams: Promise<SearchParams>;
-};
-
 /**
  * Build a URL for a given page, preserving existing filter query parameters.
  */
@@ -267,7 +208,7 @@ function buildPageUrl(
   if (filters.search !== undefined && filters.search !== "") {
     params.set("search", filters.search);
   }
-  if (filters.country !== undefined && filters.country !== "") {
+  if (filters.country !== undefined) {
     params.set("country", filters.country);
   }
   if (filters.positionCategory !== undefined) {
@@ -284,23 +225,38 @@ function buildPageUrl(
   return qs !== "" ? `${base}?${qs}` : base;
 }
 
+type PageProps = {
+  /**
+   * In Next.js 16, searchParams is a Promise and must be awaited
+   * inside server components.
+   */
+  searchParams: Promise<SearchParams>;
+};
+
+/**
+ * Server component entry point for the /top-companies route.
+ * Orchestrates parsing filters, fetching data and rendering presentational
+ * components.
+ */
 export default async function TopCompaniesPage({
   searchParams,
 }: PageProps): Promise<JSX.Element> {
-  // IMPORTANT: unwrap the Promise from Next.js
   const resolvedSearchParams = await searchParams;
   const filters = parseFilters(resolvedSearchParams);
 
-  const { page, search, country, positionCategory, seniority, stage } = filters;
+  const { page, search } = filters;
   const { items, totalPages, totalCompanies } = await getCompaniesPage(filters);
   const hasResults = items.length > 0;
 
-  const hasActiveFilters =
-    (search !== undefined && search !== "") ||
-    (country !== undefined && country !== "") ||
-    positionCategory !== undefined ||
-    seniority !== undefined ||
-    stage !== undefined;
+  const previousHref =
+    hasResults && page > 1
+      ? buildPageUrl("/top-companies", Math.max(1, page - 1), filters)
+      : undefined;
+
+  const nextHref =
+    hasResults && page < totalPages
+      ? buildPageUrl("/top-companies", Math.min(totalPages, page + 1), filters)
+      : undefined;
 
   return (
     <main
@@ -327,355 +283,40 @@ export default async function TopCompaniesPage({
         statistics are displayed.
       </p>
 
-      {/* Filter / search form (GET) */}
-      <section
+      <p
         style={{
-          marginTop: "1rem",
-          marginBottom: "1.5rem",
-          padding: "1rem",
-          borderRadius: 8,
-          border: "1px solid #e5e7eb",
-          background: "#f9fafb",
+          marginBottom: "1.25rem",
+          fontSize: "0.9rem",
+          color: "#6b7280",
         }}
       >
-        <form
-          method="GET"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "0.75rem",
-            alignItems: "flex-end",
-          }}
-        >
-          {/* Company name search */}
-          <label style={formLabelStyle}>
-            <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>
-              Search by company name
-            </span>
-            <input
-              type="text"
-              name="search"
-              defaultValue={search ?? ""}
-              placeholder="e.g. Acme"
-              style={formControlStyle}
-            />
-          </label>
+        Use the filters below to slice the data by country, position category,
+        seniority and interview stage.
+      </p>
 
-          {/* Country filter */}
-          <label style={formLabelStyle}>
-            <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>
-              Country (optional)
-            </span>
-            <input
-              type="text"
-              name="country"
-              defaultValue={country ?? ""}
-              placeholder="e.g. Germany"
-              style={formControlStyle}
-            />
-          </label>
+      <TopCompaniesFilterForm filters={filters} />
 
-          {/* Position category filter (slug-based) */}
-          <label style={formLabelStyle}>
-            <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>
-              Position category
-            </span>
-            <select
-              name="category"
-              defaultValue={
-                positionCategory !== undefined
-                  ? categoryEnumToSlug(positionCategory)
-                  : ""
-              }
-              style={formControlStyle}
-            >
-              <option value="">All categories</option>
-              {POSITION_CATEGORY_OPTIONS.map((cat) => (
-                <option key={cat} value={categoryEnumToSlug(cat)}>
-                  {labelForCategory(cat)}
-                </option>
-              ))}
-            </select>
-          </label>
+      <TopCompaniesActiveFilters filters={filters} />
 
-          {/* Stage filter */}
-          <label style={formLabelStyle}>
-            <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>Stage</span>
-            <select
-              name="stage"
-              defaultValue={stage !== undefined ? stageEnumToSlug(stage) : ""}
-              style={formControlStyle}
-            >
-              <option value="">All stages</option>
-              {STAGE_OPTIONS.map((st) => (
-                <option key={st} value={stageEnumToSlug(st)}>
-                  {labelForStage(st)}
-                </option>
-              ))}
-            </select>
-          </label>
+      <TopCompaniesResultSummary
+        hasResults={hasResults}
+        page={page}
+        totalPages={totalPages}
+        totalCompanies={totalCompanies}
+        search={search}
+      />
 
-          {/* Seniority filter (slug-based JobLevel) */}
-          <label style={formLabelStyle}>
-            <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>
-              Seniority
-            </span>
-            <select
-              name="seniority"
-              defaultValue={
-                seniority !== undefined ? seniorityEnumToSlug(seniority) : ""
-              }
-              style={formControlStyle}
-            >
-              <option value="">All seniorities</option>
-              {JOB_LEVEL_OPTIONS.map((lvl) => (
-                <option key={lvl} value={seniorityEnumToSlug(lvl)}>
-                  {labelForJobLevel(lvl)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {/* Submit button */}
-          <div>
-            <button
-              type="submit"
-              style={{
-                padding: "0.55rem 1.1rem",
-                borderRadius: 4,
-                border: "none",
-                background: "#111827",
-                color: "#ffffff",
-                fontWeight: 600,
-                fontSize: "0.9rem",
-                cursor: "pointer",
-                marginTop: "1.25rem",
-              }}
-            >
-              Apply filters
-            </button>
-          </div>
-        </form>
-      </section>
-
-      {/* Active filters summary */}
-      <section
-        style={{
-          marginBottom: "0.75rem",
-        }}
-      >
-        {hasActiveFilters && (
-          <div
-            style={{
-              padding: "0.5rem 0.75rem",
-              borderRadius: 6,
-              border: "1px solid #e5e7eb",
-              background: "#f9fafb",
-              fontSize: "0.85rem",
-              color: "#4b5563",
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              gap: "0.5rem",
-            }}
-          >
-            <span
-              style={{
-                fontWeight: 500,
-                marginRight: "0.25rem",
-              }}
-            >
-              Active filters:
-            </span>
-
-            {search !== undefined && search !== "" && (
-              <span style={chipStyle}>
-                <span>Search:</span>
-                <strong>&quot;{search}&quot;</strong>
-              </span>
-            )}
-
-            {country !== undefined && country !== "" && (
-              <span style={chipStyle}>
-                <span>Country:</span>
-                <strong>{country}</strong>
-              </span>
-            )}
-
-            {positionCategory !== undefined && (
-              <span style={chipStyle}>
-                <span>Category:</span>
-                <strong>{labelForCategory(positionCategory)}</strong>
-              </span>
-            )}
-
-            {seniority !== undefined && (
-              <span style={chipStyle}>
-                <span>Seniority:</span>
-                <strong>{labelForJobLevel(seniority)}</strong>
-              </span>
-            )}
-
-            {stage !== undefined && (
-              <span style={chipStyle}>
-                <span>Stage:</span>
-                <strong>{labelForStage(stage)}</strong>
-              </span>
-            )}
-          </div>
-        )}
-      </section>
-
-      {/* Summary / empty state */}
-      <section style={{ marginBottom: "1rem" }}>
-        {hasResults ? (
-          <p style={{ fontSize: "0.9rem", color: "#4b5563" }}>
-            Showing page <strong>{page}</strong> of{" "}
-            <strong>{totalPages}</strong> ({totalCompanies} companies with at
-            least one report).
-          </p>
-        ) : (
-          <div
-            style={{
-              padding: "0.75rem 1rem",
-              borderRadius: 6,
-              border: "1px solid #fee2e2",
-              background: "#fef2f2",
-              color: "#991b1b",
-              fontSize: "0.9rem",
-            }}
-          >
-            {search !== undefined && search !== "" ? (
-              <p>
-                No companies found matching{" "}
-                <strong>&quot;{search}&quot;</strong> with the selected filters.
-                Try adjusting your search or removing some filters.
-              </p>
-            ) : (
-              <p>
-                No companies found for the selected filters. Try adjusting the
-                search or filters and try again.
-              </p>
-            )}
-          </div>
-        )}
-      </section>
-
-      {/* Table */}
       {hasResults && (
-        <section style={{ marginBottom: "1.5rem" }}>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: "0.9rem",
-            }}
-          >
-            <thead>
-              <tr
-                style={{
-                  borderBottom: "1px solid #e5e7eb",
-                  background: "#f3f4f6",
-                }}
-              >
-                <th
-                  style={{
-                    textAlign: "left",
-                    padding: "0.5rem",
-                    width: "3rem",
-                  }}
-                >
-                  #
-                </th>
-                <th style={{ textAlign: "left", padding: "0.5rem" }}>
-                  Company
-                </th>
-                <th style={{ textAlign: "left", padding: "0.5rem" }}>
-                  Country
-                </th>
-                <th
-                  style={{
-                    textAlign: "right",
-                    padding: "0.5rem",
-                    width: "6rem",
-                  }}
-                >
-                  Reports
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((row, index) => (
-                <tr
-                  key={row.id}
-                  style={{
-                    borderBottom: "1px solid #f3f4f6",
-                  }}
-                >
-                  <td style={{ padding: "0.5rem" }}>
-                    {(page - 1) * PAGE_SIZE + index + 1}
-                  </td>
-                  <td style={{ padding: "0.5rem" }}>{row.name}</td>
-                  <td style={{ padding: "0.5rem" }}>
-                    {row.country ?? "Unknown"}
-                  </td>
-                  <td style={{ padding: "0.5rem", textAlign: "right" }}>
-                    {row.reportsCount}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+        <TopCompaniesTable items={items} page={page} pageSize={PAGE_SIZE} />
       )}
 
-      {/* Pagination */}
-      {hasResults && (
-        <nav
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.75rem",
-            marginTop: "0.5rem",
-          }}
-        >
-          <a
-            href={buildPageUrl(
-              "/top-companies",
-              Math.max(1, page - 1),
-              filters,
-            )}
-            style={{
-              pointerEvents: page <= 1 ? "none" : "auto",
-              opacity: page <= 1 ? 0.4 : 1,
-              textDecoration: "underline",
-              fontSize: "0.9rem",
-            }}
-          >
-            Previous
-          </a>
-
-          <span style={{ fontSize: "0.9rem" }}>
-            Page {page} / {totalPages}
-          </span>
-
-          <a
-            href={buildPageUrl(
-              "/top-companies",
-              Math.min(totalPages, page + 1),
-              filters,
-            )}
-            style={{
-              pointerEvents: page >= totalPages ? "none" : "auto",
-              opacity: page >= totalPages ? 0.4 : 1,
-              textDecoration: "underline",
-              fontSize: "0.9rem",
-            }}
-          >
-            Next
-          </a>
-        </nav>
-      )}
+      <TopCompaniesPagination
+        hasResults={hasResults}
+        page={page}
+        totalPages={totalPages}
+        previousHref={previousHref}
+        nextHref={nextHref}
+      />
     </main>
   );
 }

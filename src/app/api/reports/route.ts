@@ -14,7 +14,13 @@ import { findOrCreateCompanyForReport } from "@/lib/company";
 export const dynamic = "force-dynamic";
 
 /**
- * Convert a ReportRateLimitError into a JSON HTTP response.
+ * Map a {@link ReportRateLimitError} to a JSON HTTP response.
+ *
+ * This keeps all rate limit responses consistent across:
+ * - missing IP
+ * - per-day IP limit
+ * - per-company-per-IP limit
+ * - duplicate position submissions
  */
 function mapRateLimitErrorToResponse(
   error: ReportRateLimitError,
@@ -27,6 +33,21 @@ function mapRateLimitErrorToResponse(
   );
 }
 
+/**
+ * Handle incoming ghosting reports.
+ *
+ * Pipeline:
+ * 1. Extract client IP from the request and fail closed if it is missing.
+ * 2. Parse and validate the JSON payload using {@link reportSchema}.
+ * 3. Drop obvious bots via a hidden honeypot field.
+ * 4. Find or create the corresponding company using a normalized name key.
+ * 5. Enforce per-IP and per-company rate limits before writing anything.
+ * 6. Persist the report row and return a 201 response with its identifier.
+ *
+ * On validation errors: responds with HTTP 400 and a structured Zod error.
+ * On rate limit violations: responds with HTTP 429 and a user-friendly message.
+ * On unexpected failures: logs the error and responds with HTTP 500.
+ */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const clientIp = getClientIp(req);
 
@@ -64,8 +85,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // Company lookup / creation with normalized name handled in lib/company.ts
     const company = await findOrCreateCompanyForReport({
       companyName: data.companyName,
-      country: data.country ?? null,
     });
+    // Decide which country value to store on the report:
+    // - Prefer the country provided with this report (per-office / per-location).
+    // - Fall back to the company’s known country if the report did not specify one.
+    //const reportCountry = data.country ?? null;
 
     // Enforce rate limits BEFORE creating the report.
     await enforceReportLimitForIpCompanyPosition({
@@ -83,7 +107,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         positionCategory: data.positionCategory,
         positionDetail: data.positionDetail,
         daysWithoutReply: data.daysWithoutReply,
-        country: company.country,
+        country: data.country,
       },
       select: {
         id: true,
