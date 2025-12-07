@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db";
 import { requireAdminRequest } from "@/lib/adminAuth";
 import type { ReportStatus } from "@prisma/client";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Normalize an arbitrary string field from form data:
  * - casts to string
@@ -39,7 +41,7 @@ function normalizeOptionalText(
  *
  * All actions:
  * - require a valid admin session cookie
- * - enforce optional ADMIN_ALLOWED_HOST host restriction
+ * - enforce optional ADMIN_ALLOWED_HOST host restriction (via requireAdminRequest)
  * - redirect back to /admin on success
  */
 export async function POST(
@@ -49,7 +51,7 @@ export async function POST(
   // 1) Admin guard: host + signed session cookie
   requireAdminRequest(req);
 
-  // 🔧 Next 16: params artık Promise, önce await etmeliyiz
+  // Next 16: params now come as a Promise, so we must await first.
   const { id: reportIdRaw } = await context.params;
   const reportId = typeof reportIdRaw === "string" ? reportIdRaw.trim() : "";
 

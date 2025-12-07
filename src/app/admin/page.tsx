@@ -36,7 +36,8 @@ type AdminReportRow = {
   jobLevel: JobLevel;
   positionCategory: PositionCategory;
   positionDetail: string;
-  daysWithoutReply: number;
+  // Optional: some users may not remember how many days have passed.
+  daysWithoutReply: number | null;
   status: ReportStatus;
   flaggedAt: Date | null;
   flaggedReason: string | null;
@@ -65,6 +66,16 @@ function formatReportStatus(status: ReportStatus): string {
   }
   // status === "DELETED"
   return "Deleted";
+}
+
+/**
+ * Human-readable representation of the optional "days without reply" field.
+ */
+function formatDaysWithoutReply(value: number | null): string {
+  if (typeof value === "number") {
+    return String(value);
+  }
+  return "—";
 }
 
 /**
@@ -222,7 +233,7 @@ export default async function AdminPage(): Promise<JSX.Element> {
         </form>
       </header>
 
-      {!hasReports && (
+      {hasReports === false && (
         <div
           style={{
             padding: "0.75rem 1rem",
@@ -237,7 +248,7 @@ export default async function AdminPage(): Promise<JSX.Element> {
         </div>
       )}
 
-      {hasReports && (
+      {hasReports === true && (
         <section>
           <table
             style={{
@@ -325,7 +336,7 @@ export default async function AdminPage(): Promise<JSX.Element> {
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {report.daysWithoutReply}
+                    {formatDaysWithoutReply(report.daysWithoutReply)}
                   </td>
                   <td style={{ padding: "0.5rem", whiteSpace: "nowrap" }}>
                     {formatReportStatus(report.status)}
@@ -351,7 +362,7 @@ export default async function AdminPage(): Promise<JSX.Element> {
                       return (
                         <>
                           {/* Flag: only when not deleted */}
-                          {!isDeleted && (
+                          {isDeleted === false && (
                             <form
                               method="POST"
                               action={`/api/admin/reports/${report.id}`}
@@ -376,7 +387,7 @@ export default async function AdminPage(): Promise<JSX.Element> {
                           )}
 
                           {/* Restore: available for FLAGGED or DELETED */}
-                          {(isFlagged || isDeleted) && (
+                          {(isFlagged === true || isDeleted === true) && (
                             <form
                               method="POST"
                               action={`/api/admin/reports/${report.id}`}
@@ -405,7 +416,7 @@ export default async function AdminPage(): Promise<JSX.Element> {
                           )}
 
                           {/* Soft delete: hide from public stats, keep for audit. */}
-                          {!isDeleted && (
+                          {isDeleted === false && (
                             <form
                               method="POST"
                               action={`/api/admin/reports/${report.id}`}
@@ -434,7 +445,7 @@ export default async function AdminPage(): Promise<JSX.Element> {
                           )}
 
                           {/* Hard delete: only available once it's soft-deleted. */}
-                          {isDeleted && (
+                          {isDeleted === true && (
                             <form
                               method="POST"
                               action={`/api/admin/reports/${report.id}`}

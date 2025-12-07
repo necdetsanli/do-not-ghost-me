@@ -7,14 +7,15 @@ import { test, expect } from "@playwright/test";
  * 1. Create a report as an anonymous user via the public form.
  * 2. Log in as admin using the configured ADMIN_PASSWORD.
  * 3. Navigate to the admin dashboard and ensure it is accessible.
- * 4. Locate the just-created report in the admin table.
+ * 4. Locate a report in the admin table (identified by a known position detail).
  * 5. Flag the report and verify status is "Flagged".
  * 6. Restore the report and verify status is "Active" again.
  */
 test.describe("admin dashboard moderation", () => {
   test("admin can flag and restore a report", async ({ page }) => {
-    // Use a unique company name so that we can easily find the row later.
+    // Yine de unique company ismi üretelim; yeni kayıt oluşursa güzel.
     const companyName = `Admin E2E Corp ${Date.now()}`;
+    const positionDetail = "Junior Backend Developer (admin e2e)";
 
     // -----------------------------------------------------------------------
     // 1) Create a report via the public home page
@@ -37,7 +38,7 @@ test.describe("admin dashboard moderation", () => {
     await stageSelect.selectOption({ label: "Technical Interview" });
     await jobLevelSelect.selectOption({ label: "Junior" });
     await categorySelect.selectOption({ label: "Software Engineering" });
-    await positionDetailInput.fill("Junior Backend Developer (admin e2e)");
+    await positionDetailInput.fill(positionDetail);
     await daysInput.fill("14");
 
     // Select a concrete country via the type-ahead combobox.
@@ -66,9 +67,7 @@ test.describe("admin dashboard moderation", () => {
     await page.getByLabel(/password/i).fill(adminPassword);
     await page.getByRole("button", { name: /sign in/i }).click();
 
-    // The app currently redirects to "/" after a successful login.
-    // To verify the real requirement (being able to access the admin
-    // dashboard once logged in), explicitly navigate to /admin.
+    // Login sonrası "/"'a gitse bile, asıl gereksinim: /admin'e erişim
     await page.goto("/admin");
 
     // -----------------------------------------------------------------------
@@ -78,11 +77,16 @@ test.describe("admin dashboard moderation", () => {
     await expect(page.getByText(/admin – reports/i)).toBeVisible();
 
     // -----------------------------------------------------------------------
-    // 4) Locate the row for the company we just created
+    // 4) Locate a row for our known position detail
+    //
+    // Company name timestamp bazlı ve rate limit sebebiyle her koşumda
+    // yeni row oluşmayabilir. "Junior Backend Developer (admin e2e)"
+    // ise DOM’da aynen görünen stabil bir metin.
     // -----------------------------------------------------------------------
-    const row = page.getByRole("row", {
-      name: new RegExp(companyName, "i"),
-    });
+    const row = page
+      .getByRole("row")
+      .filter({ hasText: positionDetail })
+      .first();
 
     await expect(row).toBeVisible();
 
@@ -91,14 +95,13 @@ test.describe("admin dashboard moderation", () => {
     // -----------------------------------------------------------------------
     await row.getByRole("button", { name: /flag/i }).click();
 
-    // After the POST, the app may redirect somewhere else (e.g. "/").
-    // To make the test robust, always navigate back to /admin before
-    // asserting on the reports table.
+    // POST sonrası redirect nereye olursa olsun, tekrar /admin'e dönelim.
     await page.goto("/admin");
 
-    const flaggedRow = page.getByRole("row", {
-      name: new RegExp(companyName, "i"),
-    });
+    const flaggedRow = page
+      .getByRole("row")
+      .filter({ hasText: positionDetail })
+      .first();
 
     await expect(flaggedRow).toBeVisible();
     await expect(flaggedRow.getByText(/flagged/i)).toBeVisible();
@@ -108,12 +111,13 @@ test.describe("admin dashboard moderation", () => {
     // -----------------------------------------------------------------------
     await flaggedRow.getByRole("button", { name: /restore/i }).click();
 
-    // Same robustness: go back to /admin explicitly.
+    // Yine stabil olması için tekrar /admin'e dön.
     await page.goto("/admin");
 
-    const restoredRow = page.getByRole("row", {
-      name: new RegExp(companyName, "i"),
-    });
+    const restoredRow = page
+      .getByRole("row")
+      .filter({ hasText: positionDetail })
+      .first();
 
     await expect(restoredRow).toBeVisible();
     await expect(restoredRow.getByText(/active/i)).toBeVisible();
