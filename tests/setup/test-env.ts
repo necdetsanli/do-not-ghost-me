@@ -33,6 +33,12 @@ ensureEnvVar(
 ensureEnvVar("RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP", "3");
 ensureEnvVar("RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY", "10");
 
+// Admin-related env vars so that admin routes are "configured" in tests
+ensureEnvVar("ADMIN_PASSWORD", "test-admin-password");
+ensureEnvVar("ADMIN_SESSION_SECRET", "change-this-to-a-long-random-string");
+// Allow any host during tests (admin host restriction is mocked anyway)
+ensureEnvVar("ADMIN_ALLOWED_HOST", "127.0.0.1:3000");
+
 // Salt must be >= 32 characters
 if (
   process.env.RATE_LIMIT_IP_SALT == null ||
