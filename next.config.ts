@@ -1,16 +1,19 @@
-// next.config.mjs
 // Next.js root config: React strict mode, basic hardening, and security headers.
 
-import {} from /** @type {NextConfig} */ "next";
+/**
+ * @typedef {import("next").NextConfig} NextConfig
+ */
 
 /**
- * Build a conservative Content-Security-Policy for production.
+ * Builds the Content-Security-Policy header value for production responses.
  *
  * Notable choices:
  * - No external scripts/styles/fonts by default.
- * - Inline styles are allowed because the UI uses a lot of `style={{ ... }}`.
+ * - Inline styles are currently allowed because the UI uses React `style` props.
  * - No iframing: `frame-ancestors 'none'`.
  * - Forms can only post back to this origin: `form-action 'self'`.
+ *
+ * @returns {string} Serialized CSP directives joined by "; ".
  */
 function buildCspHeaderValue() {
   const directives = [
@@ -52,12 +55,12 @@ const securityHeaders = (() => {
       key: "X-Frame-Options",
       value: "DENY",
     },
-    // Don’t send full path as referrer to other origins.
+    // Do not send full path as referrer to other origins.
     {
       key: "Referrer-Policy",
       value: "strict-origin-when-cross-origin",
     },
-    // Lock down powerful browser APIs we don’t use.
+    // Lock down powerful browser APIs we do not use.
     // You can relax these later if you actually need e.g. geolocation.
     {
       key: "Permissions-Policy",
@@ -83,17 +86,22 @@ const securityHeaders = (() => {
   return headers;
 })();
 
-/** @type {import("next").NextConfig} */
+/**
+ * Root Next.js configuration.
+ *
+ * @type {NextConfig & { allowedDevOrigins?: string[] }}
+ */
 const nextConfig = {
-  // Enable additional React checks in development
+  // Enable additional React checks in development.
   reactStrictMode: true,
 
   // Do not leak "X-Powered-By: Next.js" in responses for a slightly smaller
-  // fingerprint surface in production
+  // fingerprint surface in production.
   poweredByHeader: false,
 
-  // Allow Playwright (127.0.0.1) to talk to the dev server without warnings
-  allowedDevOrigins: ["http://127.0.0.1:3000"],
+  // Allow Playwright (127.0.0.1) to talk to the dev server without warnings.
+  // This is only honored by the development server.
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
 
   /**
    * Global HTTP headers for all routes.
