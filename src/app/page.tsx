@@ -2,6 +2,7 @@
 
 import type { JSX, FormEvent } from "react";
 import { useState } from "react";
+import type { CountryCode } from "@prisma/client";
 import {
   POSITION_CATEGORY_OPTIONS,
   JOB_LEVEL_OPTIONS,
@@ -39,10 +40,25 @@ export default function HomePage(): JSX.Element {
   const [status, setStatus] = useState<SubmitStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Key used to remount the form after successful submit (full reset, including CountrySelect).
+  const [formResetKey, setFormResetKey] = useState(0);
+
+  // Track selected country code on the client for better UX / validation.
+  const [selectedCountryCode, setSelectedCountryCode] = useState<
+    CountryCode | ""
+  >("");
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
     setStatus("submitting");
     setErrorMessage(null);
+
+    // If no country was selected from the list, stop early with a clear message.
+    if (selectedCountryCode === "") {
+      setStatus("error");
+      setErrorMessage("Please select a country from the list.");
+      return;
+    }
 
     const form = e.currentTarget;
     const formData = new FormData(form);
@@ -57,8 +73,7 @@ export default function HomePage(): JSX.Element {
       positionCategory: String(formData.get("positionCategory") ?? "OTHER"),
       positionDetail: String(formData.get("positionDetail") ?? "").trim(),
       daysWithoutReply: String(formData.get("daysWithoutReply") ?? "0"),
-      // Send undefined if the user did not select a country.
-      country: rawCountryCode === "" ? undefined : rawCountryCode,
+      country: rawCountryCode,
       honeypot: String(formData.get("hp") ?? ""), // hidden honeypot field
     };
 
@@ -74,7 +89,11 @@ export default function HomePage(): JSX.Element {
       if (res.ok) {
         setStatus("success");
         setErrorMessage(null);
+
+        // Reset form fields and internal component state (including CountrySelect).
         form.reset();
+        setSelectedCountryCode("");
+        setFormResetKey((k) => k + 1);
       } else {
         const data = (await res.json().catch(() => ({}))) as ErrorResponse;
         setStatus("error");
@@ -159,7 +178,11 @@ export default function HomePage(): JSX.Element {
         .
       </p>
 
-      <form onSubmit={handleSubmit} style={{ display: "grid", gap: "0.75rem" }}>
+      <form
+        key={formResetKey}
+        onSubmit={handleSubmit}
+        style={{ display: "grid", gap: "0.75rem" }}
+      >
         <label style={homeFormLabelStyle}>
           <span>Company name</span>
           <input
@@ -229,8 +252,8 @@ export default function HomePage(): JSX.Element {
           />
         </label>
 
-        {/* New type-ahead country selector (prefix match only) */}
-        <CountrySelect name="country" />
+        {/* Type-ahead country selector (required, backed by CountryCode enum) */}
+        <CountrySelect name="country" onChangeCode={setSelectedCountryCode} />
 
         {/* Honeypot field for bots */}
         <div style={{ display: "none" }}>

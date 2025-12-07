@@ -102,9 +102,7 @@ export function TopCompaniesFilterForm(
 
         {/* Country filter (CountryCode enum via dropdown) */}
         <label style={formLabelStyle}>
-          <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>
-            Country (optional)
-          </span>
+          <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>Country</span>
           <select
             name="country"
             defaultValue={country ?? ""}

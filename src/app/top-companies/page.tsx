@@ -100,7 +100,9 @@ async function getCompaniesPage(filters: ResolvedFilters): Promise<{
   const safePage = page > 0 ? page : 1;
   const skip = (safePage - 1) * PAGE_SIZE;
 
-  const where: Prisma.ReportWhereInput = {};
+  const where: Prisma.ReportWhereInput = {
+    status: "ACTIVE",
+  };
 
   if (search !== undefined && search !== "") {
     where.company = {

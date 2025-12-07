@@ -1,3 +1,5 @@
+// tests/e2e/basic.spec.ts
+
 import { test, expect } from "@playwright/test";
 
 /**
@@ -6,11 +8,6 @@ import { test, expect } from "@playwright/test";
  * - Viewing the aggregated "top companies" page.
  */
 test.describe("do-not-ghost-me basic flows", () => {
-  /**
-   * Renders the home page, fills out the report form (including the country
-   * type-ahead combobox) and submits it, accepting either a success message
-   * or a duplicate/rate-limit message.
-   */
   test("home page renders and report form is usable", async ({ page }) => {
     await page.goto("/");
 
@@ -25,7 +22,6 @@ test.describe("do-not-ghost-me basic flows", () => {
     );
     const daysInput = page.getByLabel(/days without reply/i);
 
-    // Country is now a custom type-ahead combobox:
     const countryInput = page.getByPlaceholder(/start typing a country/i);
 
     await companyInput.fill("Playwright Test Corp");
@@ -37,39 +33,32 @@ test.describe("do-not-ghost-me basic flows", () => {
     );
     await daysInput.fill("30");
 
-    // Type a prefix and pick a concrete country from the dropdown,
-    // so that the hidden CountryCode field is populated (e.g. "DE").
     await countryInput.fill("Ger");
     await expect(page.getByRole("button", { name: "Germany" })).toBeVisible();
     await page.getByRole("button", { name: "Germany" }).click();
 
     await page.getByRole("button", { name: /submit report/i }).click();
 
-    // Accept both:
-    //  - success: "Thank you. Your report has been recorded."
-    //  - duplicate/rate-limit: "You have already submitted a report ..."
+    // Kabul ettiğimiz kullanıcı mesajları:
+    //  - başarı: "Thank you. Your report has been recorded."
+    //  - duplicate: "You have already submitted a report ..."
+    //  - günlük limit: "You have reached the daily report limit for this IP address."
     const feedback = page.getByText(
-      /has been recorded|already submitted a report/i,
+      /has been recorded|already submitted a report|daily report limit/i,
     );
 
     await expect(feedback).toBeVisible();
   });
 
-  /**
-   * Renders the "top companies" page and asserts that the filter controls
-   * and the results table (or at least a table shell) are present.
-   */
   test("top companies page renders and shows filters + table", async ({
     page,
   }) => {
     await page.goto("/top-companies");
 
-    // Filter controls should be visible
     await expect(
       page.getByRole("textbox", { name: /search by company name/i }),
     ).toBeVisible();
 
-    // Country is now a select (combobox), not a plain text input
     await expect(
       page.getByRole("combobox", { name: /country/i }),
     ).toBeVisible();
@@ -82,7 +71,6 @@ test.describe("do-not-ghost-me basic flows", () => {
       page.getByRole("combobox", { name: /seniority/i }),
     ).toBeVisible();
 
-    // Table with results/empty state should be rendered
     await expect(page.getByRole("table")).toBeVisible();
   });
 });

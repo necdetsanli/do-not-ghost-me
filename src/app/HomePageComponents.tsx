@@ -72,6 +72,12 @@ type CountrySelectProps = {
    * Optional id to associate the visible text input with an external label.
    */
   id?: string;
+
+  /**
+   * Optional callback: informs parent about the currently selected CountryCode.
+   * Used by the form to do client-side validation / reset logic.
+   */
+  onChangeCode?: (code: CountryCode | "") => void;
 };
 
 /**
@@ -85,7 +91,11 @@ type CountrySelectProps = {
  *   and a hidden <input name={name}> stores the ISO CountryCode value
  *   (e.g. "DE") so the surrounding <form> can submit it via FormData.
  */
-export function CountrySelect({ name, id }: CountrySelectProps): JSX.Element {
+export function CountrySelect({
+  name,
+  id,
+  onChangeCode,
+}: CountrySelectProps): JSX.Element {
   const [query, setQuery] = useState<string>("");
   const [selectedCode, setSelectedCode] = useState<CountryCode | "">("");
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -110,8 +120,11 @@ export function CountrySelect({ name, id }: CountrySelectProps): JSX.Element {
     const value = event.target.value;
     setQuery(value);
     setIsOpen(true);
-    // Clear previously selected code if the user starts typing again.
+    // User started typing again → clear previous selection.
     setSelectedCode("");
+    if (onChangeCode !== undefined) {
+      onChangeCode("");
+    }
   }
 
   function handleContainerBlur(event: FocusEvent<HTMLDivElement>): void {
@@ -131,11 +144,15 @@ export function CountrySelect({ name, id }: CountrySelectProps): JSX.Element {
     setSelectedCode(optionCode);
     setQuery(optionLabel);
     setIsOpen(false);
+
+    if (onChangeCode !== undefined) {
+      onChangeCode(optionCode);
+    }
   }
 
   return (
     <div style={homeFormLabelStyle} onBlur={handleContainerBlur}>
-      <span>Country (optional)</span>
+      <span>Country</span>
       <div style={{ position: "relative" }}>
         <input
           id={id}
