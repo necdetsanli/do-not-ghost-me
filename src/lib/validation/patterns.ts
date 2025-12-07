@@ -1,4 +1,3 @@
-// src/lib/validation/patterns.ts
 import { z } from "zod";
 
 /**
@@ -14,22 +13,26 @@ import { z } from "zod";
 export const NAME_LIKE_REGEX = /^[\p{L}\p{N}\s_\-\/&()'",.+#]+$/u;
 
 /**
- * Ensure that a string contains at least one letter.
+ * Checks whether a string contains at least one letter.
  * Uses Unicode property escapes so it works for non-ASCII alphabets as well.
+ *
+ * @param value - The input string to inspect.
+ * @returns True if the string contains at least one Unicode letter, false otherwise.
  */
 export const containsAtLeastOneLetter = (value: string): boolean =>
   /\p{L}/u.test(value);
 
 /**
  * Convenience helper for "name-like" strings:
- * - trims the value
- * - enforces min/max length
- * - validates allowed characters
- * - requires at least one letter
+ * - Trims the value.
+ * - Enforces min/max length.
+ * - Validates allowed characters.
+ * - Requires at least one letter.
  *
- * @param min Minimal length (after trim)
- * @param max Maximum length (after trim)
- * @param fieldLabel Human-readable field label for error messages
+ * @param min - Minimal length (after trimming).
+ * @param max - Maximal length (after trimming).
+ * @param fieldLabel - Human-readable field label for error messages.
+ * @returns A Zod string schema enforcing the configured constraints.
  */
 export function nameLikeString(
   min: number,

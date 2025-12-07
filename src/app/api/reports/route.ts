@@ -63,6 +63,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   try {
     const json = await req.json();
+
+    if (typeof json.honeypot === "string" && json.honeypot.trim().length > 0) {
+      return new NextResponse(null, { status: 204 });
+    }
+
     const parsed = reportSchema.safeParse(json);
 
     if (!parsed.success) {

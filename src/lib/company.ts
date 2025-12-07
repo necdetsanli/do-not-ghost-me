@@ -1,4 +1,3 @@
-// src/lib/company.ts
 import { prisma } from "@/lib/db";
 import { normalizeCompanyName } from "@/lib/normalization";
 
@@ -16,17 +15,22 @@ export type CompanyForReport = {
 };
 
 /**
- * Find or create a company for a given report payload.
+ * Finds or creates a company for a given report payload.
  *
- * Behaviour:
+ * Behavior:
  * - Normalizes the company name into a canonical `normalizedName` key.
  * - Reuses an existing company row if `normalizedName` already exists.
- * - If the company does not exist yet, it is created with the trimmed
- *   display name and the normalized key.
+ * - Creates a new company when none exists, with the trimmed display name
+ *   and the normalized key.
  *
  * This keeps company identity stable across slightly different spellings
  * ("Acme", "ACME", "Acme Corp"), while all location info stays on the
  * Report model itself.
+ *
+ * @param args - Arguments including the raw company name.
+ * @param args.companyName - The company name as provided by the user.
+ * @returns A minimal company object suitable for report creation.
+ * @throws If the normalized company name is empty.
  */
 export async function findOrCreateCompanyForReport(args: {
   companyName: string;
@@ -51,7 +55,7 @@ export async function findOrCreateCompanyForReport(args: {
   });
 
   // 2) Create if it does not exist.
-  if (company == null) {
+  if (company === null) {
     company = await prisma.company.create({
       data: {
         name: companyName.trim(),

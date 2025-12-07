@@ -1,5 +1,3 @@
-// src/lib/validation/reportSchema.ts
-
 import { z } from "zod";
 import { Stage, JobLevel, PositionCategory, CountryCode } from "@prisma/client";
 import { nameLikeString } from "@/lib/validation/patterns";
@@ -11,19 +9,19 @@ import { nameLikeString } from "@/lib/validation/patterns";
  * between the API route and any client-side validation logic.
  *
  * Fields:
- * - companyName: human-readable company name (2..120 chars, safe charset)
- * - stage: pipeline stage (enum Stage)
- * - jobLevel: seniority (enum JobLevel)
- * - positionCategory: coarse role category (enum PositionCategory)
- * - positionDetail: short free-text position label (2..80 chars)
- * - daysWithoutReply: integer in [1, 365]
- * - country: ISO 3166-1 alpha-2 country code (enum CountryCode), required
- * - honeypot: hidden anti-bot field, must be empty when present
+ * - companyName: human-readable company name (2..120 chars, safe charset).
+ * - stage: pipeline stage (enum Stage).
+ * - jobLevel: seniority (enum JobLevel).
+ * - positionCategory: coarse role category (enum PositionCategory).
+ * - positionDetail: short free-text position label (2..80 chars).
+ * - daysWithoutReply: integer in [1, 365].
+ * - country: ISO 3166-1 alpha-2 country code (enum CountryCode), required.
+ * - honeypot: hidden anti-bot field, must be empty when present.
  */
 export const reportSchema = z.object({
   /**
    * Company name as entered by the user.
-   * We reuse the generic "name-like" helper to enforce length and charset.
+   * Uses the generic "name-like" helper to enforce length and charset.
    */
   companyName: nameLikeString(2, 120, "Company name"),
 
@@ -68,12 +66,9 @@ export const reportSchema = z.object({
     message: "Please select a country",
   }),
 
-  /**
-   * Honeypot field for bots.
-   * Must be empty for a valid submission.
-   * Not rendered in the UI for normal users (hidden input).
-   */
-  honeypot: z.string().max(0).optional(),
+  // src/lib/validation/reportSchema.ts
+  // Honeypot input must be empty or omitted.
+  honeypot: z.string().optional(),
 });
 
 /**

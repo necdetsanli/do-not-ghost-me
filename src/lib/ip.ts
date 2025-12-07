@@ -1,10 +1,12 @@
-// src/lib/ip.ts
 import type { NextRequest } from "next/server";
 
 /**
- * Normalize a potential IP string:
- * - returns a trimmed string if it is non-empty,
- * - returns null for null, undefined, or empty strings.
+ * Normalizes a potential IP string:
+ * - Returns a trimmed string if it is non-empty.
+ * - Returns null for null, undefined, or empty strings.
+ *
+ * @param value - The raw IP string value, or null/undefined.
+ * @returns A trimmed IP string, or null if not usable.
  */
 function normalizeIpString(value: string | null | undefined): string | null {
   if (value === null || value === undefined) {
@@ -23,19 +25,19 @@ function normalizeIpString(value: string | null | undefined): string | null {
 /**
  * Extracts the client IP address from a NextRequest in a proxy-aware way.
  *
- * 1. Tries the standard "X-Forwarded-For" header (comma-separated list);
- *    uses the first non-empty value.
- * 2. Falls back to "X-Real-IP" if present.
+ * Resolution order:
+ * 1. "X-Forwarded-For" header (comma-separated list); uses the first non-empty value.
+ * 2. "X-Real-IP" header if present.
  * 3. As a last resort, uses req.ip if the runtime exposes it.
  *
- * Returns a normalized (trimmed) IP string or null if no usable IP could be
- * determined.
+ * @param req - The incoming Next.js request.
+ * @returns A normalized (trimmed) IP string or null if no usable IP could be determined.
  */
 export function getClientIp(req: NextRequest): string | null {
   const xForwardedFor = req.headers.get("x-forwarded-for");
 
   if (xForwardedFor !== null) {
-    // Format is usually: "client, proxy1, proxy2"
+    // Format is usually: "client, proxy1, proxy2".
     const [first] = xForwardedFor.split(",");
     const normalized = normalizeIpString(first);
 
@@ -63,6 +65,6 @@ export function getClientIp(req: NextRequest): string | null {
     }
   }
 
-  // No trustworthy IP found
+  // No trustworthy IP found.
   return null;
 }

@@ -1,21 +1,26 @@
-// src/lib/enums.ts
 // Shared enum helpers for labels and URL slugs.
 
 import { PositionCategory, JobLevel, Stage, CountryCode } from "@prisma/client";
 
 /**
- * Convert an enum value (e.g. "DEVOPS_SRE_PLATFORM") to a URL-safe slug
+ * Converts an enum value (e.g. "DEVOPS_SRE_PLATFORM") to a URL-safe slug
  * (e.g. "devops-sre-platform").
+ *
+ * @param value - The raw enum string value.
+ * @returns A lowercase, hyphen-separated slug.
  */
 export function enumToSlug(value: string): string {
   return value.toLowerCase().replace(/_/g, "-");
 }
 
 /**
- * Convert an enum value (e.g. "DEVOPS_SRE_PLATFORM") to a human-readable label
+ * Converts an enum value (e.g. "DEVOPS_SRE_PLATFORM") to a human-readable label
  * (e.g. "Devops Sre Platform").
  *
- * Note: For nicer labels, we usually override this with custom maps below.
+ * Note: For nicer labels, this is typically overridden by custom maps below.
+ *
+ * @param value - The raw enum string value.
+ * @returns A simple title-cased label derived from the enum name.
  */
 export function formatEnumLabel(value: string): string {
   return value
@@ -76,6 +81,7 @@ const STAGE_LABELS: Partial<Record<Stage, string>> = {
 };
 
 const COUNTRY_LABELS: Partial<Record<CountryCode, string>> = {
+  // ... same mapping as şu anki halin (değiştirmedim; sadece kısalttım burada)
   [CountryCode.AD]: "Andorra",
   [CountryCode.AE]: "United Arab Emirates",
   [CountryCode.AF]: "Afghanistan",
@@ -332,24 +338,33 @@ const COUNTRY_LABELS: Partial<Record<CountryCode, string>> = {
 // ---------------------------------------------------------------------------
 
 /**
- * Human-readable label for a given PositionCategory.
+ * Returns a human-readable label for a given PositionCategory.
  * Falls back to a generic formatter if not explicitly mapped.
+ *
+ * @param cat - The PositionCategory enum value.
+ * @returns A human-readable label for the category.
  */
 export function labelForCategory(cat: PositionCategory): string {
   return POSITION_CATEGORY_LABELS[cat] ?? formatEnumLabel(cat);
 }
 
 /**
- * Human-readable label for a given JobLevel.
+ * Returns a human-readable label for a given JobLevel.
  * Falls back to a generic formatter if not explicitly mapped.
+ *
+ * @param level - The JobLevel enum value.
+ * @returns A human-readable label for the job level.
  */
 export function labelForJobLevel(level: JobLevel): string {
   return JOB_LEVEL_LABELS[level] ?? formatEnumLabel(level);
 }
 
 /**
- * Human-readable label for a given Stage.
+ * Returns a human-readable label for a given Stage.
  * Falls back to a generic formatter if not explicitly mapped.
+ *
+ * @param stage - The Stage enum value.
+ * @returns A human-readable label for the stage.
  */
 export function labelForStage(stage: Stage): string {
   return STAGE_LABELS[stage] ?? formatEnumLabel(stage);
@@ -367,9 +382,10 @@ export function labelForStage(stage: Stage): string {
  * at the database level: missing labels will still render as the
  * underlying enum code until `COUNTRY_LABELS` is updated.
  *
+ * @param code - The CountryCode enum value.
+ * @returns A human-readable label or the raw enum code.
  */
 export function labelForCountry(code: CountryCode): string {
-  // If not mapped, fall back to the raw code (e.g. "TR")
   return COUNTRY_LABELS[code] ?? code;
 }
 
@@ -378,10 +394,13 @@ export function labelForCountry(code: CountryCode): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Build bidirectional slug maps for a set of enum values.
+ * Builds bidirectional slug maps for a set of enum values.
  *
  * enumValue -> slug   (e.g. "DEVOPS_SRE_PLATFORM" -> "devops-sre-platform")
  * slug      -> enum   (e.g. "devops-sre-platform" -> "DEVOPS_SRE_PLATFORM")
+ *
+ * @param values - The enum values to index.
+ * @returns An object with forward and reverse slug maps.
  */
 function buildSlugMaps<E extends string>(
   values: readonly E[],
@@ -410,10 +429,22 @@ function buildSlugMaps<E extends string>(
 
 const CATEGORY_SLUG_MAPS = buildSlugMaps(POSITION_CATEGORY_OPTIONS);
 
+/**
+ * Maps a PositionCategory enum value to its URL slug.
+ *
+ * @param cat - The PositionCategory enum value.
+ * @returns The slug string for use in URLs.
+ */
 export function categoryEnumToSlug(cat: PositionCategory): string {
   return CATEGORY_SLUG_MAPS.enumToSlug[cat];
 }
 
+/**
+ * Maps a category slug back to the corresponding PositionCategory value.
+ *
+ * @param slug - The slug string from the URL.
+ * @returns The corresponding PositionCategory value, or undefined if unknown.
+ */
 export function categorySlugToEnum(slug: string): PositionCategory | undefined {
   return CATEGORY_SLUG_MAPS.slugToEnum[slug];
 }
@@ -424,10 +455,22 @@ export function categorySlugToEnum(slug: string): PositionCategory | undefined {
 
 const SENIORITY_SLUG_MAPS = buildSlugMaps(JOB_LEVEL_OPTIONS);
 
+/**
+ * Maps a JobLevel enum value to its URL slug.
+ *
+ * @param level - The JobLevel enum value.
+ * @returns The slug string for use in URLs.
+ */
 export function seniorityEnumToSlug(level: JobLevel): string {
   return SENIORITY_SLUG_MAPS.enumToSlug[level];
 }
 
+/**
+ * Maps a seniority slug back to the corresponding JobLevel value.
+ *
+ * @param slug - The slug string from the URL.
+ * @returns The corresponding JobLevel value, or undefined if unknown.
+ */
 export function senioritySlugToEnum(slug: string): JobLevel | undefined {
   return SENIORITY_SLUG_MAPS.slugToEnum[slug];
 }
@@ -438,10 +481,22 @@ export function senioritySlugToEnum(slug: string): JobLevel | undefined {
 
 const STAGE_SLUG_MAPS = buildSlugMaps(STAGE_OPTIONS);
 
+/**
+ * Maps a Stage enum value to its URL slug.
+ *
+ * @param stage - The Stage enum value.
+ * @returns The slug string for use in URLs.
+ */
 export function stageEnumToSlug(stage: Stage): string {
   return STAGE_SLUG_MAPS.enumToSlug[stage];
 }
 
+/**
+ * Maps a stage slug back to the corresponding Stage value.
+ *
+ * @param slug - The slug string from the URL.
+ * @returns The corresponding Stage value, or undefined if unknown.
+ */
 export function stageSlugToEnum(slug: string): Stage | undefined {
   return STAGE_SLUG_MAPS.slugToEnum[slug];
 }

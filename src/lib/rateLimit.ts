@@ -13,10 +13,12 @@ const MAX_REPORTS_PER_COMPANY_PER_IP =
 const MAX_REPORTS_PER_IP_PER_DAY = env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY;
 
 /**
- * Normalize an IP string and ensure it is present and non-empty.
+ * Normalizes an IP string and ensures it is present and non-empty.
  *
- * Treat the string "unknown" (case-insensitive) as missing.
+ * The string "unknown" (case-insensitive) is treated as missing.
  *
+ * @param ip - The raw IP string value, or null/undefined.
+ * @returns A trimmed IP string if valid.
  * @throws ReportRateLimitError if the IP is null, undefined, empty, or "unknown".
  */
 function normalizeAndRequireIp(ip: string | null | undefined): string {
@@ -34,11 +36,13 @@ function normalizeAndRequireIp(ip: string | null | undefined): string {
 }
 
 /**
- * Hash the IP address with a secret salt so that we never store raw IPs.
+ * Hashes an IP address with a secret salt so that raw IPs are never stored.
  *
  * Exported so that unit tests can verify hashing behavior.
  *
- * @throws ReportRateLimitError If the provided IP string is empty after trimming.
+ * @param ip - The raw IP address string to hash.
+ * @returns A hex-encoded HMAC-SHA256 hash of the IP and salt.
+ * @throws ReportRateLimitError if the provided IP string is empty after trimming.
  */
 export function hashIp(ip: string): string {
   const trimmedIp = ip.trim();
@@ -55,14 +59,22 @@ export function hashIp(ip: string): string {
 }
 
 /**
- * Enforce IP-based rate limits for creating a report:
+ * Enforces IP-based rate limits for creating a report:
  *
- *  - A global per-day limit from this IP (across all companies).
- *  - A per-company limit from this IP.
- *  - At most one report per (company, positionCategory, positionDetail) per IP.
+ * - A global per-day limit from this IP (across all companies).
+ * - A per-company limit from this IP.
+ * - At most one report per (company, positionCategory, positionDetail) per IP.
  *
  * If a limit is reached, this function throws a ReportRateLimitError.
+ * Database or network failures are rethrown as-is so that callers can
+ * differentiate between rate-limit and infrastructure issues.
  *
+ * @param args - Arguments for rate limiting.
+ * @param args.ip - The client IP string (may be null/undefined and will be validated).
+ * @param args.companyId - The company ID the report is associated with.
+ * @param args.positionCategory - The position category for the report.
+ * @param args.positionDetail - The free-text position detail string.
+ * @returns A promise that resolves when limits are within bounds.
  * @throws ReportRateLimitError if any rate limit is exceeded or IP is missing.
  */
 export async function enforceReportLimitForIpCompanyPosition(args: {
@@ -88,7 +100,7 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
   const positionKey = `${positionCategory}:${normalizedPositionDetail}`;
 
   await prisma.$transaction(async (tx) => {
-    // 1) Global per-day IP limit
+    // 1) Global per-day IP limit.
     const existingDaily = await tx.reportIpDailyLimit.findUnique({
       where: {
         ipHash_day: {
@@ -99,13 +111,50 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
     });
 
     if (existingDaily === null) {
-      await tx.reportIpDailyLimit.create({
-        data: {
-          ipHash,
-          day: dayKey,
-          count: 1,
-        },
-      });
+      try {
+        await tx.reportIpDailyLimit.create({
+          data: {
+            ipHash,
+            day: dayKey,
+            count: 1,
+          },
+        });
+      } catch (error) {
+        if (!hasPrismaErrorCode(error, "P2002")) {
+          throw error;
+        }
+
+        const concurrentDaily = await tx.reportIpDailyLimit.findUnique({
+          where: {
+            ipHash_day: {
+              ipHash,
+              day: dayKey,
+            },
+          },
+        });
+
+        if (concurrentDaily === null) {
+          throw error;
+        }
+
+        if (concurrentDaily.count >= maxPerDay) {
+          throw new ReportRateLimitError(
+            "You have reached the daily report limit for this IP address.",
+            "daily-ip-limit",
+          );
+        }
+
+        await tx.reportIpDailyLimit.update({
+          where: {
+            id: concurrentDaily.id,
+          },
+          data: {
+            count: {
+              increment: 1,
+            },
+          },
+        });
+      }
     } else {
       if (existingDaily.count >= maxPerDay) {
         throw new ReportRateLimitError(
@@ -126,7 +175,7 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
       });
     }
 
-    // 2) Per-company limit from this IP
+    // 2) Per-company limit from this IP.
     const existingCompanyCount = await tx.reportIpCompanyLimit.count({
       where: {
         ipHash,
@@ -141,7 +190,7 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
       );
     }
 
-    // 3) Per-position uniqueness for this IP + company
+    // 3) Per-position uniqueness for this IP + company.
     try {
       await tx.reportIpCompanyLimit.create({
         data: {
