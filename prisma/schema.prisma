@@ -1,3 +1,7 @@
+// Prisma schema for the "do-not-ghost-me" application.
+// The database stores anonymous ghosting reports, company metadata,
+// rate limiting state, and a minimal admin user for moderation.
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -6,6 +10,7 @@ datasource db {
   provider = "postgresql"
 }
 
+/// Hiring process stage at which the candidate stopped receiving responses.
 enum Stage {
   CV_SCREEN
   FIRST_INTERVIEW
@@ -15,6 +20,7 @@ enum Stage {
   OTHER
 }
 
+/// Seniority level of the position for which the candidate applied.
 enum JobLevel {
   INTERN
   JUNIOR
@@ -24,6 +30,7 @@ enum JobLevel {
   OTHER
 }
 
+/// Coarse-grained functional category of the position.
 enum PositionCategory {
   SOFTWARE_ENGINEERING
   DEVOPS_SRE_PLATFORM
@@ -38,6 +45,8 @@ enum PositionCategory {
   OTHER
 }
 
+/// ISO 3166-1 alpha-2 country code for the candidate's location.
+/// This is stored per report instead of on the company.
 enum CountryCode {
   AD
   AE
@@ -290,6 +299,15 @@ enum CountryCode {
   ZW
 }
 
+/// Moderation status of a report.
+enum ReportStatus {
+  ACTIVE
+  FLAGGED
+  DELETED
+}
+
+/// Company that appears in one or more ghosting reports.
+/// A company is deduplicated by a normalized name.
 model Company {
   id             String   @id @default(cuid())
   name           String   @unique
@@ -299,6 +317,8 @@ model Company {
   reports Report[]
 }
 
+/// Anonymous ghosting report submitted by a candidate.
+/// This model is intentionally minimal and stores no personal identifiers.
 model Report {
   id               String           @id @default(cuid())
   company          Company          @relation(fields: [companyId], references: [id])
@@ -307,26 +327,54 @@ model Report {
   stage            Stage
   jobLevel         JobLevel
   positionCategory PositionCategory
-  positionDetail   String           @db.VarChar(80) // Short free-text position label from user
+
+  /// Short free-text position label provided by the user (for example "Backend Engineer").
+  positionDetail String @db.VarChar(80)
+
+  /// Number of days the candidate has waited without receiving a reply.
   daysWithoutReply Int
-  createdAt        DateTime         @default(now())
+
+  createdAt DateTime @default(now())
+
+  // Moderation fields
+
+  status        ReportStatus @default(ACTIVE)
+  flaggedAt     DateTime?
+  flaggedReason String?      @db.VarChar(255)
+  deletedAt     DateTime?
+
+  moderatedByAdmin   AdminUser? @relation("AdminModeratedReports", fields: [moderatedByAdminId], references: [id])
+  moderatedByAdminId String?
+
+  @@index([status, country, companyId], name: "idx_report_status_country_company")
+  @@index([createdAt], name: "idx_report_created_at")
 }
 
+/// Per-IP, per-company, per-position rate-limiting key.
+/// Used to prevent repeated submissions for the same company/position combination.
 model ReportIpCompanyLimit {
-  id          String   @id @default(cuid())
-  ipHash      String
-  companyId   String
-  positionKey String // normalized combination of category + position detail
-  createdAt   DateTime @default(now())
+  id        String @id @default(cuid())
+  ipHash    String
+  companyId String
+
+  /// Normalized combination of category and position detail.
+  positionKey String
+
+  createdAt DateTime @default(now())
 
   @@unique([ipHash, companyId, positionKey])
   @@index([ipHash, companyId])
 }
 
+/// Per-IP daily rate-limiting counter.
+/// Used to cap the total number of reports from a single IP per UTC day.
 model ReportIpDailyLimit {
-  id        String   @id @default(cuid())
-  ipHash    String
-  day       String // UTC day key in format YYYY-MM-DD
+  id     String @id @default(cuid())
+  ipHash String
+
+  /// UTC day key in the format YYYY-MM-DD (for example "2025-12-07").
+  day String
+
   count     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -334,9 +382,17 @@ model ReportIpDailyLimit {
   @@unique([ipHash, day])
 }
 
+/// Minimal admin user model for future multi-user admin accounts.
+/// Currently the app relies on a single env-based password, but this model
+/// allows attaching moderation actions to a specific admin in the future.
 model AdminUser {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String // Hashed password will be stored here
+  id    String @id @default(cuid())
+  email String @unique
+
+  /// Hashed password for the admin user.
+  password String
+
   createdAt DateTime @default(now())
+
+  moderatedReports Report[] @relation("AdminModeratedReports")
 }
