@@ -1,15 +1,23 @@
 // src/lib/adminAuth.ts
 import crypto from "node:crypto";
 import type { NextRequest, NextResponse } from "next/server";
+
 import { env } from "@/env";
 import { logInfo, logWarn, logError } from "@/lib/logger";
 
 export const ADMIN_SESSION_COOKIE_NAME = "dg_admin";
-const ADMIN_SESSION_MAX_AGE_SECONDS =
-  process.env.NODE_ENV === "production"
-    ? 60 * 60 // 1 hour in production
-    : 60 * 30; // 30 minutes in dev/test
 
+/**
+ * Session lifetime in seconds.
+ * - Production: 1 hour
+ * - Non-production (development/test): 30 minutes
+ */
+const ADMIN_SESSION_MAX_AGE_SECONDS: number =
+  env.NODE_ENV === "production" ? 60 * 60 : 60 * 30;
+
+/**
+ * Minimal payload carried inside an admin session token.
+ */
 export type AdminSessionPayload = {
   sub: "admin";
   iat: number;
@@ -18,6 +26,9 @@ export type AdminSessionPayload = {
 
 /**
  * Base64url encode helper.
+ *
+ * @param input - Raw string or buffer to encode.
+ * @returns Base64url-encoded representation (URL-safe, no padding).
  */
 function b64url(input: Buffer | string): string {
   return Buffer.from(input)
@@ -29,6 +40,9 @@ function b64url(input: Buffer | string): string {
 
 /**
  * Base64url decode helper.
+ *
+ * @param str - Base64url-encoded string.
+ * @returns Decoded buffer.
  */
 function b64urlDecode(str: string): Buffer {
   const pad = str.length % 4 === 0 ? "" : "=".repeat(4 - (str.length % 4));
@@ -43,8 +57,10 @@ let hasLoggedMissingAdminPassword = false;
 /**
  * HMAC-SHA256 signer using ADMIN_SESSION_SECRET.
  *
- * Throws if ADMIN_SESSION_SECRET is not configured so that
- * misconfigured admin sessions fail loudly.
+ * @param data - Arbitrary string to sign.
+ * @returns Base64url-encoded HMAC signature.
+ *
+ * @throws If ADMIN_SESSION_SECRET is not configured.
  */
 function sign(data: string): string {
   if (env.ADMIN_SESSION_SECRET === undefined) {
@@ -70,7 +86,8 @@ function sign(data: string): string {
  * the configured ADMIN_PASSWORD value using a constant-time
  * comparison to avoid timing side channels.
  *
- * Returns true when the password matches, false otherwise.
+ * @param candidate - User-supplied password from the login form.
+ * @returns True when the password matches, false otherwise.
  */
 export function verifyAdminPassword(candidate: string): boolean {
   const configured = env.ADMIN_PASSWORD;
@@ -95,8 +112,9 @@ export function verifyAdminPassword(candidate: string): boolean {
     try {
       crypto.timingSafeEqual(b, Buffer.alloc(b.length));
     } catch {
-      // ignore
+      // Intentionally ignored: this is only to keep timing similar.
     }
+
     return false;
   }
 
@@ -112,6 +130,8 @@ export function verifyAdminPassword(candidate: string): boolean {
  * - sub: fixed "admin" subject
  * - iat: issued-at timestamp (seconds)
  * - exp: expiration timestamp (seconds)
+ *
+ * @returns Opaque signed session token.
  */
 export function createAdminSessionToken(): string {
   const now = Math.floor(Date.now() / 1000);
@@ -131,12 +151,8 @@ export function createAdminSessionToken(): string {
 /**
  * Verify a signed admin session token.
  *
- * Returns the session payload if:
- * - the signature is valid,
- * - the token is not expired,
- * - the subject is "admin".
- *
- * Returns null for any invalid or malformed token.
+ * @param token - Raw token string from the cookie.
+ * @returns Parsed payload when valid, or null when invalid/expired/malformed.
  */
 export function verifyAdminSessionToken(
   token: string | null | undefined,
@@ -227,6 +243,9 @@ export function verifyAdminSessionToken(
  * from a host perspective (based on ADMIN_ALLOWED_HOST).
  *
  * When ADMIN_ALLOWED_HOST is not set or empty, all hosts are allowed.
+ *
+ * @param req - Incoming NextRequest.
+ * @returns True when the host is allowed, false otherwise.
  */
 export function isAllowedAdminHost(req: NextRequest): boolean {
   const requiredHost = env.ADMIN_ALLOWED_HOST;
@@ -245,7 +264,10 @@ export function isAllowedAdminHost(req: NextRequest): boolean {
  * - passes the host check (ADMIN_ALLOWED_HOST), and
  * - carries a valid admin session cookie.
  *
- * Throws on failure to make misuse noisy for call sites.
+ * @param req - Incoming NextRequest.
+ * @returns Parsed admin session payload when authorized.
+ *
+ * @throws If the host is not allowed or the session is missing/invalid.
  */
 export function requireAdminRequest(req: NextRequest): AdminSessionPayload {
   if (!isAllowedAdminHost(req)) {
@@ -283,7 +305,9 @@ export function requireAdminRequest(req: NextRequest): AdminSessionPayload {
  *     - /admin (dashboard pages)
  *     - /api/admin/* (admin API routes)
  *   receive the cookie.
- * - Cookie is still HttpOnly, secure (in production) and SameSite=strict.
+ * - Cookie is HttpOnly, secure (in production) and SameSite=strict.
+ *
+ * @returns Standardized options for the admin session cookie.
  */
 export function adminSessionCookieOptions(): {
   name: string;
@@ -306,7 +330,9 @@ export function adminSessionCookieOptions(): {
 /**
  * Attach an admin session cookie to an existing NextResponse.
  *
- * Returns the same response object for convenient chaining.
+ * @param res - Response object to mutate.
+ * @param token - Signed admin session token to store in the cookie.
+ * @returns The same response instance for fluent chaining.
  */
 export function withAdminSessionCookie(
   res: NextResponse,

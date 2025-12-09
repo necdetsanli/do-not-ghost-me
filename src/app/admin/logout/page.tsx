@@ -34,27 +34,16 @@ export default function AdminLogoutPage(): JSX.Element {
   }, [router]);
 
   return (
-    <main
-      style={{
-        padding: "2rem",
-        maxWidth: "640px",
-        margin: "0 auto",
-        fontFamily: "system-ui, sans-serif",
-      }}
-    >
-      <h1
-        style={{
-          fontSize: "1.5rem",
-          fontWeight: 600,
-          marginBottom: "0.75rem",
-        }}
-      >
-        Logging you out…
-      </h1>
-      <p style={{ fontSize: "0.95rem", color: "#4b5563" }}>
-        You are being signed out of the admin dashboard and will be redirected
-        to the public homepage.
-      </p>
-    </main>
+    <div className="flex min-h-screen items-center justify-center bg-base px-4 py-8">
+      <section className="w-full max-w-lg rounded-xl border border-primary bg-surface px-6 py-6 shadow-md md:px-8 md:py-8">
+        <h1 className="mb-2 text-xl font-semibold text-primary md:text-2xl">
+          Logging you out…
+        </h1>
+        <p className="text-sm text-secondary md:text-base">
+          You are being signed out of the admin dashboard and will be redirected
+          to the public homepage.
+        </p>
+      </section>
+    </div>
   );
 }

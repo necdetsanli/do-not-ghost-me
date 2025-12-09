@@ -55,7 +55,6 @@ function getRateLimitStateForIp(ip: string, now: number): LoginRateLimitState {
 
   if (existing !== undefined) {
     if (existing.lockedUntil !== null && now >= existing.lockedUntil) {
-      // Lock expired, reset state.
       const resetState: LoginRateLimitState = {
         attempts: 0,
         firstAttemptAt: now,
@@ -91,7 +90,6 @@ function registerFailedLoginAttempt(ip: string, now: number): void {
   const store = getLoginRateLimitStore();
   const state = getRateLimitStateForIp(ip, now);
 
-  // Reset window if it has expired.
   if (now - state.firstAttemptAt > LOGIN_RATE_LIMIT_WINDOW_MS) {
     state.attempts = 0;
     state.firstAttemptAt = now;
@@ -124,10 +122,6 @@ function resetLoginAttempts(ip: string): void {
 // Host / origin checks
 // -----------------------------------------------------------------------------
 
-/**
- * Return true if this request is allowed to hit the admin login endpoint,
- * based on the configured ADMIN_ALLOWED_HOST.
- */
 function isHostAllowed(req: NextRequest): boolean {
   const allowedHost = env.ADMIN_ALLOWED_HOST;
 
@@ -158,8 +152,6 @@ function isOriginAllowed(req: NextRequest): boolean {
   const originHeader = req.headers.get("origin");
 
   if (originHeader === null) {
-    // Some clients do not send Origin for same-site requests.
-    // In that case we rely on the CSRF token.
     return true;
   }
 
@@ -207,13 +199,6 @@ function buildHostForbiddenResponse(): NextResponse {
 // Form parsing / helpers
 // -----------------------------------------------------------------------------
 
-/**
- * Extract the password and CSRF token from a form-encoded POST body.
- *
- * Returns:
- * - password: trimmed password string or null if missing/empty
- * - csrfToken: trimmed CSRF token or null if missing/empty
- */
 async function extractLoginForm(
   req: NextRequest,
 ): Promise<{ password: string | null; csrfToken: string | null }> {
@@ -241,10 +226,6 @@ async function extractLoginForm(
   return { password, csrfToken };
 }
 
-/**
- * Build a redirect response back to the login page with a generic error flag.
- * Uses an absolute URL derived from the incoming request to satisfy Next.js.
- */
 function buildErrorRedirectResponse(req: NextRequest): NextResponse {
   const url = new URL(req.url);
   url.pathname = "/admin/login";
@@ -253,9 +234,6 @@ function buildErrorRedirectResponse(req: NextRequest): NextResponse {
   return NextResponse.redirect(url);
 }
 
-/**
- * Build a redirect response to the admin dashboard and attach the session cookie.
- */
 function buildSuccessRedirectResponse(
   req: NextRequest,
   sessionToken: string,
@@ -268,9 +246,6 @@ function buildSuccessRedirectResponse(
   return withAdminSessionCookie(baseResponse, sessionToken);
 }
 
-/**
- * JSON 429 response for IPs that exceeded login rate limits.
- */
 function buildRateLimitResponse(): NextResponse {
   return NextResponse.json(
     {
@@ -285,71 +260,59 @@ function buildRateLimitResponse(): NextResponse {
 // Route handler
 // -----------------------------------------------------------------------------
 
-/**
- * POST /api/admin/login
- *
- * - Enforces ADMIN_ALLOWED_HOST and Origin host restrictions.
- * - Reads password + CSRF token from formData (HTML form POST, not JSON).
- * - Verifies CSRF token using a stateless, HMAC-signed token.
- * - IP-based rate limiting for failed login attempts.
- * - Verifies the password via verifyAdminPassword.
- * - On success, creates a session token and returns a redirect to /admin
- *   with a signed, HttpOnly session cookie attached.
- * - On failure, redirects back to /admin/login?error=1.
- */
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  // 1) Host + Origin restriction
   if (!isHostAllowed(req) || !isOriginAllowed(req)) {
+    logWarn("[POST /api/admin/login] Blocked by host/origin check", {
+      host: req.headers.get("host") ?? null,
+      origin: req.headers.get("origin") ?? null,
+    });
+
     return buildHostForbiddenResponse();
   }
 
-  // 2) Extract client IP for rate limiting
   const clientIpRaw = getClientIp(req);
   const clientIp = typeof clientIpRaw === "string" ? clientIpRaw.trim() : "";
   const now = Date.now();
 
   if (clientIp.length > 0 && isIpLocked(clientIp, now)) {
-    // Locked IP → short-circuit and do not leak whether password is valid.
     return buildRateLimitResponse();
   }
 
   try {
-    // 3) Extract password and CSRF token from formData
     const { password, csrfToken } = await extractLoginForm(req);
 
-    // 4) CSRF validation: required for all login attempts
     const csrfIsValid = verifyCsrfToken("admin-login", csrfToken);
     if (csrfIsValid !== true) {
       if (clientIp.length > 0) {
         registerFailedLoginAttempt(clientIp, now);
       }
+
       return buildErrorRedirectResponse(req);
     }
 
-    // 5) Missing or empty password → redirect back with error and count as failure.
     if (password === null) {
       if (clientIp.length > 0) {
         registerFailedLoginAttempt(clientIp, now);
       }
+
       return buildErrorRedirectResponse(req);
     }
 
-    // 6) Verify password against configured admin secret
-    const isValidPassword = await verifyAdminPassword(password);
+    const isValidPassword = verifyAdminPassword(password);
 
     if (isValidPassword !== true) {
       if (clientIp.length > 0) {
         registerFailedLoginAttempt(clientIp, now);
       }
+
       return buildErrorRedirectResponse(req);
     }
 
-    // 7) Successful login → clear rate-limit state, create session and redirect.
     if (clientIp.length > 0) {
       resetLoginAttempts(clientIp);
     }
 
-    const sessionToken = await createAdminSessionToken();
+    const sessionToken = createAdminSessionToken();
 
     return buildSuccessRedirectResponse(req, sessionToken);
   } catch (error: unknown) {

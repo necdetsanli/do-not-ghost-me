@@ -6,69 +6,40 @@ export const dynamic = "force-dynamic";
 
 const CSRF_FIELD_NAME = "_csrf";
 
+/**
+ * Admin login page.
+ *
+ * Pure server component:
+ * - Generates a CSRF token for the login form.
+ * - Renders a minimal, centered login card.
+ * - Does not use client components (no "use client") to keep it simple and secure.
+ */
 export default function AdminLoginPage(): JSX.Element {
   const csrfToken = createCsrfToken("admin-login");
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "1.5rem",
-        fontFamily:
-          "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "420px",
-          padding: "1.75rem 1.5rem",
-          borderRadius: 8,
-          border: "1px solid #e5e7eb",
-          boxShadow: "0 10px 30px rgba(15,23,42,0.06)",
-          backgroundColor: "#ffffff",
-        }}
-      >
-        <h1
-          style={{
-            fontSize: "1.4rem",
-            fontWeight: 700,
-            marginBottom: "0.5rem",
-          }}
-        >
-          Admin login
-        </h1>
-        <p
-          style={{
-            fontSize: "0.9rem",
-            color: "#4b5563",
-            marginBottom: "1.25rem",
-          }}
-        >
-          This area is restricted to administrators. Your login will be secured
-          using a signed, HttpOnly session cookie.
-        </p>
+    <div className="flex min-h-screen items-center justify-center bg-base px-4 py-8">
+      <section className="w-full max-w-md rounded-xl border border-primary bg-surface px-6 py-6 shadow-md md:px-8 md:py-8">
+        <header className="mb-4 space-y-2">
+          <h1 className="text-2xl font-semibold text-primary">Admin login</h1>
+          <p className="text-sm text-secondary">
+            This area is restricted to administrators. Your login will be
+            secured using a signed, HttpOnly session cookie.
+          </p>
+        </header>
 
-        <form method="POST" action="/api/admin/login">
+        <form
+          method="POST"
+          action="/api/admin/login"
+          className="mt-4 space-y-4"
+          aria-label="Admin login form"
+        >
           <input type="hidden" name={CSRF_FIELD_NAME} value={csrfToken} />
 
-          <div
-            style={{
-              display: "grid",
-              gap: "0.5rem",
-              marginBottom: "1rem",
-            }}
-          >
+          <div className="space-y-2">
             <label
               htmlFor="admin-password"
-              style={{
-                display: "grid",
-                gap: "0.25rem",
-                fontSize: "0.9rem",
-              }}
+              className="flex flex-col gap-1 text-sm text-primary"
             >
               <span>Password</span>
               <input
@@ -77,37 +48,23 @@ export default function AdminLoginPage(): JSX.Element {
                 type="password"
                 autoComplete="current-password"
                 required
-                style={{
-                  padding: "0.5rem 0.6rem",
-                  borderRadius: 4,
-                  border: "1px solid #d1d5db",
-                  fontSize: "0.9rem",
-                  width: "100%",
-                }}
+                className="w-full rounded-md border border-primary bg-base px-3 py-2 text-sm text-primary placeholder:text-tertiary focus-visible:outline-none"
               />
             </label>
           </div>
 
           <button
             type="submit"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "0.45rem 0.9rem",
-              borderRadius: 4,
-              border: "1px solid #2563eb",
-              backgroundColor: "#2563eb",
-              color: "#ffffff",
-              fontSize: "0.9rem",
-              fontWeight: 500,
-              cursor: "pointer",
-            }}
+            className="inline-flex w-full items-center justify-center rounded-md border border-primary bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-700 focus-visible:outline-none"
           >
             Sign in
           </button>
         </form>
-      </div>
-    </main>
+
+        <p className="mt-4 text-center text-xs text-tertiary">
+          Multiple failed attempts may be logged for security monitoring.
+        </p>
+      </section>
+    </div>
   );
 }

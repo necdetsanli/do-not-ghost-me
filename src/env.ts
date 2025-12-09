@@ -27,7 +27,7 @@ const serverEnvSchema = z
         message: "RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP must be >= 1",
       })
       .max(5, {
-        // Note: keep this relatively low to avoid abuse in production.
+        // Keep this relatively low to avoid abuse in production.
         message:
           "RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP must be <= 5 for safety",
       })
@@ -63,6 +63,12 @@ const serverEnvSchema = z
      * When set, admin requests from other hosts are rejected.
      */
     ADMIN_ALLOWED_HOST: z.string().optional(),
+
+    /**
+     * CSRF secret for the admin login form.
+     * Used to derive CSRF tokens; must be long and random in production.
+     */
+    ADMIN_CSRF_SECRET: z.string().min(32).optional(),
   })
   .superRefine((value, ctx) => {
     const hasAdminPassword =
@@ -71,15 +77,46 @@ const serverEnvSchema = z
     const hasAdminSessionSecret =
       typeof value.ADMIN_SESSION_SECRET === "string" &&
       value.ADMIN_SESSION_SECRET.length > 0;
+    const hasAdminCsrfSecret =
+      typeof value.ADMIN_CSRF_SECRET === "string" &&
+      value.ADMIN_CSRF_SECRET.length > 0;
 
-    // For security, ADMIN_PASSWORD and ADMIN_SESSION_SECRET must either both be set
-    // or both be omitted. A half-configured admin setup is not allowed.
+    // 1) For security, ADMIN_PASSWORD and ADMIN_SESSION_SECRET must either both be set
+    //    or both be omitted. A half-configured admin setup is not allowed.
     if (hasAdminPassword !== hasAdminSessionSecret) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message:
           "ADMIN_PASSWORD and ADMIN_SESSION_SECRET must either both be set or both be omitted.",
         path: ["ADMIN_PASSWORD"],
+      });
+    }
+
+    // 2) If admin is configured at all (password + session secret),
+    //    require a CSRF secret as well. This avoids enabling admin
+    //    with CSRF protection accidentally disabled.
+    const isAdminEnabled = hasAdminPassword && hasAdminSessionSecret;
+
+    if (isAdminEnabled && !hasAdminCsrfSecret) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "ADMIN_CSRF_SECRET must be set when ADMIN_PASSWORD/ADMIN_SESSION_SECRET are configured.",
+        path: ["ADMIN_CSRF_SECRET"],
+      });
+    }
+
+    // 3) Extra guard for production: prevent shipping with the example
+    //    placeholder salt from .env.example (or anything that looks like it).
+    if (
+      value.NODE_ENV === "production" &&
+      value.RATE_LIMIT_IP_SALT.toLowerCase().includes("replace-with")
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "RATE_LIMIT_IP_SALT must be a strong random value in production (not the example placeholder).",
+        path: ["RATE_LIMIT_IP_SALT"],
       });
     }
   });
@@ -97,10 +134,10 @@ const parsed = serverEnvSchema.safeParse({
     process.env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP,
   RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY:
     process.env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY,
-
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
   ADMIN_SESSION_SECRET: process.env.ADMIN_SESSION_SECRET,
   ADMIN_ALLOWED_HOST: process.env.ADMIN_ALLOWED_HOST,
+  ADMIN_CSRF_SECRET: process.env.ADMIN_CSRF_SECRET,
 });
 
 if (!parsed.success) {

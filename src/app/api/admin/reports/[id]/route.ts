@@ -1,9 +1,9 @@
 // src/app/api/admin/reports/[id]/route.ts
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import type { ReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAdminRequest } from "@/lib/adminAuth";
-import type { ReportStatus } from "@prisma/client";
 import { logInfo, logWarn, logError } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -47,10 +47,29 @@ function normalizeOptionalText(
  */
 export async function POST(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> },
+  context: { params: { id: string } },
 ): Promise<NextResponse> {
   // 1) Admin guard: host + signed session cookie
-  requireAdminRequest(req);
+  try {
+    requireAdminRequest(req);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Admin access is not allowed.";
+
+    logWarn(
+      "[admin] Unauthorized or disallowed admin report moderation request",
+      {
+        path: req.nextUrl.pathname,
+        method: req.method,
+        error: message,
+      },
+    );
+
+    const status =
+      message === "Admin access is not allowed from this host." ? 403 : 401;
+
+    return NextResponse.json({ error: message }, { status });
+  }
 
   // Next 16: params now come as a Promise, so we must await first.
   const { id: reportIdRaw } = await context.params;
