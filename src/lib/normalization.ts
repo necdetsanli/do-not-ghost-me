@@ -1,17 +1,17 @@
-//src/lib/normalization.ts
 /**
  * Normalizes a company name to a canonical form used for uniqueness checks.
  *
  * - Trims leading and trailing whitespace.
- * - Collapses multiple internal whitespace characters into a single space.
+ * - Normalizes Unicode (NFKC).
  * - Converts to lower case.
+ * - Removes all characters that are not letters or digits
+ *   (this includes spaces, punctuation, etc.).
  *
  * Examples:
- *   "  ACME   Corp " -> "acme corp"
- *   "Acme"          -> "acme"
- *
- * @param raw - The raw company name as provided by the user.
- * @returns A normalized, lowercased name string, or an empty string if no content remains.
+ *   "  ACME   Corp "   -> "acmecorp"
+ *   "Acme-Corp"        -> "acmecorp"
+ *   "ACME/CORP"        -> "acmecorp"
+ *   "Acme"             -> "acme"
  */
 export function normalizeCompanyName(raw: string): string {
   const trimmed = raw.trim();
@@ -20,35 +20,13 @@ export function normalizeCompanyName(raw: string): string {
     return "";
   }
 
-  const collapsedWhitespace = trimmed.replace(/\s+/g, " ");
+  const lower = trimmed.normalize("NFKC").toLowerCase();
 
-  return collapsedWhitespace.toLowerCase();
-}
+  const lettersAndDigitsOnly = lower.replace(/[^\p{L}\p{N}]+/gu, "");
 
-/**
- * Normalizes an optional country string.
- *
- * - null / undefined / empty-after-trim -> null.
- * - Otherwise returns a trimmed string.
- *
- * Note: The application now primarily uses the CountryCode enum for storage,
- * but this helper is kept for any legacy or free-text paths that still exist.
- *
- * @param raw - The raw country string, or null/undefined.
- * @returns A trimmed country string, or null if no value is usable.
- */
-export function normalizeCountry(
-  raw: string | null | undefined,
-): string | null {
-  if (raw === null || raw === undefined) {
-    return null;
+  if (lettersAndDigitsOnly === "") {
+    return "";
   }
 
-  const trimmed = raw.trim();
-
-  if (trimmed === "") {
-    return null;
-  }
-
-  return trimmed;
+  return lettersAndDigitsOnly;
 }

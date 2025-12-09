@@ -8,6 +8,8 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // URL is provided via prisma.config.ts / env("DATABASE_URL").
+  // Keeping it out of the schema avoids accidental check-in of connection strings.
 }
 
 /// Hiring process stage at which the candidate stopped receiving responses.
@@ -309,12 +311,16 @@ enum ReportStatus {
 /// Company that appears in one or more ghosting reports.
 /// A company is deduplicated by a normalized name.
 model Company {
-  id             String   @id @default(cuid())
-  name           String   @unique
-  normalizedName String   @unique
-  createdAt      DateTime @default(now())
+  id             String      @id @default(cuid())
+  name           String
+  normalizedName String
+  country        CountryCode
+  createdAt      DateTime    @default(now())
 
   reports Report[]
+
+  @@unique([normalizedName, country], name: "uniq_company_name_country")
+  @@index([createdAt], name: "idx_company_created_at")
 }
 
 /// Anonymous ghosting report submitted by a candidate.
@@ -323,7 +329,6 @@ model Report {
   id               String           @id @default(cuid())
   company          Company          @relation(fields: [companyId], references: [id])
   companyId        String
-  country          CountryCode
   stage            Stage
   jobLevel         JobLevel
   positionCategory PositionCategory
@@ -346,40 +351,48 @@ model Report {
   moderatedByAdmin   AdminUser? @relation("AdminModeratedReports", fields: [moderatedByAdminId], references: [id])
   moderatedByAdminId String?
 
-  @@index([status, country, companyId], name: "idx_report_status_country_company")
+  @@index([status, companyId], name: "idx_report_status_company")
   @@index([createdAt], name: "idx_report_created_at")
+  @@index([companyId], name: "idx_report_company_id")
+  @@index([status, flaggedAt], name: "idx_report_status_flagged_at")
 }
 
 /// Per-IP, per-company, per-position rate-limiting key.
 /// Used to prevent repeated submissions for the same company/position combination.
 model ReportIpCompanyLimit {
-  id        String @id @default(cuid())
-  ipHash    String
+  id String @id @default(cuid())
+
+  /// Hex-encoded HMAC of the remote IP address.
+  ipHash String @db.VarChar(128)
+
   companyId String
 
   /// Normalized combination of category and position detail.
-  positionKey String
+  positionKey String @db.VarChar(160)
 
   createdAt DateTime @default(now())
 
-  @@unique([ipHash, companyId, positionKey])
-  @@index([ipHash, companyId])
+  @@unique([ipHash, companyId, positionKey], name: "uniq_ip_company_position")
+  @@index([ipHash, companyId], name: "idx_ip_company")
 }
 
 /// Per-IP daily rate-limiting counter.
 /// Used to cap the total number of reports from a single IP per UTC day.
 model ReportIpDailyLimit {
-  id     String @id @default(cuid())
-  ipHash String
+  id String @id @default(cuid())
+
+  /// Hex-encoded HMAC of the remote IP address.
+  ipHash String @db.VarChar(128)
 
   /// UTC day key in the format YYYY-MM-DD (for example "2025-12-07").
-  day String
+  day String @db.VarChar(10)
 
   count     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([ipHash, day])
+  @@unique([ipHash, day], name: "uniq_ip_day")
+  @@index([day], name: "idx_day")
 }
 
 /// Minimal admin user model for future multi-user admin accounts.
@@ -390,7 +403,7 @@ model AdminUser {
   email String @unique
 
   /// Hashed password for the admin user.
-  password String
+  password String @db.VarChar(255)
 
   createdAt DateTime @default(now())
 

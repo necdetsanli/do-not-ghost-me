@@ -19,3 +19,13 @@ export function hasPrismaErrorCode(error: unknown, code: string): boolean {
 
   return typeof errorWithCode.code === "string" && errorWithCode.code === code;
 }
+
+/**
+ * Returns true if the given error looks like a Prisma
+ * unique constraint violation (code "P2002").
+ *
+ * @param error - The unknown error value to inspect.
+ */
+export function isPrismaUniqueViolation(error: unknown): boolean {
+  return hasPrismaErrorCode(error, "P2002");
+}

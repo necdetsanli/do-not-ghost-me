@@ -1,10 +1,12 @@
-//src/lib/ip.ts
+// src/lib/ip.ts
+import net from "node:net";
 import type { NextRequest } from "next/server";
 
 /**
  * Normalizes a potential IP string:
- * - Returns a trimmed string if it is non-empty.
- * - Returns null for null, undefined, or empty strings.
+ * - Trims whitespace.
+ * - Ensures the value looks like a valid IPv4/IPv6 address.
+ * - Returns null for null, undefined, empty, or invalid strings.
  *
  * @param value - The raw IP string value, or null/undefined.
  * @returns A trimmed IP string, or null if not usable.
@@ -17,6 +19,11 @@ function normalizeIpString(value: string | null | undefined): string | null {
   const trimmed = value.trim();
 
   if (trimmed.length === 0) {
+    return null;
+  }
+
+  // Accept only values that parse as valid IPv4/IPv6.
+  if (net.isIP(trimmed) === 0) {
     return null;
   }
 
@@ -33,6 +40,10 @@ function normalizeIpString(value: string | null | undefined): string | null {
  *
  * @param req - The incoming Next.js request.
  * @returns A normalized (trimmed) IP string or null if no usable IP could be determined.
+ * Important:
+ * - This assumes the app is running behind a trusted reverse proxy that
+ *   sets X-Forwarded-For / X-Real-IP correctly. In untrusted environments,
+ *   these headers can be spoofed and must not be used for strong auth.
  */
 export function getClientIp(req: NextRequest): string | null {
   const xForwardedFor = req.headers.get("x-forwarded-for");

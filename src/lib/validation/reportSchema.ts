@@ -1,4 +1,4 @@
-//src/lib/validation/reportSchema.ts
+// src/lib/validation/reportSchema.ts
 import { z } from "zod";
 import { Stage, JobLevel, PositionCategory, CountryCode } from "@prisma/client";
 import { nameLikeString } from "@/lib/validation/patterns";
@@ -107,15 +107,17 @@ export const reportSchema = z.object({
    * Country where the role / office is located.
    *
    * This is required and must be one of the CountryCode enum values.
-   * Zod v4 expects the options object to only contain `error` or `message`,
-   * so we use `message` instead of older `required_error` / `errorMap` keys.
    */
   country: z.nativeEnum(CountryCode, {
-    message: "Please select a country",
+    error: "Please select a valid country",
   }),
 
-  // Honeypot input must be empty or omitted.
-  honeypot: z.string().optional(),
+  /**
+   * Honeypot input must be empty or omitted.
+   * Any non-empty value is treated as an invalid submission
+   * (typically indicating a bot).
+   */
+  honeypot: z.string().max(0, { message: "honeypot must be empty" }).optional(),
 });
 
 /**

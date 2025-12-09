@@ -1,4 +1,4 @@
-//src/lib/db.ts
+// src/lib/db.ts
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -22,8 +22,12 @@ export function createPrismaClient(): PrismaClient {
 
   return new PrismaClient({
     adapter,
-    // In production we reduce log noise; in dev we also keep "warn".
+    /**
+     * In development we keep warnings + errors with pretty formatting for easier debugging.
+     * In production we reduce log noise and avoid overly verbose error output.
+     */
     log: env.NODE_ENV === "production" ? ["error"] : ["warn", "error"],
+    errorFormat: env.NODE_ENV === "production" ? "minimal" : "pretty",
   });
 }
 
@@ -37,6 +41,7 @@ const globalForPrisma = globalThis as typeof globalThis & {
  *
  * In non-production environments this instance is cached on `globalThis`
  * to avoid exhausting database connections during hot reloads.
+ * Always prefer importing this singleton in API routes and server components.
  */
 export const prisma: PrismaClient =
   globalForPrisma.prisma ?? createPrismaClient();

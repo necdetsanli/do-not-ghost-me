@@ -36,13 +36,13 @@ export function formatEnumLabel(value: string): string {
 
 export const POSITION_CATEGORY_OPTIONS = Object.values(
   PositionCategory,
-) as PositionCategory[];
+) as readonly PositionCategory[];
 
-export const JOB_LEVEL_OPTIONS = Object.values(JobLevel) as JobLevel[];
-
-export const STAGE_OPTIONS = Object.values(Stage) as Stage[];
-
-export const COUNTRY_OPTIONS = Object.values(CountryCode) as CountryCode[];
+export const JOB_LEVEL_OPTIONS = Object.values(JobLevel) as readonly JobLevel[];
+export const STAGE_OPTIONS = Object.values(Stage) as readonly Stage[];
+export const COUNTRY_OPTIONS = Object.values(
+  CountryCode,
+) as readonly CountryCode[];
 
 // ---------------------------------------------------------------------------
 // Custom labels (override maps)
@@ -405,8 +405,8 @@ export function labelForCountry(code: CountryCode): string {
 function buildSlugMaps<E extends string>(
   values: readonly E[],
 ): {
-  enumToSlug: Record<E, string>;
-  slugToEnum: Record<string, E>;
+  enumToSlug: Readonly<Record<E, string>>;
+  slugToEnum: Readonly<Record<string, E>>;
 } {
   const enumToSlugMap = {} as Record<E, string>;
   const slugToEnumMap: Record<string, E> = {};
@@ -418,8 +418,8 @@ function buildSlugMaps<E extends string>(
   }
 
   return {
-    enumToSlug: enumToSlugMap,
-    slugToEnum: slugToEnumMap,
+    enumToSlug: Object.freeze(enumToSlugMap),
+    slugToEnum: Object.freeze(slugToEnumMap),
   };
 }
 

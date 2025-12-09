@@ -37,6 +37,24 @@ function normalizeAndRequireIp(ip: string | null | undefined): string {
 }
 
 /**
+ * Safely formats an unknown error value into a string for logging.
+ *
+ * @param error - The unknown error value.
+ * @returns A best-effort string representation of the error.
+ */
+function formatUnknownError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  try {
+    return String(error);
+  } catch {
+    return "[unstringifiable-error]";
+  }
+}
+
+/**
  * Hashes an IP address with a secret salt so that raw IPs are never stored.
  *
  * Exported so that unit tests can verify hashing behavior.
@@ -104,7 +122,7 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
     // 1) Global per-day IP limit.
     const existingDaily = await tx.reportIpDailyLimit.findUnique({
       where: {
-        ipHash_day: {
+        uniq_ip_day: {
           ipHash,
           day: dayKey,
         },
@@ -125,14 +143,14 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
           logError("[rateLimit] Unexpected error creating daily IP limit row", {
             ipHash,
             day: dayKey,
-            error,
+            error: formatUnknownError(error),
           });
           throw error;
         }
 
         const concurrentDaily = await tx.reportIpDailyLimit.findUnique({
           where: {
-            ipHash_day: {
+            uniq_ip_day: {
               ipHash,
               day: dayKey,
             },
@@ -142,7 +160,10 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
         if (concurrentDaily === null) {
           logError(
             "[rateLimit] Concurrent daily limit insert failed and follow-up lookup returned null",
-            { ipHash, day: dayKey },
+            {
+              ipHash,
+              day: dayKey,
+            },
           );
           throw error;
         }
@@ -254,7 +275,7 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
           ipHash,
           companyId,
           positionKey,
-          error,
+          error: formatUnknownError(error),
         },
       );
 
