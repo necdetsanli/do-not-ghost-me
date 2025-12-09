@@ -31,6 +31,10 @@ function normalizeOptionalText(
   return trimmed.slice(0, maxLength);
 }
 
+type AdminReportRouteParams = {
+  id: string;
+};
+
 /**
  * Handle admin moderation actions for a single report:
  *
@@ -46,22 +50,22 @@ function normalizeOptionalText(
  * - redirect back to /admin on success
  */
 export async function POST(
-  req: NextRequest,
-  context: { params: { id: string } },
+  request: NextRequest,
+  context: { params: Promise<AdminReportRouteParams> },
 ): Promise<NextResponse> {
   // 1) Admin guard: host + signed session cookie
   try {
-    requireAdminRequest(req);
-  } catch (error) {
+    requireAdminRequest(request);
+  } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "Admin access is not allowed.";
 
     logWarn(
       "[admin] Unauthorized or disallowed admin report moderation request",
       {
-        path: req.nextUrl.pathname,
-        method: req.method,
-        error: message,
+        path: request.nextUrl.pathname,
+        method: request.method,
+        errorMessage: message,
       },
     );
 
@@ -71,14 +75,14 @@ export async function POST(
     return NextResponse.json({ error: message }, { status });
   }
 
-  // Next 16: params now come as a Promise, so we must await first.
-  const { id: reportIdRaw } = await context.params;
-  const reportId = typeof reportIdRaw === "string" ? reportIdRaw.trim() : "";
+  // 2) Params: Next 15 route handler typings: params is a Promise
+  const { id: idFromParams } = await context.params;
+  const reportId = typeof idFromParams === "string" ? idFromParams.trim() : "";
 
   if (reportId === "") {
     logWarn("[admin] Missing or invalid report id in moderation request", {
-      path: req.nextUrl.pathname,
-      method: req.method,
+      path: request.nextUrl.pathname,
+      method: request.method,
     });
 
     return NextResponse.json(
@@ -87,14 +91,15 @@ export async function POST(
     );
   }
 
-  const formData = await req.formData();
+  // 3) Form data
+  const formData = await request.formData();
   const actionRaw = formData.get("action");
 
   if (typeof actionRaw !== "string") {
     logWarn("[admin] Missing moderation action in admin report request", {
       reportId,
-      path: req.nextUrl.pathname,
-      method: req.method,
+      path: request.nextUrl.pathname,
+      method: request.method,
     });
 
     return NextResponse.json(
@@ -175,14 +180,23 @@ export async function POST(
     }
 
     // On success, redirect back to the admin dashboard.
-    const redirectUrl = new URL("/admin", req.url);
+    const redirectUrl = new URL("/admin", request.url);
     return NextResponse.redirect(redirectUrl, 303);
-  } catch (error) {
-    logError("[admin] Failed to moderate report", {
-      reportId,
-      action,
-      error,
-    });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      logError("[admin] Failed to moderate report", {
+        reportId,
+        action,
+        errorName: error.name,
+        errorMessage: error.message,
+      });
+    } else {
+      logError("[admin] Failed to moderate report: non-Error value thrown", {
+        reportId,
+        action,
+        errorValueType: typeof error,
+      });
+    }
 
     return NextResponse.json(
       { error: "Failed to apply moderation action" },
