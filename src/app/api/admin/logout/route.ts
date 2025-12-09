@@ -66,9 +66,6 @@ export function POST(req: NextRequest): NextResponse {
 
   const cookieOpts = adminSessionCookieOptions();
 
-  // Keep the existing redirect behavior (302 + relative Location)
-  // to avoid surprising browser behavior and to stay aligned with
-  // the current tests.
   const response = new NextResponse(null, {
     status: 302,
     headers: {
