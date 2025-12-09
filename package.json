@@ -31,6 +31,7 @@
     "seed:dummy": "node scripts/dev/seed-dummy-reports.js"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
     "@prisma/adapter-pg": "^7.1.0",
     "@prisma/client": "^7.1.0",
     "@radix-ui/react-checkbox": "^1.3.3",
