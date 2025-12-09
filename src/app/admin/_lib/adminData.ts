@@ -1,49 +1,70 @@
 // src/app/admin/_lib/adminData.ts
 import { prisma } from "@/lib/db";
+import { logError } from "@/lib/logger";
 import type { AdminReportRow } from "./adminTypes";
 
 /**
  * Fetch the latest reports for the admin dashboard.
- * Includes basic company info and moderation metadata.
+ * Includes company info (name + country) and moderation metadata.
  */
 export async function fetchAdminReports(): Promise<AdminReportRow[]> {
-  const reports = await prisma.report.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 100,
-    select: {
-      id: true,
-      createdAt: true,
-      status: true,
-      company: {
-        select: {
-          name: true,
+  try {
+    const reports = await prisma.report.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: {
+        id: true,
+        createdAt: true,
+        status: true,
+        company: {
+          select: {
+            name: true,
+            country: true, // country artık Company üzerinden geliyor
+          },
         },
+        // Report modelinde country alanı artık yok, burada seçmiyoruz
+        stage: true,
+        jobLevel: true,
+        positionCategory: true,
+        positionDetail: true,
+        daysWithoutReply: true,
+        flaggedAt: true,
+        flaggedReason: true,
+        deletedAt: true,
       },
-      country: true,
-      stage: true,
-      jobLevel: true,
-      positionCategory: true,
-      positionDetail: true,
-      daysWithoutReply: true,
-      flaggedAt: true,
-      flaggedReason: true,
-      deletedAt: true,
-    },
-  });
+    });
 
-  return reports.map((report) => ({
-    id: report.id,
-    createdAt: report.createdAt,
-    status: report.status,
-    companyName: report.company.name,
-    country: report.country,
-    stage: report.stage,
-    jobLevel: report.jobLevel,
-    positionCategory: report.positionCategory,
-    positionDetail: report.positionDetail,
-    daysWithoutReply: report.daysWithoutReply,
-    flaggedAt: report.flaggedAt,
-    flaggedReason: report.flaggedReason,
-    deletedAt: report.deletedAt,
-  }));
+    return reports.map(
+      (report): AdminReportRow => ({
+        id: report.id,
+        createdAt: report.createdAt,
+        status: report.status,
+        companyName: report.company.name,
+        country: report.company.country,
+        stage: report.stage,
+        jobLevel: report.jobLevel,
+        positionCategory: report.positionCategory,
+        positionDetail: report.positionDetail,
+        daysWithoutReply: report.daysWithoutReply,
+        flaggedAt: report.flaggedAt,
+        flaggedReason: report.flaggedReason,
+        deletedAt: report.deletedAt,
+      }),
+    );
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      logError("Failed to fetch admin reports", {
+        errorName: error.name,
+        errorMessage: error.message,
+      });
+
+      throw error;
+    }
+
+    logError("Failed to fetch admin reports: non-Error value thrown", {
+      errorValueType: typeof error,
+    });
+
+    throw new Error("Unknown error while fetching admin reports");
+  }
 }

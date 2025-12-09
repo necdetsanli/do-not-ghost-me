@@ -75,8 +75,7 @@ export function Input({
   const generatedId: string = React.useId();
 
   // Prefer explicit id, fall back to name, then a generated id.
-  const inputId: string =
-    id !== undefined ? id : typeof name === "string" ? name : generatedId;
+  const inputId: string = id ?? (typeof name === "string" ? name : generatedId);
 
   const descriptionId: string | undefined =
     description !== undefined ? `${inputId}-description` : undefined;

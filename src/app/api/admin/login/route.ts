@@ -39,12 +39,10 @@ function getLoginRateLimitStore(): LoginRateLimitStore {
     __adminLoginRateLimitStore?: LoginRateLimitStore;
   };
 
-  if (globalAny.__adminLoginRateLimitStore === undefined) {
-    globalAny.__adminLoginRateLimitStore = new Map<
-      string,
-      LoginRateLimitState
-    >();
-  }
+  globalAny.__adminLoginRateLimitStore ??= new Map<
+    string,
+    LoginRateLimitState
+  >();
 
   return globalAny.__adminLoginRateLimitStore;
 }

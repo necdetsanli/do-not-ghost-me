@@ -63,7 +63,7 @@ export function CountrySelect({
   const listboxId: string = `${inputId}-listbox`;
 
   const [selectedCode, setSelectedCode] = useState<CountryCode | "">(
-    initialCode !== undefined ? initialCode : "",
+    initialCode ?? "",
   );
 
   const [query, setQuery] = useState<string>(() => {

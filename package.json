@@ -11,30 +11,23 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postinstall": "prisma generate",
     "start": "next start",
-
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-
     "check": "tsc --noEmit",
-
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
     "test:ci": "vitest --runInBand",
-
     "test:e2e": "playwright test",
-
     "verify": "npm run lint && npm run check && npm run test && npm run test:e2e",
     "verify:ci": "npm run lint && npm run check && npm run test:ci && npm run test:e2e",
-
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-
     "seed:dummy": "node scripts/dev/seed-dummy-reports.js"
   },
   "dependencies": {
@@ -88,6 +81,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.0.15",
+    "depcheck": "^1.4.7",
     "eslint": "^9",
     "eslint-config-next": "16.0.7",
     "prettier": "^3.7.4",

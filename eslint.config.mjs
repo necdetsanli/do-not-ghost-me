@@ -100,12 +100,6 @@ export default defineConfig([
           ignoreRestSiblings: true,
         },
       ],
-      "@typescript-eslint/boolean-type": [
-        "error",
-        {
-          allowBoolean: true,
-        },
-      ],
     },
   },
 

@@ -206,9 +206,7 @@ export function ReportForm(): JSX.Element {
           {status === "error" && (
             <Alert
               type="error"
-              message={
-                errorMessage !== null ? errorMessage : "Something went wrong."
-              }
+              message={errorMessage ?? "Something went wrong."}
               onClose={clearAlert}
             />
           )}

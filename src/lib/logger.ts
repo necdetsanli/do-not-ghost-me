@@ -67,7 +67,6 @@ let fileStream: fs.WriteStream | null = null;
  */
 function isServerEnvironment(): boolean {
   // In Node.js there is no global `window`; in the browser there is.
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   return typeof window === "undefined";
 }
 
