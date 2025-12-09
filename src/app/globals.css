@@ -1,28 +1,332 @@
+/*src/app/globals.css*/
+/* Tailwind v4 entrypoint */
+@import "tailwindcss";
+
+/* -------------------------------------------------------------------------- */
+/* Design Tokens (@theme) - design-system level tokens                        */
+/* -------------------------------------------------------------------------- */
+
+@theme {
+  /* Brand colors */
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+
+  /* Spacing scale (aligned with Tailwind defaults) */
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+  --spacing-12: 3rem;
+  --spacing-16: 4rem;
+  --spacing-24: 6rem;
+
+  /* Border radius tokens */
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-full: 9999px;
+
+  /* Font size tokens */
+  --font-xs: 0.75rem;
+  --font-sm: 0.875rem;
+  --font-base: 1rem;
+  --font-lg: 1.125rem;
+  --font-xl: 1.25rem;
+  --font-2xl: 1.5rem;
+  --font-3xl: 1.875rem;
+  --font-4xl: 2.25rem;
+  --font-5xl: 3rem;
+
+  /* Shadow tokens */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md:
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Color tokens & color-scheme (light / dark)                                 */
+/* -------------------------------------------------------------------------- */
+
 :root {
   color-scheme: light;
+
+  /* Light theme tokens - neutral, soft palette */
+  --bg-base: #fafafa;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: #f5f5f5;
+  --bg-muted: #f3f4f6;
+
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+
+  --border-primary: #e5e7eb;
+  --border-secondary: #f3f4f6;
+
+  --success-bg: #f0fdf4;
+  --success-border: #86efac;
+  --success-text: #166534;
+
+  --error-bg: #fef2f2;
+  --error-border: #fca5a5;
+  --error-text: #991b1b;
+
+  --warning-bg: #fefce8;
+  --warning-border: #fde047;
+  --warning-text: #854d0e;
+
+  --focus-ring: #4f46e5;
+  --focus-ring-offset: #ffffff;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+.dark {
+  color-scheme: dark;
+
+  /* Dark theme tokens - very dark gray, not pure black */
+  --bg-base: #0f1116;
+  --bg-surface: #18181b;
+  --bg-surface-hover: #27272a;
+  --bg-muted: #27272a;
+
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #71717a;
+
+  --border-primary: #3f3f46;
+  --border-secondary: #27272a;
+
+  --success-bg: rgb(20 83 45 / 0.15);
+  --success-border: rgb(34 197 94 / 0.4);
+  --success-text: #86efac;
+
+  --error-bg: rgb(127 29 29 / 0.15);
+  --error-border: rgb(239 68 68 / 0.4);
+  --error-text: #fca5a5;
+
+  --warning-bg: rgb(133 77 14 / 0.15);
+  --warning-border: rgb(234 179 8 / 0.4);
+  --warning-text: #fde047;
+
+  --focus-ring: #6366f1;
+  --focus-ring-offset: #18181b;
 }
 
-html,
-body {
-  margin: 0;
-  padding: 0;
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  background-color: #f9fafb;
-  color: #111827;
+/* -------------------------------------------------------------------------- */
+/* Base layer – reset + typography + theme integration                        */
+/* -------------------------------------------------------------------------- */
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    border-color: var(--border-primary);
+  }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    min-height: 100%;
+  }
+
+  body {
+    min-height: 100vh;
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family:
+      "Inter",
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif;
+    font-size: 1rem;
+    line-height: 1.5;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button {
+    border: none;
+    background: none;
+  }
+
+  button:disabled,
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  /* Ensure clear focus visibility for accessibility */
+  *:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* Remove default focus outline; rely on :focus-visible above */
+  button:focus,
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: none;
+  }
+
+  /* Ensure all select items look clickable */
+  [data-slot="select-item"] {
+    cursor: pointer;
+  }
+
+  /* Hover + highlighted state (keyboard or mouse) – light theme baseline */
+  [data-slot="select-item"][data-highlighted],
+  [data-slot="select-item"]:hover {
+    background-color: var(--bg-surface-hover);
+    color: var(--text-primary);
+  }
+
+  /* Dark theme: make the highlight more prominent */
+  .dark [data-slot="select-item"][data-highlighted],
+  .dark [data-slot="select-item"]:hover {
+    background-color: rgba(79, 70, 229, 0.25); /* #4f46e5 with alpha */
+    color: #e5e7eb;
+  }
+
+  /* Selected item should be very visible (both themes) */
+  [data-slot="select-item"][data-state="checked"] {
+    background-color: var(--color-primary-600);
+    color: #ffffff;
+  }
+
+  /* Disabled items stay dimmed */
+  [data-slot="select-item"][data-disabled] {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  /* Combobox options: base clickable style */
+  .combobox-option {
+    cursor: pointer;
+  }
+
+  /* Light theme: hover + selected state */
+  .combobox-option:hover,
+  .combobox-option[aria-selected="true"] {
+    background-color: var(--bg-surface-hover);
+    color: var(--text-primary);
+  }
+
+  /* Dark theme: stronger, more visible highlight */
+  .dark .combobox-option:hover,
+  .dark .combobox-option[aria-selected="true"] {
+    background-color: rgba(79, 70, 229, 0.25); /* #4f46e5 with alpha */
+    color: #e5e7eb;
+  }
+
+  .combobox-option:focus-visible {
+    outline: none;
+  }
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+/* -------------------------------------------------------------------------- */
+/* Utility layer – design-system utility classes                              */
+/* -------------------------------------------------------------------------- */
+
+@layer utilities {
+  /* Background utilities */
+  .bg-base {
+    background-color: var(--bg-base);
+  }
+
+  .bg-surface {
+    background-color: var(--bg-surface);
+  }
+
+  .bg-surface-hover {
+    background-color: var(--bg-surface-hover);
+  }
+
+  .bg-muted {
+    background-color: var(--bg-muted);
+  }
+
+  /* Text utilities */
+  .text-primary {
+    color: var(--text-primary);
+  }
+
+  .text-secondary {
+    color: var(--text-secondary);
+  }
+
+  .text-tertiary {
+    color: var(--text-tertiary);
+  }
+
+  /* Border utilities */
+  .border-primary {
+    border-color: var(--border-primary);
+  }
+
+  .border-secondary {
+    border-color: var(--border-secondary);
+  }
+
+  /* Alert utilities */
+  .alert-success {
+    background-color: var(--success-bg);
+    border-color: var(--success-border);
+    color: var(--success-text);
+  }
+
+  .alert-error {
+    background-color: var(--error-bg);
+    border-color: var(--error-border);
+    color: var(--error-text);
+  }
+
+  .alert-warning {
+    background-color: var(--warning-bg);
+    border-color: var(--warning-border);
+    color: var(--warning-text);
+  }
+
+  /* Badge utilities (used in the Admin dashboard) */
+  .badge-active {
+    background-color: var(--success-bg);
+    color: var(--success-text);
+  }
+
+  .badge-flagged {
+    background-color: var(--warning-bg);
+    color: var(--warning-text);
+  }
+
+  .badge-deleted {
+    background-color: var(--error-bg);
+    color: var(--error-text);
+  }
 }
