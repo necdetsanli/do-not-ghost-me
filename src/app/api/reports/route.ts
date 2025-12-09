@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { reportSchema, type ReportInput } from "@/lib/validation/reportSchema";
 import { enforceReportLimitForIpCompanyPosition } from "@/lib/rateLimit";
 import {
+  MISSING_IP_MESSAGE,
   ReportRateLimitError,
   isReportRateLimitError,
 } from "@/lib/rateLimitError";
@@ -22,6 +23,9 @@ export const dynamic = "force-dynamic";
  * - per-day IP limit
  * - per-company-per-IP limit
  * - duplicate position submissions
+ *
+ * @param error - The domain-specific rate limit error.
+ * @returns A NextResponse with the appropriate HTTP status and JSON payload.
  */
 function mapRateLimitErrorToResponse(
   error: ReportRateLimitError,
@@ -35,29 +39,56 @@ function mapRateLimitErrorToResponse(
 }
 
 /**
+ * Returns true if all validation issues are related exclusively
+ * to the honeypot field.
+ *
+ * This allows us to treat "honeypot filled" as a bot submission and
+ * silently drop it, instead of surfacing a 400 validation error.
+ *
+ * @param issues - The Zod issues array from a failed parse.
+ * @returns True if every issue path is exactly ["honeypot"].
+ */
+function isHoneypotOnlyValidationError(
+  issues: { path: PropertyKey[] }[],
+): boolean {
+  if (issues.length === 0) {
+    return false;
+  }
+
+  return issues.every((issue) => {
+    if (issue.path.length !== 1) {
+      return false;
+    }
+
+    const [segment] = issue.path;
+
+    // We only care about string paths and specifically "honeypot".
+    return typeof segment === "string" && segment === "honeypot";
+  });
+}
+
+/**
  * Handle incoming ghosting reports.
  *
  * Pipeline:
  * 1. Extract client IP from the request and fail closed if it is missing.
  * 2. Parse and validate the JSON payload using {@link reportSchema}.
- * 3. Drop obvious bots via a hidden honeypot field.
+ * 3. If validation fails *only* because the honeypot is filled, treat it as
+ *    a bot submission and silently drop with HTTP 200.
  * 4. Find or create the corresponding company using a normalized name key.
  * 5. Enforce per-IP and per-company rate limits before writing anything.
  * 6. Persist the report row and return a 201 response with its identifier.
  *
- * On validation errors: responds with HTTP 400 and a structured Zod error.
- * On rate limit violations: responds with HTTP 429 and a user-friendly message.
- * On unexpected failures: logs the error and responds with HTTP 500.
+ * On validation errors (excluding honeypot-only): HTTP 400 + structured Zod error.
+ * On rate limit violations: HTTP 429 + user-friendly message.
+ * On unexpected failures: log and respond with HTTP 500.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const clientIpRaw = getClientIp(req);
 
   // Fail closed: if we cannot determine an IP, do not accept the report.
   if (clientIpRaw == null) {
-    const error = new ReportRateLimitError(
-      "We could not determine your IP address. Please try again later.",
-      "missing-ip",
-    );
+    const error = new ReportRateLimitError(MISSING_IP_MESSAGE, "missing-ip");
 
     logWarn("[POST /api/reports] Missing client IP address", {
       path: req.nextUrl.pathname,
@@ -69,11 +100,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const clientIp = clientIpRaw.trim();
+
   if (clientIp.length === 0) {
-    const error = new ReportRateLimitError(
-      "We could not determine your IP address. Please try again later.",
-      "missing-ip",
-    );
+    const error = new ReportRateLimitError(MISSING_IP_MESSAGE, "missing-ip");
 
     logWarn("[POST /api/reports] Empty client IP after trim", {
       path: req.nextUrl.pathname,
@@ -105,22 +134,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    // Early honeypot check: if this looks like a bot, ignore silently.
-    const rawHoneypot = (json as Record<string, unknown>).honeypot;
-
-    if (typeof rawHoneypot === "string" && rawHoneypot.trim().length > 0) {
-      logInfo("[POST /api/reports] Honeypot triggered (early)", {
-        ip: clientIp,
-        path: req.nextUrl.pathname,
-        userAgent: req.headers.get("user-agent") ?? undefined,
-      });
-
-      return new NextResponse(null, { status: 204 });
-    }
-
     const parsed = reportSchema.safeParse(json);
 
     if (!parsed.success) {
+      if (isHoneypotOnlyValidationError(parsed.error.issues)) {
+        logInfo("[POST /api/reports] Honeypot triggered (validation)", {
+          ip: clientIp,
+          path: req.nextUrl.pathname,
+          userAgent: req.headers.get("user-agent") ?? undefined,
+        });
+
+        return new NextResponse(null, { status: 200 });
+      }
+
       logWarn("[POST /api/reports] Report validation failed", {
         ip: clientIp,
         path: req.nextUrl.pathname,
@@ -138,20 +164,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const data: ReportInput = parsed.data;
 
-    // Honeypot check after parsing as well, in case the schema changes later.
-    if (typeof data.honeypot === "string" && data.honeypot.length > 0) {
-      logInfo("[POST /api/reports] Honeypot triggered (post-parse)", {
-        ip: clientIp,
-        path: req.nextUrl.pathname,
-        userAgent: req.headers.get("user-agent") ?? undefined,
-      });
-
-      return new NextResponse(null, { status: 204 });
-    }
-
     // Company lookup / creation with normalized name handled in lib/company.ts.
     const company = await findOrCreateCompanyForReport({
       companyName: data.companyName,
+      country: data.country,
     });
 
     // Enforce rate limits BEFORE creating the report.
@@ -169,9 +185,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         jobLevel: data.jobLevel,
         positionCategory: data.positionCategory,
         positionDetail: data.positionDetail,
-        // daysWithoutReply is now optional/nullable in validation and schema.
+        // daysWithoutReply is optional/nullable in validation and schema.
         daysWithoutReply: data.daysWithoutReply ?? null,
-        country: data.country,
       },
       select: {
         id: true,
