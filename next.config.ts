@@ -1,4 +1,4 @@
-//next.config.ts
+// next.config.ts
 // Next.js root config: React strict mode, basic hardening, and security headers.
 
 /**
@@ -6,36 +6,68 @@
  */
 
 /**
- * Builds the Content-Security-Policy header value for production responses.
+ * Build the Content-Security-Policy header value for production responses.
  *
- * Notable choices:
- * - No external scripts/styles/fonts by default.
- * - Inline styles are currently allowed because the UI uses React `style` props.
- * - No iframing: `frame-ancestors 'none'`.
- * - Forms can only post back to this origin: `form-action 'self'`.
+ * This CSP is intentionally strict while remaining compatible with:
+ * - Next.js App Router (which still relies on some inline scripts unless you
+ *   implement a nonce-based strict-dynamic CSP in middleware),
+ * - Radix UI / shadcn primitives (which render a few inline styles for
+ *   accessibility helpers such as visually hidden native <select> elements).
+ *
+ * IMPORTANT:
+ * - If you ever introduce third-party scripts (analytics, widgets, etc.),
+ *   you MUST extend `script-src` / `connect-src` / `img-src` accordingly.
+ * - For a stricter CSP, the next step would be to implement a per-request
+ *   nonce + `script-src 'strict-dynamic'` in middleware. That is outside the
+ *   scope of this static config file.
  *
  * @returns {string} Serialized CSP directives joined by "; ".
  */
 function buildCspHeaderValue() {
+  /** @type {string[]} */
   const directives = [
+    // Default policy: only this origin.
     "default-src 'self'",
-    // We do not allow inline/eval scripts here. If you ever introduce 3rd party
-    // scripts or inline scripts, this will need to be revisited.
-    "script-src 'self'",
-    // Allow inline styles because the UI uses inline `style` props.
+
+    // Next.js App Router currently relies on some inline scripts. Without a
+    // nonce-based strict-dynamic setup in middleware, we must allow
+    // 'unsafe-inline' here. Do NOT add 'unsafe-eval' in production.
+    "script-src 'self' 'unsafe-inline'",
+
+    // All styles are served from this origin. UI libraries still inject small
+    // inline styles (e.g. visually hidden native elements), so we keep
+    // 'unsafe-inline' for now. Remove only after verifying there are absolutely
+    // no inline style attributes or inline <style> blocks at runtime.
     "style-src 'self' 'unsafe-inline'",
-    // Allow images from this origin and data: URLs (e.g. icons, placeholders).
+
+    // Disallow legacy plugin content.
+    "object-src 'none'",
+
+    // Images are served from this origin or from data: URLs (icons, placeholders).
     "img-src 'self' data:",
-    // API / fetch / websockets endpoints. For now we only talk to our own origin.
+
+    // XHR / fetch / WebSocket endpoints. At the moment we only talk to our own origin.
     "connect-src 'self'",
-    // Fonts from self and data: URLs.
+
+    // Web fonts from this origin and data: URLs.
     "font-src 'self' data:",
-    // Disallow embedding this site in <iframe> or similar.
+
+    // Do not allow this app to be embedded in iframes.
     "frame-ancestors 'none'",
-    // Forms can only submit back to this origin.
+    "frame-src 'none'",
+
+    // Forms can only POST/GET back to this origin.
     "form-action 'self'",
-    // Prevent attackers from changing base URL for relative URLs.
+
+    // Prevent attackers from changing the base URL for relative URLs.
     "base-uri 'self'",
+
+    // Additional tightening for less common resource types.
+    "media-src 'self'",
+    "manifest-src 'self'",
+
+    // Allow workers started from our own origin and Blob URLs (used by some tooling).
+    "worker-src 'self' blob:",
   ];
 
   return directives.join("; ");
@@ -62,7 +94,7 @@ const securityHeaders = (() => {
       value: "strict-origin-when-cross-origin",
     },
     // Lock down powerful browser APIs we do not use.
-    // You can relax these later if you actually need e.g. geolocation.
+    // Relax these only if you actually need e.g. geolocation.
     {
       key: "Permissions-Policy",
       value: "geolocation=(), microphone=(), camera=(), interest-cohort=()",
@@ -70,11 +102,12 @@ const securityHeaders = (() => {
   ];
 
   if (isProd) {
-    // Only enable HSTS and CSP in production. Using this on HTTP / localhost is not desirable.
+    // Only enable HSTS and CSP in production. Setting this on HTTP / localhost
+    // is not desirable.
     headers.push(
       {
         key: "Strict-Transport-Security",
-        // 2 years, include subdomains, and opt-in for preload lists.
+        // 2 years, include subdomains, and opt-in for browser preload lists.
         value: "max-age=63072000; includeSubDomains; preload",
       },
       {

@@ -4,21 +4,33 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 /**
- * Resolve the project root directory from the current module URL.
- * This is used to build stable, cross-platform paths in the config.
+ * Absolute path to the project root directory resolved from this config file.
+ * This ensures all subsequent paths are stable and cross-platform.
+ *
+ * @type {string}
  */
-const projectRootDir = fileURLToPath(new URL(".", import.meta.url));
+const projectRootDir: string = fileURLToPath(new URL(".", import.meta.url));
 
+/**
+ * Vitest configuration for this project.
+ *
+ * - Uses a pure Node.js environment for backend / library tests.
+ * - Supports "@/..." imports by aliasing to the src/ directory.
+ * - Boots a single test env setup file before running any tests.
+ */
 export default defineConfig({
   test: {
     /**
      * Use a pure Node.js environment. This is appropriate for
      * library code, Prisma, and backend-oriented logic.
+     *
+     * For React / DOM-heavy tests you can override this per-test
+     * file or suite (e.g. with jsdom or happy-dom).
      */
     environment: "node",
 
     /**
-     * Enable global test APIs (describe/it/expect) without
+     * Enable global test APIs (describe / it / expect) without
      * importing them in every test file.
      */
     globals: true,
@@ -30,17 +42,36 @@ export default defineConfig({
     include: ["tests/**/*.test.{ts,tsx}"],
 
     /**
-     * Load a single bootstrap file before running any tests.
-     * This is where we normalize process.env for tests.
+     * Explicitly ignore common output / cache directories.
      */
-    setupFiles: ["tests/setup/test-env.ts"],
+    exclude: ["node_modules", "dist", ".next", ".turbo", "coverage"],
 
+    /**
+     * Load a single bootstrap file before running any tests.
+     * This is where we normalize process.env for tests and apply
+     * any global mocks.
+     */
+    setupFiles: [path.resolve(projectRootDir, "tests/setup/test-env.ts")],
+
+    /**
+     * Coverage configuration based on the V8 engine.
+     * The reports directory is resolved from the project root
+     * for consistency across environments.
+     */
     coverage: {
       provider: "v8",
-      reportsDirectory: "coverage",
+      reportsDirectory: path.resolve(projectRootDir, "coverage"),
     },
 
-    // Optional, but helpful if you start using vi.spyOn / vi.mock heavily:
+    /**
+     * If you start using vi.spyOn / vi.mock heavily, consider enabling:
+     *
+     * clearMocks: true,
+     * restoreMocks: true,
+     *
+     * Keeping them commented out for now avoids surprising behavior
+     * in tests that rely on manual mock lifecycle control.
+     */
     // clearMocks: true,
     // restoreMocks: true,
   },
