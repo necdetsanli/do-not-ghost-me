@@ -1,5 +1,6 @@
 // src/app/admin/_components/AdminHeader.tsx
 import type { JSX } from "react";
+import Link from "next/link";
 
 /**
  * Header for the admin reports dashboard, including the logout button.
@@ -18,14 +19,13 @@ export function AdminHeader(): JSX.Element {
         </p>
       </div>
 
-      <form method="POST" action="/api/admin/logout">
-        <button
-          type="submit"
-          className="inline-flex items-center rounded-md border border-primary bg-surface px-3 py-1.5 text-xs font-medium text-primary shadow-sm transition-colors hover:bg-surface-hover"
-        >
-          Log out
-        </button>
-      </form>
+      {/* Logout → navigates to /admin/logout, which will call /api/admin/logout and then redirect home */}
+      <Link
+        href="/admin/logout"
+        className="inline-flex items-center rounded-md border border-primary bg-surface px-3 py-1.5 text-xs font-medium text-primary shadow-sm transition-colors hover:bg-surface-hover"
+      >
+        Log out
+      </Link>
     </header>
   );
 }

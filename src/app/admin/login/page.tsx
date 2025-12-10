@@ -1,21 +1,39 @@
 // src/app/admin/login/page.tsx
 import type { JSX } from "react";
+import type { Metadata } from "next";
 import { createCsrfToken } from "@/lib/csrf";
 
 export const dynamic = "force-dynamic";
 
 const CSRF_FIELD_NAME = "_csrf";
 
+type AdminLoginPageProps = {
+  searchParams?: {
+    error?: string;
+  };
+};
+
+export const metadata: Metadata = {
+  title: "Admin login | Do Not Ghost Me",
+  description:
+    "Restricted admin area for moderating reports submitted to Do Not Ghost Me.",
+};
+
 /**
  * Admin login page.
  *
  * Pure server component:
  * - Generates a CSRF token for the login form.
+ * - Reads query params (e.g. ?error=1) to show error feedback.
  * - Renders a minimal, centered login card.
  * - Does not use client components (no "use client") to keep it simple and secure.
  */
-export default function AdminLoginPage(): JSX.Element {
+export default function AdminLoginPage(
+  props: AdminLoginPageProps,
+): JSX.Element {
   const csrfToken = createCsrfToken("admin-login");
+
+  const hasError: boolean = props.searchParams?.error === "1";
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-base px-4 py-8">
@@ -27,6 +45,16 @@ export default function AdminLoginPage(): JSX.Element {
             secured using a signed, HttpOnly session cookie.
           </p>
         </header>
+
+        {/* Error message when redirected back with ?error=1 */}
+        {hasError === true && (
+          <div
+            role="alert"
+            className="mb-4 alert-error rounded-md border px-3 py-2 text-sm"
+          >
+            Invalid password or session token. Please try again.
+          </div>
+        )}
 
         <form
           method="POST"

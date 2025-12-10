@@ -2,6 +2,7 @@
 import type { JSX } from "react";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+
 import { env } from "@/env";
 import {
   ADMIN_SESSION_COOKIE_NAME,
@@ -29,11 +30,17 @@ export default async function AdminPage(): Promise<JSX.Element> {
   // ---------------------------------------------------------------------------
   const headersList = await headers();
   const hostHeader = headersList.get("host");
-  const allowedHost = env.ADMIN_ALLOWED_HOST;
+  const allowedHostFromEnv = env.ADMIN_ALLOWED_HOST;
 
-  if (allowedHost !== undefined && allowedHost !== "") {
-    if (hostHeader !== allowedHost) {
-      redirect("/");
+  if (allowedHostFromEnv !== undefined && allowedHostFromEnv !== null) {
+    const trimmedAllowed = allowedHostFromEnv.trim();
+
+    // Empty or whitespace-only => do not enforce host restriction
+    if (trimmedAllowed.length > 0) {
+      // If Host header yoksa veya izin verilenle eşleşmiyorsa, public home'a at
+      if (hostHeader === null || hostHeader !== trimmedAllowed) {
+        redirect("/");
+      }
     }
   }
 

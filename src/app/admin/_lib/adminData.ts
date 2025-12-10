@@ -5,7 +5,17 @@ import type { AdminReportRow } from "./adminTypes";
 
 /**
  * Fetch the latest reports for the admin dashboard.
- * Includes company info (name + country) and moderation metadata.
+ *
+ * Includes:
+ * - company information (name and country),
+ * - moderation metadata (status, flagged/deleted timestamps, reasons),
+ * - basic report attributes needed for the moderation table.
+ *
+ * @returns A promise that resolves to an array of AdminReportRow objects,
+ *          ordered by creation time (newest first) and limited to the most
+ *          recent 100 reports.
+ * @throws {Error} When Prisma fails or when a non-Error value is thrown,
+ *                 the error is logged and rethrown to the caller.
  */
 export async function fetchAdminReports(): Promise<AdminReportRow[]> {
   try {
@@ -19,10 +29,9 @@ export async function fetchAdminReports(): Promise<AdminReportRow[]> {
         company: {
           select: {
             name: true,
-            country: true, // country artık Company üzerinden geliyor
+            country: true,
           },
         },
-        // Report modelinde country alanı artık yok, burada seçmiyoruz
         stage: true,
         jobLevel: true,
         positionCategory: true,
