@@ -10,7 +10,7 @@ export function AboutBackLinkSection(): JSX.Element {
     <section className="mt-12 flex flex-wrap items-center gap-3">
       <Link
         href="/"
-        className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+        className="text-sm text-secondary underline-offset-4 hover:underline"
       >
         Back to home
       </Link>

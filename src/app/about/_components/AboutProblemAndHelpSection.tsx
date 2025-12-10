@@ -8,11 +8,11 @@ import type { JSX } from "react";
 export function AboutProblemAndHelpSection(): JSX.Element {
   return (
     <section className="mt-10 grid gap-6 md:grid-cols-2">
-      <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
-        <h2 className="text-lg font-semibold">
+      <div className="rounded-xl border border-primary bg-surface p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-primary">
           The problem: ghosting in hiring
         </h2>
-        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-muted-foreground">
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-secondary">
           <li>
             Candidates often invest hours or weeks of work into applications,
             tests and interviews, only to suddenly stop hearing anything back.
@@ -33,11 +33,11 @@ export function AboutProblemAndHelpSection(): JSX.Element {
         </ul>
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
-        <h2 className="text-lg font-semibold">
+      <div className="rounded-xl border border-primary bg-surface p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-primary">
           How this project tries to help
         </h2>
-        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-muted-foreground">
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-secondary">
           <li>
             Provide a simple way for candidates to document when and where they
             were ghosted (stage, company, role details, timeline).
