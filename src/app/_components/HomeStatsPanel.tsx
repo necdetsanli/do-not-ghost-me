@@ -78,10 +78,12 @@ export function HomeStatsPanel(): JSX.Element {
     let isSubscribed = true;
 
     async function loadStats(): Promise<void> {
+      setStatus("loading");
+
       try {
-        setStatus("loading");
         const res = await fetch("/api/reports/stats", {
           method: "GET",
+          cache: "no-store",
         });
 
         if (!res.ok) {
@@ -102,7 +104,9 @@ export function HomeStatsPanel(): JSX.Element {
         if (!isSubscribed) {
           return;
         }
-        console.error("Failed to load stats", error);
+
+        // Client-side logging only; server-side logs are handled by API route
+        console.error("[HomeStatsPanel] Failed to load stats", error);
         setStatus("error");
       }
     }
@@ -122,18 +126,26 @@ export function HomeStatsPanel(): JSX.Element {
         : "0";
 
   const mostCompanyName: string =
-    stats?.mostReportedCompany?.name ?? "No data yet";
+    stats?.mostReportedCompany?.name ??
+    (status === "error" ? "Unavailable" : "No data yet");
 
   const mostCompanyCountLabel: string =
     stats?.mostReportedCompany?.reportCount !== undefined
       ? `${stats.mostReportedCompany.reportCount} reports`
       : status === "loading"
         ? "Loading..."
-        : "No reports yet";
+        : status === "error"
+          ? "Data not available"
+          : "No reports yet";
 
   return (
-    <aside className="space-y-4" aria-label="Platform statistics">
+    <aside
+      className="space-y-4"
+      aria-label="Platform statistics"
+      aria-busy={status === "loading"}
+    >
       <StatsCard label="Total reports" value={totalReportsLabel} />
+
       <Card className="!p-6">
         <div className="flex items-start gap-3">
           <div
@@ -148,12 +160,10 @@ export function HomeStatsPanel(): JSX.Element {
                 ? "Most reported company (unavailable)"
                 : "Most reported this week"}
             </div>
-            <div className="mb-1 text-xl text-primary">{mostCompanyName}</div>
-            <div className="text-sm text-tertiary">
-              {status === "error"
-                ? "Data not available"
-                : mostCompanyCountLabel}
+            <div className="mb-1 text-xl text-primary" aria-live="polite">
+              {mostCompanyName}
             </div>
+            <div className="text-sm text-tertiary">{mostCompanyCountLabel}</div>
           </div>
         </div>
       </Card>

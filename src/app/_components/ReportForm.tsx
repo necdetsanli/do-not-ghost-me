@@ -115,7 +115,7 @@ export function ReportForm(): JSX.Element {
         body: JSON.stringify(payload),
       });
 
-      // Honeypot path returns 204, which is still ok → treat as success.
+      // Honeypot path returns 200, which is still ok → treat as success.
       if (res.ok) {
         setStatus("success");
         setErrorMessage(null);

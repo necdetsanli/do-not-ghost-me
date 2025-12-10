@@ -1,4 +1,3 @@
-// src/app/_components/HomeHero.tsx
 "use client";
 
 import type { JSX } from "react";
@@ -22,7 +21,10 @@ export function HomeHero(): JSX.Element {
   return (
     <div className="space-y-8">
       <header className="space-y-4">
-        <h1 className="text-4xl tracking-tight text-primary md:text-5xl">
+        <h1
+          id="home-hero-heading"
+          className="text-4xl tracking-tight text-primary md:text-5xl"
+        >
           Track ghosting.
           <br />
           Share your experience.
