@@ -1,0 +1,26 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+
+  "tsconfig": "tsconfig.json",
+
+  "entryPoints": [
+    "src/lib",
+    "src/app/**/_lib"
+  ],
+
+  "out": "docs/api",
+
+  "plugin": ["typedoc-plugin-markdown"],
+
+  "theme": "markdown",
+  "hideBreadcrumbs": true,
+
+  "excludeExternals": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+
+  "commentStyle": "all",
+
+  "entryPointStrategy": "expand"
+}

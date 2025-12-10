@@ -1,7 +1,8 @@
 {
   "name": "do-not-ghost-me",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
+  "license": "AGPL-3.0-or-later",
   "description": "Report recruitment ghosting in a privacy-safe way.",
   "engines": {
     "node": ">=22",
@@ -28,7 +29,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "seed:dummy": "node scripts/dev/seed-dummy-reports.js"
+    "seed:dummy": "node scripts/dev/seed-dummy-reports.js",
+    "docs:api": "typedoc",
+    "docs:clean": "rimraf docs/api"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
@@ -69,8 +72,11 @@
     "react-hook-form": "^7.68.0",
     "react-resizable-panels": "^3.0.6",
     "recharts": "^3.5.1",
+    "rimraf": "^6.1.2",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
+    "typedoc": "^0.28.15",
+    "typedoc-plugin-markdown": "^4.9.0",
     "vaul": "^1.1.2",
     "zod": "^4.1.13"
   },
