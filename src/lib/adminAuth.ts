@@ -45,12 +45,13 @@ function b64url(input: Buffer | string): string {
  * @returns Decoded buffer.
  */
 function b64urlDecode(str: string): Buffer {
-  const pad = str.length % 4 === 0 ? "" : "=".repeat(4 - (str.length % 4));
-  const base64 = str.replace(/-/g, "+").replace(/_/g, "/") + pad;
+  const remainder: number = str.length % 4;
+  const pad: string = remainder === 0 ? "" : "=".repeat(4 - remainder);
+  const base64: string = str.replace(/-/g, "+").replace(/_/g, "/") + pad;
   return Buffer.from(base64, "base64");
 }
 
-// Track misconfiguration logs so we don't spam on every call.
+// Track misconfiguration logs so we do not spam on every call.
 let hasLoggedMissingSessionSecret = false;
 let hasLoggedMissingAdminPassword = false;
 
@@ -60,11 +61,11 @@ let hasLoggedMissingAdminPassword = false;
  * @param data - Arbitrary string to sign.
  * @returns Base64url-encoded HMAC signature.
  *
- * @throws If ADMIN_SESSION_SECRET is not configured.
+ * @throws {Error} If ADMIN_SESSION_SECRET is not configured.
  */
 function sign(data: string): string {
   if (env.ADMIN_SESSION_SECRET === undefined) {
-    if (!hasLoggedMissingSessionSecret) {
+    if (hasLoggedMissingSessionSecret === false) {
       logError(
         "ADMIN_SESSION_SECRET is not set. Admin sessions are not available.",
       );
@@ -76,9 +77,9 @@ function sign(data: string): string {
     );
   }
 
-  const h = crypto.createHmac("sha256", env.ADMIN_SESSION_SECRET);
-  h.update(data);
-  return b64url(h.digest());
+  const hmac = crypto.createHmac("sha256", env.ADMIN_SESSION_SECRET);
+  hmac.update(data);
+  return b64url(hmac.digest());
 }
 
 /**
@@ -90,11 +91,11 @@ function sign(data: string): string {
  * @returns True when the password matches, false otherwise.
  */
 export function verifyAdminPassword(candidate: string): boolean {
-  const configured = env.ADMIN_PASSWORD;
+  const configured: string | undefined = env.ADMIN_PASSWORD;
 
   // If no admin password is configured, never authenticate anyone.
   if (configured === undefined) {
-    if (!hasLoggedMissingAdminPassword) {
+    if (hasLoggedMissingAdminPassword === false) {
       logError(
         "ADMIN_PASSWORD is not set. Rejecting all admin login attempts.",
       );
@@ -104,13 +105,15 @@ export function verifyAdminPassword(candidate: string): boolean {
     return false;
   }
 
-  const a = Buffer.from(candidate, "utf8");
-  const b = Buffer.from(configured, "utf8");
+  const candidateBuffer: Buffer = Buffer.from(candidate, "utf8");
+  const configuredBuffer: Buffer = Buffer.from(configured, "utf8");
 
-  if (a.length !== b.length) {
+  if (candidateBuffer.length !== configuredBuffer.length) {
     // Do a dummy comparison to keep timing roughly consistent.
     try {
-      crypto.timingSafeEqual(b, Buffer.alloc(b.length));
+      const dummy: Buffer = Buffer.alloc(configuredBuffer.length);
+      // Result is intentionally ignored; this is only to keep timing similar.
+      crypto.timingSafeEqual(configuredBuffer, dummy);
     } catch {
       // Intentionally ignored: this is only to keep timing similar.
     }
@@ -119,7 +122,11 @@ export function verifyAdminPassword(candidate: string): boolean {
   }
 
   try {
-    return crypto.timingSafeEqual(a, b);
+    const isEqual: boolean = crypto.timingSafeEqual(
+      candidateBuffer,
+      configuredBuffer,
+    );
+    return isEqual;
   } catch {
     return false;
   }
@@ -134,18 +141,18 @@ export function verifyAdminPassword(candidate: string): boolean {
  * @returns Opaque signed session token.
  */
 export function createAdminSessionToken(): string {
-  const now = Math.floor(Date.now() / 1000);
+  const now: number = Math.floor(Date.now() / 1000);
   const payload: AdminSessionPayload = {
     sub: "admin",
     iat: now,
     exp: now + ADMIN_SESSION_MAX_AGE_SECONDS,
   };
 
-  const payloadJson = JSON.stringify(payload);
-  const payloadB64 = b64url(payloadJson);
-  const sig = sign(payloadB64);
+  const payloadJson: string = JSON.stringify(payload);
+  const payloadB64: string = b64url(payloadJson);
+  const signature: string = sign(payloadB64);
 
-  return `${payloadB64}.${sig}`;
+  return `${payloadB64}.${signature}`;
 }
 
 /**
@@ -161,7 +168,7 @@ export function verifyAdminSessionToken(
     return null;
   }
 
-  const parts = token.split(".");
+  const parts: string[] = token.split(".");
   if (parts.length !== 2) {
     logWarn("Received admin session token with invalid format", {
       // Do NOT log the token itself for security reasons.
@@ -195,13 +202,14 @@ export function verifyAdminSessionToken(
     return null;
   }
 
-  const sigBuf = Buffer.from(sig, "utf8");
-  const expectedBuf = Buffer.from(expectedSig, "utf8");
+  const sigBuf: Buffer = Buffer.from(sig, "utf8");
+  const expectedBuf: Buffer = Buffer.from(expectedSig, "utf8");
 
-  if (
-    sigBuf.length !== expectedBuf.length ||
-    !crypto.timingSafeEqual(sigBuf, expectedBuf)
-  ) {
+  const sameLength: boolean = sigBuf.length === expectedBuf.length;
+  const signaturesMatch: boolean =
+    sameLength === true && crypto.timingSafeEqual(sigBuf, expectedBuf) === true;
+
+  if (signaturesMatch === false) {
     logWarn("Admin session token signature mismatch", {
       tokenLength: token.length,
     });
@@ -209,10 +217,12 @@ export function verifyAdminSessionToken(
   }
 
   try {
-    const payloadJson = b64urlDecode(payloadB64).toString("utf8");
-    const payload = JSON.parse(payloadJson) as AdminSessionPayload;
+    const payloadJson: string = b64urlDecode(payloadB64).toString("utf8");
+    const payload: AdminSessionPayload = JSON.parse(
+      payloadJson,
+    ) as AdminSessionPayload;
 
-    const now = Math.floor(Date.now() / 1000);
+    const now: number = Math.floor(Date.now() / 1000);
 
     if (payload.sub !== "admin") {
       logWarn("Admin session token has invalid subject", {
@@ -248,14 +258,14 @@ export function verifyAdminSessionToken(
  * @returns True when the host is allowed, false otherwise.
  */
 export function isAllowedAdminHost(req: NextRequest): boolean {
-  const requiredHost = env.ADMIN_ALLOWED_HOST;
+  const requiredHost: string | undefined = env.ADMIN_ALLOWED_HOST;
 
   if (requiredHost === undefined || requiredHost === "") {
     // No host restriction configured.
     return true;
   }
 
-  const headerHost = req.headers.get("host") ?? "";
+  const headerHost: string = req.headers.get("host") ?? "";
   return headerHost === requiredHost;
 }
 
@@ -267,10 +277,12 @@ export function isAllowedAdminHost(req: NextRequest): boolean {
  * @param req - Incoming NextRequest.
  * @returns Parsed admin session payload when authorized.
  *
- * @throws If the host is not allowed or the session is missing/invalid.
+ * @throws {Error} If the host is not allowed or the session is missing/invalid.
  */
 export function requireAdminRequest(req: NextRequest): AdminSessionPayload {
-  if (!isAllowedAdminHost(req)) {
+  const hostAllowed: boolean = isAllowedAdminHost(req);
+
+  if (hostAllowed === false) {
     logWarn("Blocked admin request from disallowed host", {
       host: req.headers.get("host") ?? null,
     });
@@ -278,8 +290,10 @@ export function requireAdminRequest(req: NextRequest): AdminSessionPayload {
     throw new Error("Admin access is not allowed from this host.");
   }
 
-  const cookieValue = req.cookies.get(ADMIN_SESSION_COOKIE_NAME)?.value ?? null;
-  const session = verifyAdminSessionToken(cookieValue);
+  const cookieValue: string | null =
+    req.cookies.get(ADMIN_SESSION_COOKIE_NAME)?.value ?? null;
+  const session: AdminSessionPayload | null =
+    verifyAdminSessionToken(cookieValue);
 
   if (session === null) {
     logWarn("Blocked admin request with missing or invalid session", {

@@ -7,11 +7,32 @@ import { MISSING_IP_MESSAGE, ReportRateLimitError } from "@/lib/rateLimitError";
 import { toUtcDayKey } from "@/lib/dates";
 import { hasPrismaErrorCode } from "@/lib/prismaErrors";
 import { logWarn, logError } from "@/lib/logger";
+import { formatUnknownError } from "@/lib/errorUtils";
 
-const MAX_REPORTS_PER_COMPANY_PER_IP =
+const MAX_REPORTS_PER_COMPANY_PER_IP: number =
   env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP;
 
-const MAX_REPORTS_PER_IP_PER_DAY = env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY;
+const MAX_REPORTS_PER_IP_PER_DAY: number =
+  env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY;
+
+const DAILY_IP_LIMIT_MESSAGE =
+  "You have reached the daily report limit for this IP address.";
+
+const COMPANY_POSITION_LIMIT_MESSAGE =
+  "You have reached the maximum number of reports for this company from this IP address.";
+
+const DUPLICATE_POSITION_LIMIT_MESSAGE =
+  "You have already submitted a report for this position at this company from this IP address.";
+
+/**
+ * Arguments required to enforce IP-based rate limits for report creation.
+ */
+type EnforceReportLimitArgs = {
+  ip: string | null | undefined;
+  companyId: string;
+  positionCategory: PositionCategory;
+  positionDetail: string;
+};
 
 /**
  * Normalizes an IP string and ensures it is present and non-empty.
@@ -20,14 +41,14 @@ const MAX_REPORTS_PER_IP_PER_DAY = env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY;
  *
  * @param ip - The raw IP string value, or null/undefined.
  * @returns A trimmed IP string if valid.
- * @throws ReportRateLimitError if the IP is null, undefined, empty, or "unknown".
+ * @throws ReportRateLimitError If the IP is null, undefined, empty, or "unknown".
  */
 function normalizeAndRequireIp(ip: string | null | undefined): string {
   if (ip === null || ip === undefined) {
     throw new ReportRateLimitError(MISSING_IP_MESSAGE, "missing-ip");
   }
 
-  const trimmed = ip.trim();
+  const trimmed: string = ip.trim();
 
   if (trimmed.length === 0 || trimmed.toLowerCase() === "unknown") {
     throw new ReportRateLimitError(MISSING_IP_MESSAGE, "missing-ip");
@@ -37,41 +58,23 @@ function normalizeAndRequireIp(ip: string | null | undefined): string {
 }
 
 /**
- * Safely formats an unknown error value into a string for logging.
- *
- * @param error - The unknown error value.
- * @returns A best-effort string representation of the error.
- */
-function formatUnknownError(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  try {
-    return String(error);
-  } catch {
-    return "[unstringifiable-error]";
-  }
-}
-
-/**
  * Hashes an IP address with a secret salt so that raw IPs are never stored.
  *
  * Exported so that unit tests can verify hashing behavior.
  *
  * @param ip - The raw IP address string to hash.
  * @returns A hex-encoded HMAC-SHA256 hash of the IP and salt.
- * @throws ReportRateLimitError if the provided IP string is empty after trimming.
+ * @throws ReportRateLimitError If the provided IP string is empty after trimming.
  */
 export function hashIp(ip: string): string {
-  const trimmedIp = ip.trim();
+  const trimmedIp: string = ip.trim();
 
   if (trimmedIp.length === 0) {
     throw new ReportRateLimitError(MISSING_IP_MESSAGE, "missing-ip");
   }
 
   // At this point env.RATE_LIMIT_IP_SALT is guaranteed non-empty and sufficiently long by env validation.
-  const hmac = crypto.createHmac("sha256", env.RATE_LIMIT_IP_SALT);
+  const hmac: crypto.Hmac = crypto.createHmac("sha256", env.RATE_LIMIT_IP_SALT);
   hmac.update(trimmedIp);
 
   return hmac.digest("hex");
@@ -94,29 +97,26 @@ export function hashIp(ip: string): string {
  * @param args.positionCategory - The position category for the report.
  * @param args.positionDetail - The free-text position detail string.
  * @returns A promise that resolves when limits are within bounds.
- * @throws ReportRateLimitError if any rate limit is exceeded or IP is missing.
+ * @throws ReportRateLimitError If any rate limit is exceeded or IP is missing.
  */
-export async function enforceReportLimitForIpCompanyPosition(args: {
-  ip: string | null | undefined;
-  companyId: string;
-  positionCategory: PositionCategory;
-  positionDetail: string;
-}): Promise<void> {
+export async function enforceReportLimitForIpCompanyPosition(
+  args: EnforceReportLimitArgs,
+): Promise<void> {
   const { ip, companyId, positionCategory, positionDetail } = args;
 
   // Fail closed: no IP → no report.
-  const normalizedIp = normalizeAndRequireIp(ip);
-  const ipHash = hashIp(normalizedIp);
+  const normalizedIp: string = normalizeAndRequireIp(ip);
+  const ipHash: string = hashIp(normalizedIp);
 
   // Use a simple UTC day key (YYYY-MM-DD) for per-day limits.
-  const dayKey = toUtcDayKey();
+  const dayKey: string = toUtcDayKey();
 
-  const maxPerCompany = MAX_REPORTS_PER_COMPANY_PER_IP;
-  const maxPerDay = MAX_REPORTS_PER_IP_PER_DAY;
+  const maxPerCompany: number = MAX_REPORTS_PER_COMPANY_PER_IP;
+  const maxPerDay: number = MAX_REPORTS_PER_IP_PER_DAY;
 
   // Normalize position into a stable key for uniqueness checks.
-  const normalizedPositionDetail = positionDetail.trim().toLowerCase();
-  const positionKey = `${positionCategory}:${normalizedPositionDetail}`;
+  const normalizedPositionDetail: string = positionDetail.trim().toLowerCase();
+  const positionKey: string = `${positionCategory}:${normalizedPositionDetail}`;
 
   await prisma.$transaction(async (tx) => {
     // 1) Global per-day IP limit.
@@ -138,8 +138,11 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
             count: 1,
           },
         });
-      } catch (error) {
-        if (!hasPrismaErrorCode(error, "P2002")) {
+      } catch (error: unknown) {
+        const isUniqueViolation: boolean =
+          hasPrismaErrorCode(error, "P2002") === true;
+
+        if (isUniqueViolation === false) {
           logError("[rateLimit] Unexpected error creating daily IP limit row", {
             ipHash,
             day: dayKey,
@@ -177,7 +180,7 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
           });
 
           throw new ReportRateLimitError(
-            "You have reached the daily report limit for this IP address.",
+            DAILY_IP_LIMIT_MESSAGE,
             "daily-ip-limit",
           );
         }
@@ -203,7 +206,7 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
         });
 
         throw new ReportRateLimitError(
-          "You have reached the daily report limit for this IP address.",
+          DAILY_IP_LIMIT_MESSAGE,
           "daily-ip-limit",
         );
       }
@@ -221,7 +224,7 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
     }
 
     // 2) Per-company limit from this IP.
-    const existingCompanyCount = await tx.reportIpCompanyLimit.count({
+    const existingCompanyCount: number = await tx.reportIpCompanyLimit.count({
       where: {
         ipHash,
         companyId,
@@ -237,7 +240,7 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
       });
 
       throw new ReportRateLimitError(
-        "You have reached the maximum number of reports for this company from this IP address.",
+        COMPANY_POSITION_LIMIT_MESSAGE,
         "company-position-limit",
       );
     }
@@ -251,8 +254,11 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
           positionKey,
         },
       });
-    } catch (error) {
-      if (hasPrismaErrorCode(error, "P2002")) {
+    } catch (error: unknown) {
+      const isUniqueViolation: boolean =
+        hasPrismaErrorCode(error, "P2002") === true;
+
+      if (isUniqueViolation === true) {
         logWarn(
           "[rateLimit] Duplicate report for company + position from this IP",
           {
@@ -263,7 +269,7 @@ export async function enforceReportLimitForIpCompanyPosition(args: {
         );
 
         throw new ReportRateLimitError(
-          "You have already submitted a report for this position at this company from this IP address.",
+          DUPLICATE_POSITION_LIMIT_MESSAGE,
           "company-position-limit",
         );
       }

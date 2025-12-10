@@ -1,4 +1,5 @@
-//src/lib/rateLimitError.ts
+// src/lib/rateLimitError.ts
+
 /**
  * Narrow reasons for why a report was rate limited.
  *
@@ -10,6 +11,14 @@ export type RateLimitReason =
   | "company-position-limit"
   | "daily-ip-limit"
   | "unknown";
+
+/**
+ * Default HTTP status code for rate-limit responses.
+ *
+ * Keeping this as a constant avoids magic numbers in constructors
+ * and makes it easier to adjust globally if needed.
+ */
+export const DEFAULT_RATE_LIMIT_STATUS_CODE = 429;
 
 /**
  * Shared message for missing-client-IP situations.
@@ -25,8 +34,14 @@ export const MISSING_IP_MESSAGE = "Client IP is required to submit a report.";
  * response (or similar) without accidentally hiding real failures.
  */
 export class ReportRateLimitError extends Error {
+  /**
+   * Machine-readable reason describing why the rate limit was triggered.
+   */
   public readonly reason: RateLimitReason;
 
+  /**
+   * HTTP status code associated with this rate-limit error.
+   */
   public readonly statusCode: number;
 
   /**
@@ -39,7 +54,7 @@ export class ReportRateLimitError extends Error {
   constructor(
     message: string,
     reason: RateLimitReason,
-    statusCode: number = 429,
+    statusCode: number = DEFAULT_RATE_LIMIT_STATUS_CODE,
   ) {
     super(message);
 
@@ -57,7 +72,7 @@ export class ReportRateLimitError extends Error {
  * is a ReportRateLimitError.
  *
  * @param error - The unknown error value to inspect.
- * @returns True if the error is an instance of ReportRateLimitError.
+ * @returns True if the error is an instance of ReportRateLimitError, false otherwise.
  */
 export function isReportRateLimitError(
   error: unknown,

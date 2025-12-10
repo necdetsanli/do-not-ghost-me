@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { ReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { logError, logInfo } from "@/lib/logger";
+import { formatUnknownError } from "@/lib/errorUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -21,11 +22,15 @@ type ReportsStatsResponseBody = {
  * Returns aggregated statistics about reports:
  * - total number of ACTIVE reports (FLAGGED/DELETED excluded)
  * - most reported company in the last 7 days among ACTIVE reports (if any)
+ *
+ * @param req - Incoming Next.js request.
+ * @returns A JSON response with total reports and most reported company metadata.
  */
 export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
-    const now = new Date();
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const now: Date = new Date();
+    const sevenDaysMs: number = 7 * 24 * 60 * 60 * 1000;
+    const sevenDaysAgo: Date = new Date(now.getTime() - sevenDaysMs);
 
     const [totalReports, groups] = await Promise.all([
       prisma.report.count({
@@ -94,7 +99,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json(body, { status: 200 });
   } catch (error: unknown) {
     logError("[GET /api/reports/stats] Unexpected error", {
-      error,
+      error: formatUnknownError(error),
     });
 
     return NextResponse.json(

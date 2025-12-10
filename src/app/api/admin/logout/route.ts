@@ -48,11 +48,11 @@ function buildHostForbiddenResponse(): NextResponse {
 }
 
 /**
- * Log out the current admin by clearing the session cookie and
- * redirecting back to the login page.
+ * Log out the current admin by clearing the session cookie.
  *
- * This handler is synchronous because it performs no asynchronous work.
- * We still accept the request object to enforce host restrictions.
+ * This endpoint is API-only:
+ * - It no longer performs any redirects.
+ * - Clients are responsible for navigation after a successful logout.
  */
 export function POST(req: NextRequest): NextResponse {
   if (!isHostAllowed(req)) {
@@ -66,12 +66,13 @@ export function POST(req: NextRequest): NextResponse {
 
   const cookieOpts = adminSessionCookieOptions();
 
-  const response = new NextResponse(null, {
-    status: 302,
-    headers: {
-      Location: "/admin/login",
+  // API-only response: 200 + JSON body
+  const response = NextResponse.json(
+    {
+      success: true,
     },
-  });
+    { status: 200 },
+  );
 
   response.cookies.set({
     name: cookieOpts.name,

@@ -4,45 +4,58 @@ import { Stage, JobLevel, PositionCategory, CountryCode } from "@prisma/client";
 import { nameLikeString } from "@/lib/validation/patterns";
 
 /**
- * Helper schema for the optional "daysWithoutReply" field.
+ * Preprocess the raw value for the optional "daysWithoutReply" field.
  *
  * Behavior:
- * - undefined / null → treated as "not provided" and allowed.
+ * - undefined / null → treated as "not provided" (returns undefined).
  * - empty or whitespace-only string → treated as "not provided".
  * - numeric string → parsed into a number.
  * - number → passed through.
- * - anything else / non-finite → validation error.
+ * - anything else / non-finite → Number.NaN (so the inner schema fails validation).
  *
- * When provided, the value must be an integer between 1 and 365 (inclusive).
+ * When provided (i.e. not undefined), the value must be an integer between 1 and 365 (inclusive).
+ *
+ * @param raw - Raw value coming from the request payload (string, number, null or undefined).
+ * @returns A normalized number value, or undefined when the field is considered "not provided".
  */
-const daysWithoutReplySchema = z.preprocess(
-  (raw: unknown): number | undefined => {
-    if (raw === undefined || raw === null) {
+function preprocessDaysWithoutReply(raw: unknown): number | undefined {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+
+  if (typeof raw === "string") {
+    const trimmed: string = raw.trim();
+
+    if (trimmed.length === 0) {
       return undefined;
     }
 
-    if (typeof raw === "string") {
-      const trimmed = raw.trim();
+    const parsed: number = Number(trimmed);
 
-      if (trimmed.length === 0) {
-        return undefined;
-      }
-
-      const parsed = Number(trimmed);
-
-      if (!Number.isFinite(parsed)) {
-        return Number.NaN;
-      }
-
-      return parsed;
+    if (Number.isFinite(parsed) === false) {
+      return Number.NaN;
     }
 
-    if (typeof raw === "number") {
-      return raw;
-    }
+    return parsed;
+  }
 
-    return Number.NaN;
-  },
+  if (typeof raw === "number") {
+    return raw;
+  }
+
+  return Number.NaN;
+}
+
+/**
+ * Helper schema for the optional "daysWithoutReply" field.
+ *
+ * Behavior (after preprocessing):
+ * - undefined → field omitted and allowed.
+ * - finite number → must be an integer between 1 and 365 (inclusive).
+ * - Number.NaN or out of range → validation error.
+ */
+const daysWithoutReplySchema = z.preprocess(
+  preprocessDaysWithoutReply,
   z
     .number()
     .int({

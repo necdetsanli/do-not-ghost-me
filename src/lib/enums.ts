@@ -1,4 +1,5 @@
-//src/lib/enums.ts
+// src/lib/enums.ts
+
 // Shared enum helpers for labels and URL slugs.
 import { PositionCategory, JobLevel, Stage, CountryCode } from "@prisma/client";
 
@@ -26,7 +27,15 @@ export function formatEnumLabel(value: string): string {
   return value
     .toLowerCase()
     .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .map((part: string): string => {
+      if (part.length === 0) {
+        return part;
+      }
+
+      const firstChar: string = part.charAt(0).toUpperCase();
+      const rest: string = part.slice(1);
+      return `${firstChar}${rest}`;
+    })
     .join(" ");
 }
 
@@ -34,13 +43,18 @@ export function formatEnumLabel(value: string): string {
 // Base enum value arrays
 // ---------------------------------------------------------------------------
 
-export const POSITION_CATEGORY_OPTIONS = Object.values(
-  PositionCategory,
-) as readonly PositionCategory[];
+export const POSITION_CATEGORY_OPTIONS: readonly PositionCategory[] =
+  Object.values(PositionCategory) as readonly PositionCategory[];
 
-export const JOB_LEVEL_OPTIONS = Object.values(JobLevel) as readonly JobLevel[];
-export const STAGE_OPTIONS = Object.values(Stage) as readonly Stage[];
-export const COUNTRY_OPTIONS = Object.values(
+export const JOB_LEVEL_OPTIONS: readonly JobLevel[] = Object.values(
+  JobLevel,
+) as readonly JobLevel[];
+
+export const STAGE_OPTIONS: readonly Stage[] = Object.values(
+  Stage,
+) as readonly Stage[];
+
+export const COUNTRY_OPTIONS: readonly CountryCode[] = Object.values(
   CountryCode,
 ) as readonly CountryCode[];
 
@@ -81,7 +95,6 @@ const STAGE_LABELS: Partial<Record<Stage, string>> = {
 };
 
 const COUNTRY_LABELS: Partial<Record<CountryCode, string>> = {
-  // ... same mapping as şu anki halin (değiştirmedim; sadece kısalttım burada)
   [CountryCode.AD]: "Andorra",
   [CountryCode.AE]: "United Arab Emirates",
   [CountryCode.AF]: "Afghanistan",
@@ -393,6 +406,11 @@ export function labelForCountry(code: CountryCode): string {
 // Generic slug-map builder
 // ---------------------------------------------------------------------------
 
+type SlugMaps<E extends string> = {
+  enumToSlug: Readonly<Record<E, string>>;
+  slugToEnum: Readonly<Record<string, E>>;
+};
+
 /**
  * Builds bidirectional slug maps for a set of enum values.
  *
@@ -402,17 +420,12 @@ export function labelForCountry(code: CountryCode): string {
  * @param values - The enum values to index.
  * @returns An object with forward and reverse slug maps.
  */
-function buildSlugMaps<E extends string>(
-  values: readonly E[],
-): {
-  enumToSlug: Readonly<Record<E, string>>;
-  slugToEnum: Readonly<Record<string, E>>;
-} {
-  const enumToSlugMap = {} as Record<E, string>;
+function buildSlugMaps<E extends string>(values: readonly E[]): SlugMaps<E> {
+  const enumToSlugMap: Record<E, string> = {} as Record<E, string>;
   const slugToEnumMap: Record<string, E> = {};
 
   for (const value of values) {
-    const slug = enumToSlug(value);
+    const slug: string = enumToSlug(value);
     enumToSlugMap[value] = slug;
     slugToEnumMap[slug] = value;
   }
@@ -427,7 +440,9 @@ function buildSlugMaps<E extends string>(
 // Slug maps for PositionCategory (category filters in URLs)
 // ---------------------------------------------------------------------------
 
-const CATEGORY_SLUG_MAPS = buildSlugMaps(POSITION_CATEGORY_OPTIONS);
+const CATEGORY_SLUG_MAPS: SlugMaps<PositionCategory> = buildSlugMaps(
+  POSITION_CATEGORY_OPTIONS,
+);
 
 /**
  * Maps a PositionCategory enum value to its URL slug.
@@ -453,7 +468,8 @@ export function categorySlugToEnum(slug: string): PositionCategory | undefined {
 // Slug maps for JobLevel (seniority filters in URLs)
 // ---------------------------------------------------------------------------
 
-const SENIORITY_SLUG_MAPS = buildSlugMaps(JOB_LEVEL_OPTIONS);
+const SENIORITY_SLUG_MAPS: SlugMaps<JobLevel> =
+  buildSlugMaps(JOB_LEVEL_OPTIONS);
 
 /**
  * Maps a JobLevel enum value to its URL slug.
@@ -479,7 +495,7 @@ export function senioritySlugToEnum(slug: string): JobLevel | undefined {
 // Slug maps for Stage (pipeline stage filters in URLs)
 // ---------------------------------------------------------------------------
 
-const STAGE_SLUG_MAPS = buildSlugMaps(STAGE_OPTIONS);
+const STAGE_SLUG_MAPS: SlugMaps<Stage> = buildSlugMaps(STAGE_OPTIONS);
 
 /**
  * Maps a Stage enum value to its URL slug.

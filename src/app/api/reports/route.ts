@@ -12,11 +12,19 @@ import {
 import { getClientIp } from "@/lib/ip";
 import { findOrCreateCompanyForReport } from "@/lib/company";
 import { logInfo, logWarn, logError } from "@/lib/logger";
+import { formatUnknownError } from "@/lib/errorUtils";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Map a {@link ReportRateLimitError} to a JSON HTTP response.
+ * Minimal shape of a validation issue required for honeypot checks.
+ */
+type HoneypotIssue = {
+  path: PropertyKey[];
+};
+
+/**
+ * Maps a {@link ReportRateLimitError} to a JSON HTTP response.
  *
  * This keeps all rate limit responses consistent across:
  * - missing IP
@@ -46,16 +54,14 @@ function mapRateLimitErrorToResponse(
  * silently drop it, instead of surfacing a 400 validation error.
  *
  * @param issues - The Zod issues array from a failed parse.
- * @returns True if every issue path is exactly ["honeypot"].
+ * @returns True if every issue path is exactly ["honeypot"], false otherwise.
  */
-function isHoneypotOnlyValidationError(
-  issues: { path: PropertyKey[] }[],
-): boolean {
+function isHoneypotOnlyValidationError(issues: HoneypotIssue[]): boolean {
   if (issues.length === 0) {
     return false;
   }
 
-  return issues.every((issue) => {
+  return issues.every((issue: HoneypotIssue): boolean => {
     if (issue.path.length !== 1) {
       return false;
     }
@@ -82,12 +88,15 @@ function isHoneypotOnlyValidationError(
  * On validation errors (excluding honeypot-only): HTTP 400 + structured Zod error.
  * On rate limit violations: HTTP 429 + user-friendly message.
  * On unexpected failures: log and respond with HTTP 500.
+ *
+ * @param req - The incoming Next.js request.
+ * @returns A JSON NextResponse indicating success or failure.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const clientIpRaw = getClientIp(req);
+  const clientIpRaw: string | null = getClientIp(req);
 
   // Fail closed: if we cannot determine an IP, do not accept the report.
-  if (clientIpRaw == null) {
+  if (clientIpRaw === null || clientIpRaw === undefined) {
     const error = new ReportRateLimitError(MISSING_IP_MESSAGE, "missing-ip");
 
     logWarn("[POST /api/reports] Missing client IP address", {
@@ -99,7 +108,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return mapRateLimitErrorToResponse(error);
   }
 
-  const clientIp = clientIpRaw.trim();
+  const clientIp: string = clientIpRaw.trim();
 
   if (clientIp.length === 0) {
     const error = new ReportRateLimitError(MISSING_IP_MESSAGE, "missing-ip");
@@ -117,12 +126,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   try {
     json = await req.json();
-  } catch (parseError) {
+  } catch (parseError: unknown) {
     logWarn("[POST /api/reports] Invalid JSON payload", {
       path: req.nextUrl.pathname,
       method: req.method,
       ip: clientIp,
-      error: parseError,
+      error: formatUnknownError(parseError),
     });
 
     return NextResponse.json(
@@ -136,7 +145,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const parsed = reportSchema.safeParse(json);
 
-    if (!parsed.success) {
+    if (parsed.success === false) {
       if (isHoneypotOnlyValidationError(parsed.error.issues)) {
         logInfo("[POST /api/reports] Honeypot triggered (validation)", {
           ip: clientIp,
@@ -144,6 +153,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           userAgent: req.headers.get("user-agent") ?? undefined,
         });
 
+        // Honeypot: treat as bot submission and silently succeed.
         return new NextResponse(null, { status: 200 });
       }
 
@@ -214,7 +224,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       logWarn("[POST /api/reports] Rate limit hit for report creation", {
         ip: clientIp,
         path: req.nextUrl.pathname,
-        error,
+        reason: error.reason,
+        statusCode: error.statusCode,
+        message: error.message,
       });
 
       return mapRateLimitErrorToResponse(error);
@@ -223,7 +235,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     logError("[POST /api/reports] Unexpected error", {
       ip: clientIp,
       path: req.nextUrl.pathname,
-      error,
+      error: formatUnknownError(error),
     });
 
     return NextResponse.json(

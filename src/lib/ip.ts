@@ -16,7 +16,7 @@ function normalizeIpString(value: string | null | undefined): string | null {
     return null;
   }
 
-  const trimmed = value.trim();
+  const trimmed: string = value.trim();
 
   if (trimmed.length === 0) {
     return null;
@@ -34,32 +34,36 @@ function normalizeIpString(value: string | null | undefined): string | null {
  * Extracts the client IP address from a NextRequest in a proxy-aware way.
  *
  * Resolution order:
- * 1. "X-Forwarded-For" header (comma-separated list); uses the first non-empty value.
- * 2. "X-Real-IP" header if present.
+ * 1. "X-Forwarded-For" header (comma-separated list); uses the first non-empty, valid IP.
+ * 2. "X-Real-IP" header if present and valid.
  * 3. As a last resort, uses req.ip if the runtime exposes it.
  *
- * @param req - The incoming Next.js request.
- * @returns A normalized (trimmed) IP string or null if no usable IP could be determined.
  * Important:
  * - This assumes the app is running behind a trusted reverse proxy that
  *   sets X-Forwarded-For / X-Real-IP correctly. In untrusted environments,
  *   these headers can be spoofed and must not be used for strong auth.
+ *
+ * @param req - The incoming Next.js request.
+ * @returns A normalized (trimmed) IP string or null if no usable IP could be determined.
  */
 export function getClientIp(req: NextRequest): string | null {
-  const xForwardedFor = req.headers.get("x-forwarded-for");
+  const xForwardedForHeader: string | null = req.headers.get("x-forwarded-for");
 
-  if (xForwardedFor !== null) {
+  if (xForwardedForHeader !== null) {
     // Format is usually: "client, proxy1, proxy2".
-    const [first] = xForwardedFor.split(",");
-    const normalized = normalizeIpString(first);
+    const parts: string[] = xForwardedForHeader.split(",");
 
-    if (normalized !== null) {
-      return normalized;
+    for (const part of parts) {
+      const normalizedFromForwardedFor = normalizeIpString(part);
+
+      if (normalizedFromForwardedFor !== null) {
+        return normalizedFromForwardedFor;
+      }
     }
   }
 
-  const realIpHeader = req.headers.get("x-real-ip");
-  const realIp = normalizeIpString(realIpHeader);
+  const realIpHeader: string | null = req.headers.get("x-real-ip");
+  const realIp: string | null = normalizeIpString(realIpHeader);
 
   if (realIp !== null) {
     return realIp;
@@ -67,13 +71,17 @@ export function getClientIp(req: NextRequest): string | null {
 
   // Some Next.js runtimes may expose req.ip, but it is not guaranteed.
   // We treat it as a best-effort fallback.
-  const requestWithIp = req as { ip?: string | null | undefined };
+  const requestWithIp = req as NextRequest & {
+    ip?: string | null | undefined;
+  };
 
   if (Object.prototype.hasOwnProperty.call(requestWithIp, "ip")) {
-    const normalized = normalizeIpString(requestWithIp.ip);
+    const normalizedFromReqIp: string | null = normalizeIpString(
+      requestWithIp.ip ?? null,
+    );
 
-    if (normalized !== null) {
-      return normalized;
+    if (normalizedFromReqIp !== null) {
+      return normalizedFromReqIp;
     }
   }
 

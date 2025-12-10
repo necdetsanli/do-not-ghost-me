@@ -5,8 +5,17 @@ import type { ReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAdminRequest } from "@/lib/adminAuth";
 import { logInfo, logWarn, logError } from "@/lib/logger";
+import { formatUnknownError } from "@/lib/errorUtils";
 
 export const dynamic = "force-dynamic";
+
+type AdminReportRouteParams = {
+  id: string;
+};
+
+type AdminReportRouteContext = {
+  params: Promise<AdminReportRouteParams>;
+};
 
 /**
  * Normalize an arbitrary string field from form data:
@@ -14,6 +23,10 @@ export const dynamic = "force-dynamic";
  * - trims whitespace
  * - enforces max length
  * - returns null for empty strings
+ *
+ * @param value - Raw value read from FormData.
+ * @param maxLength - Maximum allowed length for the normalized string.
+ * @returns A trimmed, truncated string or null when empty/invalid.
  */
 function normalizeOptionalText(
   value: FormDataEntryValue | null,
@@ -23,7 +36,8 @@ function normalizeOptionalText(
     return null;
   }
 
-  const trimmed = value.trim();
+  const trimmed: string = value.trim();
+
   if (trimmed === "") {
     return null;
   }
@@ -31,12 +45,8 @@ function normalizeOptionalText(
   return trimmed.slice(0, maxLength);
 }
 
-type AdminReportRouteParams = {
-  id: string;
-};
-
 /**
- * Handle admin moderation actions for a single report:
+ * Handle admin moderation actions for a single report.
  *
  * Supported actions:
  * - "flag"        → status=FLAGGED, flaggedAt=now, flaggedReason (optional)
@@ -48,16 +58,20 @@ type AdminReportRouteParams = {
  * - require a valid admin session cookie
  * - enforce optional ADMIN_ALLOWED_HOST host restriction (via requireAdminRequest)
  * - redirect back to /admin on success
+ *
+ * @param request - Incoming Next.js request containing form data.
+ * @param context - Route context with a lazy params Promise (Next 15).
+ * @returns A redirect response on success or JSON error on failure.
  */
 export async function POST(
   request: NextRequest,
-  context: { params: Promise<AdminReportRouteParams> },
+  context: AdminReportRouteContext,
 ): Promise<NextResponse> {
   // 1) Admin guard: host + signed session cookie
   try {
     requireAdminRequest(request);
   } catch (error: unknown) {
-    const message =
+    const message: string =
       error instanceof Error ? error.message : "Admin access is not allowed.";
 
     logWarn(
@@ -69,15 +83,15 @@ export async function POST(
       },
     );
 
-    const status =
+    const status: number =
       message === "Admin access is not allowed from this host." ? 403 : 401;
 
     return NextResponse.json({ error: message }, { status });
   }
 
-  // 2) Params: Next 15 route handler typings: params is a Promise
+  // 2) Params: Next 15 route handler typings use Promise for params.
   const { id: idFromParams } = await context.params;
-  const reportId = typeof idFromParams === "string" ? idFromParams.trim() : "";
+  const reportId: string = idFromParams.trim();
 
   if (reportId === "") {
     logWarn("[admin] Missing or invalid report id in moderation request", {
@@ -92,7 +106,7 @@ export async function POST(
   }
 
   // 3) Form data
-  const formData = await request.formData();
+  const formData: FormData = await request.formData();
   const actionRaw = formData.get("action");
 
   if (typeof actionRaw !== "string") {
@@ -108,11 +122,14 @@ export async function POST(
     );
   }
 
-  const action = actionRaw.trim();
+  const action: string = actionRaw.trim();
 
   try {
     if (action === "flag") {
-      const reason = normalizeOptionalText(formData.get("reason"), 255);
+      const reason: string | null = normalizeOptionalText(
+        formData.get("reason"),
+        255,
+      );
 
       await prisma.report.update({
         where: { id: reportId },
@@ -181,22 +198,16 @@ export async function POST(
 
     // On success, redirect back to the admin dashboard.
     const redirectUrl = new URL("/admin", request.url);
+
     return NextResponse.redirect(redirectUrl, 303);
   } catch (error: unknown) {
-    if (error instanceof Error) {
-      logError("[admin] Failed to moderate report", {
-        reportId,
-        action,
-        errorName: error.name,
-        errorMessage: error.message,
-      });
-    } else {
-      logError("[admin] Failed to moderate report: non-Error value thrown", {
-        reportId,
-        action,
-        errorValueType: typeof error,
-      });
-    }
+    logError("[admin] Failed to moderate report", {
+      reportId,
+      action,
+      path: request.nextUrl.pathname,
+      method: request.method,
+      error: formatUnknownError(error),
+    });
 
     return NextResponse.json(
       { error: "Failed to apply moderation action" },

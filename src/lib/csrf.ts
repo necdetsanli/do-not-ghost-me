@@ -2,7 +2,16 @@
 import crypto from "node:crypto";
 import { env } from "@/env";
 
-const CSRF_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+/**
+ * Time-to-live for CSRF tokens in milliseconds.
+ * Tokens older than this value are considered expired.
+ */
+const CSRF_TOKEN_TTL_MS: number = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Version number for the CSRF token payload structure.
+ * Bump this when changing the payload shape in an incompatible way.
+ */
 const CSRF_TOKEN_VERSION = 1;
 
 /**
@@ -36,11 +45,17 @@ type CsrfPayload = {
  *
  * Precedence:
  * - If `ADMIN_CSRF_SECRET` is configured (via env.ts), use that.
- * - In production, this must be set; otherwise we throw.
+ * - In production, this must be set; otherwise an error is thrown.
  * - In development / test, fall back to a fixed dev-only secret.
+ *
+ * @returns The secret string used to sign and verify CSRF tokens.
+ *
+ * @throws {Error} When running in production without a configured ADMIN_CSRF_SECRET.
  */
 function getCsrfSecret(): string {
-  const configured = (process.env.ADMIN_CSRF_SECRET ?? "").trim();
+  const configuredRaw: string | undefined = env.ADMIN_CSRF_SECRET;
+  const configured: string =
+    configuredRaw !== undefined ? configuredRaw.trim() : "";
 
   if (configured.length > 0) {
     return configured;
@@ -85,19 +100,20 @@ function computeSignature(
  * @returns True if the strings are equal, false otherwise.
  */
 function timingSafeEqual(a: string, b: string): boolean {
-  const aBuffer = Buffer.from(a, "utf8");
-  const bBuffer = Buffer.from(b, "utf8");
+  const aBuffer: Buffer = Buffer.from(a, "utf8");
+  const bBuffer: Buffer = Buffer.from(b, "utf8");
 
   if (aBuffer.length !== bBuffer.length) {
     // Perform a dummy comparison to avoid obvious timing differences.
-    const maxLen = Math.max(aBuffer.length, bBuffer.length);
-    const paddedA = Buffer.alloc(maxLen);
-    const paddedB = Buffer.alloc(maxLen);
+    const maxLen: number = Math.max(aBuffer.length, bBuffer.length);
+    const paddedA: Buffer = Buffer.alloc(maxLen);
+    const paddedB: Buffer = Buffer.alloc(maxLen);
 
     aBuffer.copy(paddedA);
     bBuffer.copy(paddedB);
 
     try {
+      // Result intentionally ignored; this is purely for timing noise.
       crypto.timingSafeEqual(paddedA, paddedB);
     } catch {
       // Ignore errors here; this is purely for timing noise.
@@ -107,7 +123,8 @@ function timingSafeEqual(a: string, b: string): boolean {
   }
 
   try {
-    return crypto.timingSafeEqual(aBuffer, bBuffer);
+    const isEqual: boolean = crypto.timingSafeEqual(aBuffer, bBuffer);
+    return isEqual;
   } catch {
     return false;
   }
@@ -124,18 +141,25 @@ function timingSafeEqual(a: string, b: string): boolean {
  *
  * @param purpose - The logical purpose of the token.
  * @returns A base64url-encoded CSRF token string.
+ *
+ * @throws {Error} When the provided purpose is an empty string after trimming.
  */
 export function createCsrfToken(purpose: CsrfPurpose): string {
-  const trimmedPurpose = purpose.trim() as CsrfPurpose;
+  const trimmedPurpose: CsrfPurpose = purpose.trim() as CsrfPurpose;
 
   if (trimmedPurpose.length === 0) {
     throw new Error("CSRF purpose must be a non-empty string.");
   }
 
-  const secret = getCsrfSecret();
-  const issuedAt = Date.now();
-  const nonce = crypto.randomBytes(16).toString("base64url");
-  const signature = computeSignature(secret, trimmedPurpose, issuedAt, nonce);
+  const secret: string = getCsrfSecret();
+  const issuedAt: number = Date.now();
+  const nonce: string = crypto.randomBytes(16).toString("base64url");
+  const signature: string = computeSignature(
+    secret,
+    trimmedPurpose,
+    issuedAt,
+    nonce,
+  );
 
   const payload: CsrfPayload = {
     v: CSRF_TOKEN_VERSION,
@@ -145,7 +169,7 @@ export function createCsrfToken(purpose: CsrfPurpose): string {
     s: signature,
   };
 
-  const json = JSON.stringify(payload);
+  const json: string = JSON.stringify(payload);
   return Buffer.from(json, "utf8").toString("base64url");
 }
 
@@ -172,21 +196,23 @@ export function verifyCsrfToken(
     return false;
   }
 
-  const trimmedToken = token.trim();
+  const trimmedToken: string = token.trim();
   if (trimmedToken.length === 0) {
     return false;
   }
 
   try {
-    const secret = getCsrfSecret();
-    const decodedJson = Buffer.from(trimmedToken, "base64url").toString("utf8");
+    const secret: string = getCsrfSecret();
+    const decodedJson: string = Buffer.from(trimmedToken, "base64url").toString(
+      "utf8",
+    );
     const payload = JSON.parse(decodedJson) as Partial<CsrfPayload>;
 
     if (payload.v !== CSRF_TOKEN_VERSION) {
       return false;
     }
 
-    const trimmedPurpose = purpose.trim() as CsrfPurpose;
+    const trimmedPurpose: CsrfPurpose = purpose.trim() as CsrfPurpose;
     if (payload.p !== trimmedPurpose) {
       return false;
     }
@@ -199,12 +225,15 @@ export function verifyCsrfToken(
       return false;
     }
 
-    const now = Date.now();
-    if (now - payload.iat > CSRF_TOKEN_TTL_MS || payload.iat > now) {
+    const now: number = Date.now();
+    const isExpired: boolean =
+      now - payload.iat > CSRF_TOKEN_TTL_MS || payload.iat > now;
+
+    if (isExpired === true) {
       return false;
     }
 
-    const expectedSignature = computeSignature(
+    const expectedSignature: string = computeSignature(
       secret,
       payload.p,
       payload.iat,

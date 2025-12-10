@@ -5,7 +5,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { env } from "@/env";
 
 /**
- * Creates a new PrismaClient instance configured with the PostgreSQL driver adapter.
+ * Create a new PrismaClient instance configured with the PostgreSQL driver adapter.
  *
  * In most of the application you should use the exported `prisma` singleton
  * instead of calling this function directly. This helper exists primarily for
@@ -14,11 +14,11 @@ import { env } from "@/env";
  * @returns A new PrismaClient instance using the shared connection pool.
  */
 export function createPrismaClient(): PrismaClient {
-  const pool = new Pool({
+  const pool: Pool = new Pool({
     connectionString: env.DATABASE_URL,
   });
 
-  const adapter = new PrismaPg(pool);
+  const adapter: PrismaPg = new PrismaPg(pool);
 
   return new PrismaClient({
     adapter,

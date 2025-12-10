@@ -21,7 +21,7 @@ export type CompanyForReport = {
 };
 
 /**
- * Finds or creates a company for a given report payload.
+ * Find or create a company for a given report payload.
  *
  * Behavior:
  * - Normalizes the company name into a canonical `normalizedName` key.
@@ -35,18 +35,21 @@ export type CompanyForReport = {
  * - If the create hits a unique constraint (P2002), it re-reads the row and
  *   returns the existing company instead of bubbling up a 500.
  *
- * @param args.companyName - The company name as provided by the user.
+ * @param args - Input payload coming from a validated report.
+ * @param args.companyName - Company name as provided by the user.
  * @param args.country - CountryCode for this report (and company scope).
- * @throws If the normalized company name is empty, or if the database layer
- *         fails in a non-recoverable way.
+ * @returns The existing or newly created company record with id, name, normalizedName and country.
+ *
+ * @throws {Error} If the normalized company name is empty or if the database layer
+ * fails in a non-recoverable way.
  */
 export async function findOrCreateCompanyForReport(args: {
   companyName: string;
   country: CountryCode;
 }): Promise<CompanyForReport> {
   const { companyName, country } = args;
-  const trimmedName = companyName.trim();
-  const normalizedName = normalizeCompanyName(companyName);
+  const trimmedName: string = companyName.trim();
+  const normalizedName: string = normalizeCompanyName(companyName);
 
   if (normalizedName === "") {
     // Should not happen with validated input, but we guard defensively.
@@ -105,10 +108,10 @@ export async function findOrCreateCompanyForReport(args: {
     });
 
     return created;
-  } catch (error) {
+  } catch (error: unknown) {
     // P2002 => unique constraint violation (likely another request created it
     // in the small window between findUnique and create).
-    if (isPrismaUniqueViolation(error)) {
+    if (isPrismaUniqueViolation(error) === true) {
       logWarn(
         "Detected concurrent company creation race; reusing existing company row.",
         { normalizedName, country },

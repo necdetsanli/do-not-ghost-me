@@ -2,16 +2,18 @@
 import { z } from "zod";
 
 /**
- * Shared pattern for values that look like a "name", such as:
+ * Shared regular expression for values that look like a "name", such as:
  * - Company name
  * - Position detail
  *
- * Allowed:
+ * Allowed characters:
  * - Unicode letters and digits
  * - Spaces
  * - A limited set of safe symbols: / # + - _ & ( ) ' " . ,
+ *
+ * @returns A regular expression that can be used to validate name-like strings.
  */
-export const NAME_LIKE_REGEX = /^[\p{L}\p{N}\s_\-\/&()'",.+#]+$/u;
+export const NAME_LIKE_REGEX: RegExp = /^[\p{L}\p{N}\s_\-\/&()'",.+#]+$/u;
 
 /**
  * Checks whether a string contains at least one letter.
