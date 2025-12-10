@@ -11,7 +11,17 @@ import { MAX_PAGE } from "./constants";
 
 /**
  * Parse and sanitise raw search parameters from the URL.
- * This is the single place where we trust query-string input.
+ *
+ * This is the single place where we trust query-string input and convert it
+ * into a strongly typed ResolvedFilters object used by the data layer.
+ *
+ * @param searchParams - Raw URL search parameters as provided by Next.js
+ *                       (all values are strings or undefined).
+ * @returns A ResolvedFilters object with:
+ *          - page clamped to [1, MAX_PAGE],
+ *          - search truncated and normalised,
+ *          - enum-like filters (country, category, seniority, stage) resolved
+ *            from their slug or query representation.
  */
 export function parseFilters(searchParams?: SearchParams): ResolvedFilters {
   const pageParam = searchParams?.page ?? "1";

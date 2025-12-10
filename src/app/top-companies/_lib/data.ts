@@ -8,12 +8,23 @@ import { PAGE_SIZE } from "./constants";
  * Fetch one page of "top companies" and basic pagination metadata.
  *
  * The query:
- * - applies filters on the Report table (and related Company),
- * - groups by companyId,
- * - orders by descending report count,
- * - looks up company names + country for the current page,
- * - computes total row count for pagination.
+ * - applies the given filters on the Report table (and related Company),
+ * - groups reports by companyId,
+ * - orders groups by descending report count,
+ * - loads company names and country for the page's companyIds,
+ * - computes total group count for pagination.
  *
+ * @param filters - Resolved and validated filters (page, search, country,
+ *                  positionCategory, seniority, stage) used to restrict the
+ *                  underlying Report/Company query.
+ * @returns A promise that resolves to an object containing:
+ *          - items: current page rows with company id, name, country and
+ *            aggregated report count,
+ *          - totalPages: total number of pages given PAGE_SIZE,
+ *          - totalCompanies: total number of (company, country) rows that match
+ *            the filters.
+ * @throws {Error} If a company record is unexpectedly missing for a grouped
+ *                 companyId while building the page.
  */
 export async function getCompaniesPage(filters: ResolvedFilters): Promise<{
   items: TopCompanyRow[];
@@ -63,7 +74,6 @@ export async function getCompaniesPage(filters: ResolvedFilters): Promise<{
     _count: {
       _all: true,
     },
-
     orderBy: {
       _count: {
         id: "desc",

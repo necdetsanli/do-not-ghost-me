@@ -8,6 +8,15 @@ import type { ResolvedFilters } from "../types";
 
 /**
  * Build a URL for a given page, preserving existing filter query parameters.
+ *
+ * This is used by the Top companies pagination controls to:
+ * - switch pages while keeping the current filters,
+ * - keep the URL as the single source of truth for filter state.
+ *
+ * @param base - Base pathname for the route (for example, "/top-companies").
+ * @param page - 1-based page index that should be navigated to.
+ * @param filters - Current resolved filters whose values should be encoded into the query string.
+ * @returns A relative URL (pathname + query string) for the requested page and filters.
  */
 export function buildPageUrl(
   base: string,
