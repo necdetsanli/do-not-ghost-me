@@ -1,0 +1,89 @@
+# .github/ISSUE_TEMPLATE/dx-setup.yml
+name: "Developer experience / local setup"
+description: "Problems with devcontainer, scripts/dev/setup-db.sh, scripts/dev/seed-dummy-reports.js or local environment."
+labels: ["dx", "documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when you have trouble setting up **Do Not Ghost Me** locally
+        or when you have suggestions to improve the developer experience.
+
+        Please include as much environment detail as possible.
+
+  - type: checkboxes
+    id: devcontainer
+    attributes:
+      label: "Environment"
+      description: "How are you running the project?"
+      options:
+        - label: "VS Code devcontainer (recommended)"
+        - label: "Local Node.js without devcontainer"
+        - label: "Other (describe below)"
+    validations:
+      required: false
+
+  - type: input
+    id: os
+    attributes:
+      label: "Operating system"
+      description: "Your host OS (where VS Code / Docker are running)."
+      placeholder: "e.g. Windows 11, macOS 15, Ubuntu 24.04"
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: "Node.js version (if not using devcontainer)"
+      description: "If you are running locally, provide the Node.js version (output of `node -v`)."
+      placeholder: "e.g. v22.x.x"
+    validations:
+      required: false
+
+  - type: textarea
+    id: commands
+    attributes:
+      label: "Commands you ran"
+      description: "List the commands you executed (in order) before the problem appeared."
+      placeholder: |
+        Example:
+        1. npm install
+        2. npm run dev
+        3. scripts/dev/setup-db.sh
+    validations:
+      required: true
+
+  - type: textarea
+    id: error-output
+    attributes:
+      label: "Error messages / logs"
+      description: "Paste relevant error output with any secrets removed. Use code blocks where possible."
+      render: shell
+      placeholder: |
+        Error output here...
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: scripts-used
+    attributes:
+      label: "Have you tried the dev scripts?"
+      description: "Check any scripts you used before opening this issue."
+      options:
+        - label: "scripts/dev/setup-db.sh"
+        - label: "scripts/dev/seed-dummy-reports.js"
+        - label: "npm run dev"
+        - label: "npm run verify"
+        - label: "Other (mention in the commands section)"
+    validations:
+      required: false
+
+  - type: textarea
+    id: suggestions
+    attributes:
+      label: "Improvement suggestions (optional)"
+      description: "If you have an idea on how to make setup or DX smoother, describe it here."
+      placeholder: "Example: add a new script, clarify a step in README, preconfigure a devcontainer setting..."
+    validations:
+      required: false

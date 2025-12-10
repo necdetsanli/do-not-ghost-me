@@ -1,0 +1,59 @@
+# .github/ISSUE_TEMPLATE/docs.yml
+name: "Docs / Copy improvements"
+description: "Improvements to README, PRIVACY.md, UI copy, or other documentation."
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve the documentation and wording for **Do Not Ghost Me**.
+
+        Please provide enough context so we can understand *where* the change is and *why* it is an improvement.
+
+  - type: input
+    id: location
+    attributes:
+      label: "Location"
+      description: "Which page/file or component is affected?"
+      placeholder: "e.g. README.md, PRIVACY.md, /about page, HomeHero copy"
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-text
+    attributes:
+      label: "Current text (short excerpt)"
+      description: "Paste a small, relevant excerpt of the current text (no need to paste entire files)."
+      render: markdown
+      placeholder: "Current wording..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-text
+    attributes:
+      label: "Proposed text"
+      description: "Provide your suggested wording or structure."
+      render: markdown
+      placeholder: "Suggested new wording..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reasoning
+    attributes:
+      label: "Why is this better?"
+      description: "Explain briefly why this change improves clarity, correctness, tone, or consistency."
+      placeholder: "e.g. clearer for non-technical users, fixes grammar, aligns with PRIVACY.md..."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: "Scope of change"
+      description: "What kind of documentation does this affect?"
+      options:
+        - label: "User-facing copy (UI text / pages)"
+        - label: "Repository docs (README, PRIVACY, CONTRIBUTING, CHANGELOG)"
+        - label: "Developer docs / comments"

@@ -1,0 +1,32 @@
+# .github/config.yaml
+pull_request_rules:
+  # --- Issue link rule -------------------------------------------------------
+  # All pull requests must be associated with at least one issue.
+  require_linked_issue: true
+
+  # How to detect issue links inside the PR description.
+  # Examples:
+  #   Closes #123
+  #   Fixes #123
+  #   Resolves #123
+  #   Related to #123
+  issue_link_patterns:
+    - '(?i)\b(closes|fixes|resolves)\s+#\d+\b'
+    - '(?i)\brelated\s+to\s+#\d+\b'
+
+  # --- Target branch rule ----------------------------------------------------
+  # Pull requests are only allowed to target the "staging" branch.
+  allowed_target_branches:
+    - "staging"
+
+  # --- Optional: error messages ---------------------------------------------
+  # These messages can be used by automation (e.g. a GitHub Action)
+  # to comment on the PR or fail a status check with a clear explanation.
+  messages:
+    missing_issue: >
+      This pull request does not appear to reference an issue.
+      Please add a line like `Closes #123` in the description.
+
+    invalid_target_branch: >
+      Pull requests must target the `staging` branch.
+      Please change the base branch to `staging`.

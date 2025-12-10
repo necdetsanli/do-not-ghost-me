@@ -1,0 +1,155 @@
+# .github/ISSUE_TEMPLATE/privacy-security-concern.yml
+name: "Privacy / security concern"
+description: "Report a security issue or a possible privacy risk in Do Not Ghost Me"
+title: "[Security] "
+labels: ["security", "privacy"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a **privacy or security concern** for **Do Not Ghost Me**. 🔐
+
+        Please **do not** include:
+        - Secrets, tokens, API keys, passwords
+        - Real IP addresses tied to specific people
+        - Personally identifiable information (PII) about candidates or recruiters
+
+        Redact or anonymize any sensitive details. If you're unsure, err on the side of caution and describe the issue in general terms.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: "Summary"
+      description: "High-level description of the privacy/security concern."
+      placeholder: |
+        Briefly describe the issue:
+
+        - What is the concern?
+        - Where in the app does it occur? (route, component, script, etc.)
+        - Is it related to behaviour documented in PRIVACY.md?
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: concern-type
+    attributes:
+      label: "Type of concern"
+      description: "Select all that apply."
+      options:
+        - label: "Possible violation of guarantees described in PRIVACY.md"
+        - label: "Unexpected logging or storage of IP addresses or identifiers"
+        - label: "Rate limiting / abuse protection behaviour"
+        - label: "Admin authentication / session handling"
+        - label: "API exposure or information leakage"
+        - label: "Data retention or deletion behaviour"
+        - label: "Third-party dependencies / configuration"
+        - label: "Other / unsure"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: "Perceived severity"
+      description: "Rough estimate of how severe you believe this issue is."
+      options:
+        - "Low – mostly theoretical or limited impact"
+        - "Medium – some impact but limited scope"
+        - "High – significant impact or broad scope"
+        - "Critical – immediate attention recommended"
+        - "Unsure"
+    validations:
+      required: false
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: "Steps to reproduce (if applicable)"
+      description: "List precise steps so maintainers can reproduce or understand the issue."
+      placeholder: |
+        1. Go to `...`
+        2. Perform `...`
+        3. Observe that `...` is logged/stored/exposed in `...`
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected-behaviour
+    attributes:
+      label: "Expected behaviour"
+      description: "What did you expect to happen, especially in light of PRIVACY.md?"
+      placeholder: |
+        - What behaviour would be aligned with the documented privacy guarantees?
+        - What should *not* be logged, stored, or exposed?
+    validations:
+      required: false
+
+  - type: textarea
+    id: actual-behaviour
+    attributes:
+      label: "Actual behaviour"
+      description: "What actually happens? Please avoid including raw logs with sensitive data."
+      placeholder: |
+        - What is logged or stored that you find problematic?
+        - Where do you see it? (logs, database, network traffic, browser devtools, etc.)
+        - Redact IPs, tokens and any personal data before pasting snippets.
+    validations:
+      required: false
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: "Potential impact"
+      description: "Describe who is impacted (candidates, admins, self-hosters) and in what way."
+      placeholder: |
+        - Who could be affected and how?
+        - Under what conditions could data be exposed or misused?
+        - Does this require a malicious actor or just normal usage?
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: "Environment"
+      description: "Where did you observe this behaviour?"
+      placeholder: |
+        - Deployment type: donotghostme.com / local dev (devcontainer) / self-hosted / other
+        - App version / commit SHA:
+        - Node.js version:
+        - Database: PostgreSQL (version if known):
+        - Browser / OS (if client-visible):
+    validations:
+      required: false
+
+  - type: textarea
+    id: related-docs
+    attributes:
+      label: "Related documentation"
+      description: "Mention any relevant sections in PRIVACY.md or README."
+      placeholder: |
+        - Links or headings in PRIVACY.md that seem contradicted by this behaviour.
+        - Any other documentation that appears inconsistent.
+    validations:
+      required: false
+
+  - type: textarea
+    id: mitigation-ideas
+    attributes:
+      label: "Mitigation / remediation ideas (optional)"
+      description: "If you have thoughts on how to fix or mitigate this, share them here."
+      placeholder: |
+        - Possible code changes (high-level only)
+        - Config or logging changes
+        - Documentation updates
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: "Additional context"
+      description: "Anything else that might help maintainers understand and address the concern."
+      placeholder: "Links, related issues, external references, or further clarifications..."
+    validations:
+      required: false

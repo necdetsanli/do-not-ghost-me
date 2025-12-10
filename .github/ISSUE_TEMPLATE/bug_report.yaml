@@ -1,0 +1,170 @@
+# .github/ISSUE_TEMPLATE/bug-report.yml
+name: "Bug report"
+description: "Report a problem with Do Not Ghost Me"
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug in **Do Not Ghost Me**.
+
+        Please fill in as much detail as you can. Remember **not** to include secrets, tokens,
+        or any personal data. Anonymize company and user details where possible.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: "Summary"
+      description: "A clear and concise description of the bug."
+      placeholder: "Short description of what is broken..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: "Steps to reproduce"
+      description: "Precise steps so others can reproduce the issue."
+      placeholder: |
+        1. Go to `...`
+        2. Click on `...`
+        3. Fill in / submit `...`
+        4. See error `...`
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behaviour
+    attributes:
+      label: "Expected behavior"
+      description: "What did you expect to happen?"
+      placeholder: "I expected it to..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behaviour
+    attributes:
+      label: "Actual behavior"
+      description: "What actually happens instead?"
+      placeholder: |
+        What actually happened:
+
+        - Error message (if any):
+        - HTTP status code (if relevant):
+        - Console or server logs (redacted):
+
+        ⚠️ Do not include secrets, tokens, or personal data.
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: "Screenshots / recordings"
+      description: "If applicable, add screenshots or short clips to help explain the issue."
+      placeholder: "Drag and drop screenshots or recordings here, or describe visual details..."
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: "## Environment"
+
+  - type: input
+    id: app-version
+    attributes:
+      label: "App version / commit SHA"
+      description: "If possible, include the commit hash or version tag you are using."
+      placeholder: "e.g. 1a2b3c4 (main) or v0.1.0"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: deployment-type
+    attributes:
+      label: "Deployment type"
+      description: "Where are you running Do Not Ghost Me?"
+      options:
+        - "donotghostme.com (official deployment)"
+        - "Local dev (devcontainer)"
+        - "Local dev (no devcontainer)"
+        - "Self-hosted"
+        - "Other / not sure"
+    validations:
+      required: false
+
+  - type: input
+    id: browser
+    attributes:
+      label: "Browser"
+      description: "Include name and version if possible."
+      placeholder: "e.g. Chrome 131, Firefox 133, Safari 18"
+    validations:
+      required: false
+
+  - type: input
+    id: os
+    attributes:
+      label: "Operating system"
+      description: "Your OS where the browser is running."
+      placeholder: "e.g. Windows 11, macOS 15, Ubuntu 24.04"
+    validations:
+      required: false
+
+  - type: input
+    id: node-version
+    attributes:
+      label: "Node.js version"
+      description: "If relevant (local dev / self-hosted), provide `node -v` output."
+      placeholder: "e.g. v22.x.x"
+    validations:
+      required: false
+
+  - type: input
+    id: database
+    attributes:
+      label: "Database"
+      description: "Database type and version if known."
+      placeholder: "e.g. PostgreSQL 16"
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: "## Scope"
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: "Which parts of the app are affected?"
+      options:
+        - label: "Public home page"
+        - label: "Report form (`/`)"
+        - label: "Top companies (`/top-companies`)"
+        - label: "About page"
+        - label: "Admin login"
+        - label: "Admin reports dashboard"
+        - label: "API route(s)"
+        - label: "Other / unsure"
+    validations:
+      required: false
+
+  - type: textarea
+    id: regression
+    attributes:
+      label: "Regression?"
+      description: "Did this work before? If yes, roughly when or in which version/commit?"
+      placeholder: "Example: Worked fine until approx. commit abc123 on main..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: "Additional context"
+      description: "Add any other context, logs, or technical details that might be helpful."
+      placeholder: "Anything else we should know? (feature flags, special config, etc.)"
+    validations:
+      required: false

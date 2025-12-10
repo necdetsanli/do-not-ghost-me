@@ -1,0 +1,142 @@
+# .github/ISSUE_TEMPLATE/feature-request.yml
+name: "Feature request"
+description: "Suggest an improvement or new feature for Do Not Ghost Me"
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature or improvement for **Do Not Ghost Me** 👋
+
+        Please focus on how this helps **candidates**, **admins**, or **self-hosters**, and how it fits
+        the core goal of the project: surfacing ghosting patterns, improving stats, and nudging hiring
+        towards more respectful practices.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: "Summary"
+      description: "Describe the feature or improvement you would like to see."
+      placeholder: |
+        High-level description of the feature.
+
+        - What problem does it solve for candidates or admins?
+        - How does it fit into the project’s goal (ghosting patterns, better stats, more respectful hiring)?
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: "Motivation / use case"
+      description: "Explain why this is useful and who it helps."
+      placeholder: |
+        - Who benefits from this? (job seekers, admins, self-hosters, etc.)
+        - How would it change the way people use the app?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: "Proposed solution"
+      description: "If you have a concrete idea of how this could work, describe it here."
+      placeholder: |
+        Examples of details that help:
+
+        - UI/UX changes
+        - New fields, filters or stats
+        - API or database changes
+        - Admin moderation / tooling
+        - Pseudo-JSON structures, mockups, wireframes
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: "Alternatives considered"
+      description: "Have you thought about any alternatives or simpler approaches?"
+      placeholder: |
+        - Alternative A:
+        - Alternative B:
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: "## Scope"
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: "Which part(s) of the project does this touch?"
+      options:
+        - label: "Report form / submission flow"
+        - label: "Rate limiting / abuse protection"
+        - label: "Top companies listing & filters"
+        - label: "Admin dashboard / moderation"
+        - label: "Privacy / logging / config"
+        - label: "Documentation & developer experience"
+        - label: "Other / unsure"
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: "## Breaking changes"
+
+  - type: dropdown
+    id: breaking-db
+    attributes:
+      label: "Database schema changes?"
+      description: "Would this require changes to the Prisma schema or migrations?"
+      options:
+        - "No"
+        - "Maybe"
+        - "Yes"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: breaking-api
+    attributes:
+      label: "API contract changes?"
+      description: "Would this change existing API routes, request/response shapes, or semantics?"
+      options:
+        - "No"
+        - "Maybe"
+        - "Yes"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: breaking-behaviour
+    attributes:
+      label: "Existing user behaviour changes?"
+      description: "Would this significantly change behaviour for existing users or admins?"
+      options:
+        - "No"
+        - "Maybe"
+        - "Yes"
+    validations:
+      required: false
+
+  - type: textarea
+    id: breaking-notes
+    attributes:
+      label: "If Yes/Maybe, describe briefly"
+      description: "Add a short explanation for any potential breaking changes."
+      placeholder: "e.g. Requires a new required field, adds a new migration, deprecates an endpoint, etc."
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: "Additional context"
+      description: "Links, prior discussions, related issues, or external references."
+      placeholder: "Related issues, docs, external references, or prior discussions..."
+    validations:
+      required: false

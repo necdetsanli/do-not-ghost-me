@@ -1,0 +1,80 @@
+# .github/ISSUE_TEMPLATE/data-quality.yml
+name: "Data / stats quality issue"
+description: "Report inconsistencies or suspicious values in aggregated statistics or top companies ranking."
+labels: ["bug", "data-quality"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to report **data quality issues**:
+        - Incorrect counts on **/top-companies**
+        - Unexpected stats on the home page
+        - Ranking inconsistencies between filters
+
+        Please do **not** include any personal data about candidates or recruiters.
+
+  - type: input
+    id: page
+    attributes:
+      label: "Page / endpoint"
+      description: "Where are you seeing the issue?"
+      placeholder: "e.g. /top-companies, / (home), /api/reports/stats"
+    validations:
+      required: true
+
+  - type: input
+    id: url
+    attributes:
+      label: "Exact URL (including query params)"
+      description: "Copy-paste the full URL if possible so we can reproduce your filters."
+      placeholder: "e.g. https://localhost:3000/top-companies?country=DE&stage=onsite"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-you-saw
+    attributes:
+      label: "What did you see?"
+      description: "Describe the incorrect or suspicious data you noticed."
+      placeholder: "Example: Company X shows 3 reports, but I can see at least 5 matching reports with the same filters..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: "What did you expect instead?"
+      description: "If you have a concrete expectation or comparison, describe it here."
+      placeholder: "Example: I expected Company X to have fewer reports than Company Y with the same filters, but it's the opposite."
+    validations:
+      required: false
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: "Steps to reproduce"
+      description: "List the steps and filters we should apply to see the same issue."
+      placeholder: |
+        1. Open /top-companies
+        2. Set Country = 'DE'
+        3. Set Stage = 'OFFER'
+        4. Compare Company A vs Company B
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: "Screenshots (optional)"
+      description: "If possible, add screenshots that highlight the problem (with any sensitive info removed)."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: "Privacy check"
+      description: "Confirm you have not included personal data of candidates or recruiters."
+      options:
+        - label: "I confirm this report does not contain personal data (names, emails, phone numbers, etc.)."
+          required: true

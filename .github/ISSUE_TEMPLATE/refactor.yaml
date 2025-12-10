@@ -1,0 +1,81 @@
+# .github/ISSUE_TEMPLATE/refactor.yml
+name: "Refactor / Tech debt"
+description: "Internal code quality improvements that do not change user-facing behaviour."
+labels: ["refactor", "tech-debt"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for **internal refactors** or **tech debt**:
+        - Improving structure / readability
+        - Adding JSDoc to lib functions
+        - Splitting large modules
+        - Improving tests without changing behaviour
+
+        If your change affects user-visible behaviour, it may be better as a feature or bug issue instead.
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: "Scope (files / modules)"
+      description: "Which parts of the codebase are you proposing to refactor?"
+      placeholder: "e.g. src/lib/rateLimit.ts, src/app/top-companies/_lib/*.ts"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: "What is the current problem?"
+      description: "Explain why a refactor is needed (complexity, duplication, unclear boundaries, missing tests, etc.)."
+      placeholder: "Example: rate limiting logic is spread across 3 files and hard to test in isolation..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: "Proposed refactor"
+      description: "Describe the approach you want to take. Focus on structure and responsibilities rather than implementation details."
+      placeholder: |
+        Example:
+        - Extract X into src/lib/xModule.ts
+        - Add JSDoc to exported functions in src/lib/**
+        - Add unit tests around Y before changing it
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: behaviour-change
+    attributes:
+      label: "Behaviour changes"
+      description: "Refactors should ideally keep behaviour identical. If any behaviour changes are expected, please indicate that."
+      options:
+        - label: "No behaviour change intended (internal refactor only)."
+        - label: "Behaviour may change slightly (describe below)."
+    validations:
+      required: true
+
+  - type: textarea
+    id: behaviour-details
+    attributes:
+      label: "Behaviour change details (if any)"
+      description: "If you expect behaviour changes, describe them and why they are acceptable."
+      placeholder: "Example: log message text will be slightly different, but structure / severity stays the same."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: "Planned checks"
+      description: "Which project checks will you run to validate the refactor?"
+      options:
+        - label: "npm run lint"
+        - label: "npm run check"
+        - label: "npm run test"
+        - label: "npm run test:coverage"
+        - label: "npm run test:e2e"
+        - label: "npm run verify"
+    validations:
+      required: false
