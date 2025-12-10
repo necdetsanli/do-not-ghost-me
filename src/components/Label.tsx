@@ -29,12 +29,12 @@ export function Label({
 }: LabelProps): JSX.Element {
   return (
     <UiLabel
-      className={cn("text-foreground flex items-center gap-1", className)}
+      className={cn("inline-flex items-center gap-1", className)}
       {...props}
     >
       {children}
       {isRequired === true ? (
-        <span aria-hidden="true" className="text-destructive">
+        <span aria-hidden="true" className="text-[var(--error-text)]">
           *
         </span>
       ) : null}

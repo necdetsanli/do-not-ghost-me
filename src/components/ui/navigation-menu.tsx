@@ -9,12 +9,26 @@ import { ChevronDownIcon } from "lucide-react";
 
 import { cn } from "./utils";
 
-type NavigationMenuProps = React.ComponentProps<
+export type NavigationMenuProps = React.ComponentProps<
   typeof NavigationMenuPrimitive.Root
 > & {
+  /**
+   * Controls whether the shared viewport container is rendered.
+   * When false, each content panel behaves more like a standalone popover.
+   */
   viewport?: boolean;
 };
 
+/**
+ * Top-level navigation menu root.
+ *
+ * Wraps Radix NavigationMenu.Root and wires up:
+ * - a flex container that centers items,
+ * - an optional shared viewport for animated content panels.
+ *
+ * @param props - Navigation menu props including children and optional `viewport` toggle.
+ * @returns The styled navigation menu root element.
+ */
 export function NavigationMenu({
   className,
   children,
@@ -32,15 +46,28 @@ export function NavigationMenu({
       {...props}
     >
       {children}
-      {viewport ? <NavigationMenuViewport /> : null}
+      {viewport === true ? <NavigationMenuViewport /> : null}
     </NavigationMenuPrimitive.Root>
   );
 }
 
+export type NavigationMenuListProps = React.ComponentProps<
+  typeof NavigationMenuPrimitive.List
+>;
+
+/**
+ * Container for navigation menu items.
+ *
+ * Renders a horizontal flex row that aligns items and
+ * provides consistent gaps between them.
+ *
+ * @param props - List props including children and optional `className`.
+ * @returns The styled navigation menu list element.
+ */
 export function NavigationMenuList({
   className,
   ...props
-}: React.ComponentProps<typeof NavigationMenuPrimitive.List>): JSX.Element {
+}: NavigationMenuListProps): JSX.Element {
   return (
     <NavigationMenuPrimitive.List
       data-slot="navigation-menu-list"
@@ -53,10 +80,24 @@ export function NavigationMenuList({
   );
 }
 
+export type NavigationMenuItemProps = React.ComponentProps<
+  typeof NavigationMenuPrimitive.Item
+>;
+
+/**
+ * Single navigation menu item wrapper.
+ *
+ * This is usually composed of:
+ * - a {@link NavigationMenuTrigger} for the button,
+ * - an optional {@link NavigationMenuContent} panel.
+ *
+ * @param props - Item props including children and optional `className`.
+ * @returns The styled navigation menu item element.
+ */
 export function NavigationMenuItem({
   className,
   ...props
-}: React.ComponentProps<typeof NavigationMenuPrimitive.Item>): JSX.Element {
+}: NavigationMenuItemProps): JSX.Element {
   return (
     <NavigationMenuPrimitive.Item
       data-slot="navigation-menu-item"
@@ -66,6 +107,11 @@ export function NavigationMenuItem({
   );
 }
 
+/**
+ * Base trigger style for navigation menu buttons.
+ *
+ * Kept as a separate cva so it can be reused in custom components if needed.
+ */
 export const navigationMenuTriggerStyle = cva(
   "inline-flex h-9 w-max items-center justify-center rounded-md bg-surface px-3 py-2 text-sm font-medium text-secondary",
   {
@@ -80,11 +126,25 @@ export const navigationMenuTriggerStyle = cva(
   },
 );
 
+export type NavigationMenuTriggerProps = React.ComponentProps<
+  typeof NavigationMenuPrimitive.Trigger
+>;
+
+/**
+ * Trigger button for a navigation menu item.
+ *
+ * - Shows the current label.
+ * - Renders a chevron icon that rotates when open.
+ * - Uses hover, focus and open-state styles aligned with the design tokens.
+ *
+ * @param props - Trigger props including children and optional `className`.
+ * @returns The styled navigation menu trigger element.
+ */
 export function NavigationMenuTrigger({
   className,
   children,
   ...props
-}: React.ComponentProps<typeof NavigationMenuPrimitive.Trigger>): JSX.Element {
+}: NavigationMenuTriggerProps): JSX.Element {
   return (
     <NavigationMenuPrimitive.Trigger
       data-slot="navigation-menu-trigger"
@@ -111,10 +171,25 @@ export function NavigationMenuTrigger({
   );
 }
 
+export type NavigationMenuContentProps = React.ComponentProps<
+  typeof NavigationMenuPrimitive.Content
+>;
+
+/**
+ * Content panel for a navigation menu item.
+ *
+ * - When `viewport` is enabled on the root, panels animate inside
+ *   a shared viewport.
+ * - When `viewport` is disabled, this behaves more like a popover
+ *   attached directly under the trigger.
+ *
+ * @param props - Content props including children and optional `className`.
+ * @returns The styled navigation menu content element.
+ */
 export function NavigationMenuContent({
   className,
   ...props
-}: React.ComponentProps<typeof NavigationMenuPrimitive.Content>): JSX.Element {
+}: NavigationMenuContentProps): JSX.Element {
   return (
     <NavigationMenuPrimitive.Content
       data-slot="navigation-menu-content"
@@ -148,10 +223,23 @@ export function NavigationMenuContent({
   );
 }
 
+export type NavigationMenuViewportProps = React.ComponentProps<
+  typeof NavigationMenuPrimitive.Viewport
+>;
+
+/**
+ * Shared viewport container for animated navigation menu content.
+ *
+ * - Positions the content just below the menu bar.
+ * - Applies shared border, background and animation styles.
+ *
+ * @param props - Viewport props including optional `className`.
+ * @returns The styled navigation menu viewport element.
+ */
 export function NavigationMenuViewport({
   className,
   ...props
-}: React.ComponentProps<typeof NavigationMenuPrimitive.Viewport>): JSX.Element {
+}: NavigationMenuViewportProps): JSX.Element {
   return (
     <div className="absolute left-0 top-full z-50 flex justify-center isolate">
       <NavigationMenuPrimitive.Viewport
@@ -169,10 +257,23 @@ export function NavigationMenuViewport({
   );
 }
 
+export type NavigationMenuLinkProps = React.ComponentProps<
+  typeof NavigationMenuPrimitive.Link
+>;
+
+/**
+ * Link used inside navigation menu content.
+ *
+ * - Supports active and hover states.
+ * - Aligns icon size and color with the design system.
+ *
+ * @param props - Link props including children and optional `className`.
+ * @returns The styled navigation menu link element.
+ */
 export function NavigationMenuLink({
   className,
   ...props
-}: React.ComponentProps<typeof NavigationMenuPrimitive.Link>): JSX.Element {
+}: NavigationMenuLinkProps): JSX.Element {
   return (
     <NavigationMenuPrimitive.Link
       data-slot="navigation-menu-link"
@@ -191,12 +292,21 @@ export function NavigationMenuLink({
   );
 }
 
+export type NavigationMenuIndicatorProps = React.ComponentProps<
+  typeof NavigationMenuPrimitive.Indicator
+>;
+
+/**
+ * Small arrow indicator rendered under the active trigger when
+ * using the shared viewport mode.
+ *
+ * @param props - Indicator props including optional `className`.
+ * @returns The styled navigation menu indicator element.
+ */
 export function NavigationMenuIndicator({
   className,
   ...props
-}: React.ComponentProps<
-  typeof NavigationMenuPrimitive.Indicator
->): JSX.Element {
+}: NavigationMenuIndicatorProps): JSX.Element {
   return (
     <NavigationMenuPrimitive.Indicator
       data-slot="navigation-menu-indicator"

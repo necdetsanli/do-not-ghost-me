@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import type { JSX } from "react";
+import type { JSX, ReactNode } from "react";
 
 import { Input as UiInput } from "@/components/ui/input";
 import { Label } from "@/components/Label";
@@ -36,15 +36,11 @@ const getEffectiveIsRequired = (
   return undefined;
 };
 
-/**
- * Props for the app-level Input wrapper.
- * Extends the underlying UiInput props and adds label, description and error support.
- */
 type UiInputProps = React.ComponentPropsWithoutRef<typeof UiInput>;
 
 export interface InputProps extends UiInputProps {
   /** Optional label rendered above the input. */
-  label?: React.ReactNode;
+  label?: ReactNode;
   /** Optional description/help text shown below the input. */
   description?: string;
   /** Optional error message shown below the input. */
@@ -119,13 +115,13 @@ export function Input({
       />
 
       {description !== undefined ? (
-        <p id={descriptionId} className="text-xs text-muted-foreground">
+        <p id={descriptionId} className="text-xs text-secondary">
           {description}
         </p>
       ) : null}
 
       {errorMessage !== undefined ? (
-        <p id={errorId} className="text-xs text-destructive">
+        <p id={errorId} className="text-xs text-[var(--error-text)]">
           {errorMessage}
         </p>
       ) : null}

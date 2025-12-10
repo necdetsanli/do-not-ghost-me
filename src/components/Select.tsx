@@ -68,6 +68,14 @@ export interface SelectProps {
   contentPosition?: SelectContentPosition;
 }
 
+/**
+ * Resolve the effective "required" flag for form fields.
+ *
+ * Priority:
+ * 1. Explicit isRequired prop (app-level).
+ * 2. Native required prop.
+ * 3. aria-required prop (boolean or "true").
+ */
 const getEffectiveIsRequired = (
   isRequiredExplicit: boolean | undefined,
   requiredProp: boolean | undefined,
@@ -138,16 +146,17 @@ export function Select({
   );
 
   // Controlled vs uncontrolled
-  const isControlled = value !== undefined;
+  const isControlled: boolean = value !== undefined;
 
   const [internalValue, setInternalValue] = React.useState<string | undefined>(
     defaultValue,
   );
 
-  const currentValue: string | undefined = isControlled ? value : internalValue;
+  const currentValue: string | undefined =
+    isControlled === true ? value : internalValue;
 
   const handleValueChange = (nextValue: string): void => {
-    if (!isControlled) {
+    if (isControlled === false) {
       setInternalValue(nextValue);
     }
 
@@ -169,9 +178,9 @@ export function Select({
     disabled: disabled === true,
   };
 
-  if (isControlled && currentValue !== undefined) {
+  if (isControlled === true && currentValue !== undefined) {
     rootProps.value = currentValue;
-  } else if (!isControlled && defaultValue !== undefined) {
+  } else if (isControlled === false && defaultValue !== undefined) {
     rootProps.defaultValue = defaultValue;
   }
 
@@ -224,7 +233,7 @@ export function Select({
           type="hidden"
           name={name}
           value={currentValue ?? ""}
-          required={required}
+          required={effectiveIsRequired === true ? true : undefined}
         />
       ) : null}
 

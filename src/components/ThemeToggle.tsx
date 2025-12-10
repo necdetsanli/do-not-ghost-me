@@ -33,12 +33,12 @@ export function ThemeToggle(): JSX.Element {
         variant={isLightActive ? "secondary" : "ghost"}
         size="sm"
         onClick={(): void => setTheme("light")}
-        className="flex items-center gap-2"
+        className="flex items-center gap-1 rounded-full px-2 sm:px-3"
         aria-label="Light theme"
         aria-pressed={isLightActive}
       >
         <Sun className="h-4 w-4" aria-hidden="true" />
-        <span>Light</span>
+        <span className="hidden text-xs sm:inline">Light</span>
       </Button>
 
       <Button
@@ -46,12 +46,12 @@ export function ThemeToggle(): JSX.Element {
         variant={isDarkActive ? "secondary" : "ghost"}
         size="sm"
         onClick={(): void => setTheme("dark")}
-        className="flex items-center gap-2"
+        className="flex items-center gap-1 rounded-full px-2 sm:px-3"
         aria-label="Dark theme"
         aria-pressed={isDarkActive}
       >
         <Moon className="h-4 w-4" aria-hidden="true" />
-        <span>Dark</span>
+        <span className="hidden text-xs sm:inline">Dark</span>
       </Button>
 
       <Button
@@ -59,12 +59,12 @@ export function ThemeToggle(): JSX.Element {
         variant={isSystemActive ? "secondary" : "ghost"}
         size="sm"
         onClick={(): void => setTheme("system")}
-        className="flex items-center gap-2"
+        className="flex items-center gap-1 rounded-full px-2 sm:px-3"
         aria-label="System theme"
         aria-pressed={isSystemActive}
       >
         <Monitor className="h-4 w-4" aria-hidden="true" />
-        <span>System</span>
+        <span className="hidden text-xs sm:inline">System</span>
       </Button>
     </div>
   );

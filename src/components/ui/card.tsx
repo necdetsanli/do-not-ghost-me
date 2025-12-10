@@ -3,10 +3,21 @@ import * as React from "react";
 
 import { cn } from "./utils";
 
-function Card({
-  className,
-  ...props
-}: React.ComponentProps<"div">): React.JSX.Element {
+export type CardProps = React.ComponentProps<"div">;
+export type CardHeaderProps = React.ComponentProps<"div">;
+export type CardTitleProps = React.ComponentProps<"div">;
+export type CardDescriptionProps = React.ComponentProps<"div">;
+export type CardActionProps = React.ComponentProps<"div">;
+export type CardContentProps = React.ComponentProps<"div">;
+export type CardFooterProps = React.ComponentProps<"div">;
+
+/**
+ * Root card container used for grouping related content.
+ *
+ * @param props - Card props including optional `className` and `children`.
+ * @returns A styled card wrapper element.
+ */
+function Card({ className, ...props }: CardProps): React.JSX.Element {
   return (
     <div
       data-slot="card"
@@ -19,10 +30,18 @@ function Card({
   );
 }
 
+/**
+ * Card header section, typically containing title, description and actions.
+ *
+ * Uses a responsive grid layout that adapts when a `CardAction` is present.
+ *
+ * @param props - Header props including optional `className` and `children`.
+ * @returns A styled card header element.
+ */
 function CardHeader({
   className,
   ...props
-}: React.ComponentProps<"div">): React.JSX.Element {
+}: CardHeaderProps): React.JSX.Element {
   return (
     <div
       data-slot="card-header"
@@ -35,10 +54,13 @@ function CardHeader({
   );
 }
 
-function CardTitle({
-  className,
-  ...props
-}: React.ComponentProps<"div">): React.JSX.Element {
+/**
+ * Card title text, usually a short heading.
+ *
+ * @param props - Title props including optional `className` and `children`.
+ * @returns A styled heading element for the card title.
+ */
+function CardTitle({ className, ...props }: CardTitleProps): React.JSX.Element {
   return (
     <h4
       data-slot="card-title"
@@ -48,10 +70,16 @@ function CardTitle({
   );
 }
 
+/**
+ * Card description text, used for secondary explanatory content.
+ *
+ * @param props - Description props including optional `className` and `children`.
+ * @returns A styled paragraph element for the card description.
+ */
 function CardDescription({
   className,
   ...props
-}: React.ComponentProps<"div">): React.JSX.Element {
+}: CardDescriptionProps): React.JSX.Element {
   return (
     <p
       data-slot="card-description"
@@ -61,10 +89,19 @@ function CardDescription({
   );
 }
 
+/**
+ * Card action container, typically used for primary actions in the header.
+ *
+ * On larger screens it aligns to the right; on mobile it naturally wraps
+ * under the title/description thanks to the grid layout.
+ *
+ * @param props - Action props including optional `className` and `children`.
+ * @returns A styled container for card actions.
+ */
 function CardAction({
   className,
   ...props
-}: React.ComponentProps<"div">): React.JSX.Element {
+}: CardActionProps): React.JSX.Element {
   return (
     <div
       data-slot="card-action"
@@ -77,10 +114,16 @@ function CardAction({
   );
 }
 
+/**
+ * Main card content area.
+ *
+ * @param props - Content props including optional `className` and `children`.
+ * @returns A styled container for the card body content.
+ */
 function CardContent({
   className,
   ...props
-}: React.ComponentProps<"div">): React.JSX.Element {
+}: CardContentProps): React.JSX.Element {
   return (
     <div
       data-slot="card-content"
@@ -90,10 +133,16 @@ function CardContent({
   );
 }
 
+/**
+ * Card footer section, typically used for secondary actions or meta information.
+ *
+ * @param props - Footer props including optional `className` and `children`.
+ * @returns A styled container for the card footer content.
+ */
 function CardFooter({
   className,
   ...props
-}: React.ComponentProps<"div">): React.JSX.Element {
+}: CardFooterProps): React.JSX.Element {
   return (
     <div
       data-slot="card-footer"

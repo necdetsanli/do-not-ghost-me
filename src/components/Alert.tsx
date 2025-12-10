@@ -17,6 +17,9 @@ interface AlertProps {
 
 /**
  * App-level Alert wrapper.
+ *
+ * - Maps domain-level `type` to design-system variants.
+ * - Renders a leading icon and an optional dismiss button.
  */
 export function Alert({
   type,
@@ -25,21 +28,25 @@ export function Alert({
   className,
 }: AlertProps): JSX.Element {
   const Icon = type === "success" ? CheckCircle : AlertCircle;
-  const variant = type === "error" ? "destructive" : "default";
+  const variant = type === "error" ? "destructive" : "success";
 
   return (
     <UiAlert variant={variant} className={className}>
-      <Icon className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
+      {/* Leading icon (grid col 1) */}
+      <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+
+      {/* Message (grid col 2) */}
       <AlertDescription>{message}</AlertDescription>
 
+      {/* Dismiss button (grid col 2, top-right) */}
       {onClose !== undefined && (
         <button
           type="button"
           onClick={onClose}
-          className="ml-auto flex-shrink-0 transition-opacity hover:opacity-70"
+          className="col-start-2 row-start-1 ml-auto flex h-4 w-4 items-center justify-center shrink-0 self-start transition-opacity hover:opacity-70"
           aria-label="Dismiss alert"
         >
-          <X className="h-4 w-4" aria-hidden="true" />
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       )}
     </UiAlert>

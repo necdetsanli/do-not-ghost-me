@@ -77,6 +77,12 @@ const buttonVariants = cva(
   },
 );
 
+/**
+ * Props for the design-system Button component.
+ *
+ * Extends the native `button` element props with visual variants,
+ * size options and the `asChild` flag for Slot rendering.
+ */
 export type ButtonProps = React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     /**
@@ -90,7 +96,10 @@ export type ButtonProps = React.ComponentProps<"button"> &
  *
  * - Supports multiple visual variants and sizes.
  * - Uses design tokens from global.css (background, text, focus ring, error colors).
- * - Can render as a different element when `asChild` is true.
+ * - Can render as a different element when `asChild` is true (for links, etc.).
+ *
+ * @param props - Button props including variant, size, className and asChild flag.
+ * @returns A styled button element or a Slot-wrapped child element.
  */
 function Button({
   className,

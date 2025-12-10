@@ -11,12 +11,20 @@ export const metadata: Metadata = {
 };
 
 type RootLayoutProps = {
+  /**
+   * React children rendered as the main page content.
+   */
   children: ReactNode;
 };
 
 /**
  * Root layout for the app router.
- * Wraps all pages and wires up global layout, navigation and metadata.
+ *
+ * Wraps all pages with the theme provider, global navigation and base layout
+ * while ensuring a mobile-friendly, full-height flex column structure.
+ *
+ * @param props - Component props containing the page children.
+ * @returns The root HTML layout element for the application.
  */
 export default function RootLayout({ children }: RootLayoutProps): JSX.Element {
   return (
@@ -28,7 +36,7 @@ export default function RootLayout({ children }: RootLayoutProps): JSX.Element {
           enableSystem
           disableTransitionOnChange
         >
-          <div className="flex min-h-screen flex-col bg-base">
+          <div className="flex min-h-screen flex-col">
             <Navigation />
             <main className="flex-1">{children}</main>
           </div>

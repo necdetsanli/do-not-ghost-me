@@ -1,42 +1,33 @@
-//src/components/Button.tsx
+// src/components/Button.tsx
 "use client";
 
-import type { ButtonHTMLAttributes, JSX, ReactNode } from "react";
-import { Button as UIButton } from "@/components/ui/button";
+import type { JSX, ReactNode } from "react";
+import { Button as UiButton } from "@/components/ui/button";
 import { cn } from "@/components/ui/utils";
 
-type ButtonVariant = "primary" | "secondary" | "outline" | "ghost";
-type ButtonSize = "sm" | "md" | "lg";
+type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "outline"
+  | "ghost"
+  | "destructive"
+  | "link";
+type ButtonSize = "sm" | "md" | "lg" | "icon";
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+type UiButtonProps = React.ComponentProps<typeof UiButton>;
+
+export interface ButtonProps extends Omit<UiButtonProps, "variant" | "size"> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   children: ReactNode;
 }
 
-const baseStyles =
-  "inline-flex items-center justify-center rounded-md text-sm font-semibold shadow-sm transition-colors " +
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 " +
-  "disabled:cursor-not-allowed disabled:opacity-50";
-
-const variantClassMap: Record<ButtonVariant, string> = {
-  primary: "bg-primary-600 hover:bg-primary-700 text-white",
-  secondary:
-    "bg-muted hover:bg-surface-hover text-primary border border-primary",
-  outline:
-    "border border-primary bg-surface hover:bg-surface-hover text-primary",
-  ghost:
-    "border border-transparent bg-transparent text-secondary hover:bg-surface-hover hover:text-primary",
-};
-
-const sizeClassMap: Record<ButtonSize, string> = {
-  sm: "min-h-[32px] px-3 py-1.5 text-sm",
-  md: "min-h-[40px] px-4 py-2 text-sm",
-  lg: "min-h-[48px] px-6 py-3 text-base",
-};
-
 /**
  * App-level Button wrapper.
+ *
+ * - Design-system Button'ı (ui/button) kullanır.
+ * - Domain tarafında daha semantik variant/size isimleri sunar.
+ * - Stil tanımı yapmaz; tüm görsel kimlik ui/button içinde kalır.
  */
 export function Button({
   variant = "primary",
@@ -48,20 +39,39 @@ export function Button({
 }: ButtonProps): JSX.Element {
   const computedType: ButtonProps["type"] = type ?? "button";
 
+  // App-level → UI-level variant map
+  const uiVariant: UiButtonProps["variant"] =
+    variant === "primary"
+      ? "default"
+      : variant === "secondary"
+        ? "secondary"
+        : variant === "outline"
+          ? "outline"
+          : variant === "ghost"
+            ? "ghost"
+            : variant === "destructive"
+              ? "destructive"
+              : "link"; // "link"
+
+  // App-level → UI-level size map
+  const uiSize: UiButtonProps["size"] =
+    size === "sm"
+      ? "sm"
+      : size === "md"
+        ? "default"
+        : size === "lg"
+          ? "lg"
+          : "icon";
+
   return (
-    <UIButton
-      variant="default"
-      size="default"
+    <UiButton
       type={computedType}
-      className={cn(
-        baseStyles,
-        variantClassMap[variant],
-        sizeClassMap[size],
-        className,
-      )}
+      variant={uiVariant}
+      size={uiSize}
+      className={cn(className)}
       {...props}
     >
       {children}
-    </UIButton>
+    </UiButton>
   );
 }

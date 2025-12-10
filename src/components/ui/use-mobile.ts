@@ -3,8 +3,8 @@
 
 import { useSyncExternalStore } from "react";
 
-const MOBILE_BREAKPOINT = 768;
-const MOBILE_MEDIA_QUERY = `(max-width: ${MOBILE_BREAKPOINT - 1}px)`;
+const MOBILE_BREAKPOINT: number = 768;
+const MOBILE_MEDIA_QUERY: string = `(max-width: ${MOBILE_BREAKPOINT - 1}px)`;
 
 /**
  * Subscribes to viewport changes using a matchMedia listener.
@@ -12,7 +12,7 @@ const MOBILE_MEDIA_QUERY = `(max-width: ${MOBILE_BREAKPOINT - 1}px)`;
  * it returns a no-op.
  *
  * @param onStoreChange - Callback invoked when the media query match state changes.
- * @returns Unsubscribe function.
+ * @returns An unsubscribe function that removes the media query listener when called.
  */
 function subscribe(onStoreChange: () => void): () => void {
   if (
@@ -22,7 +22,7 @@ function subscribe(onStoreChange: () => void): () => void {
     return () => {};
   }
 
-  const mediaQueryList = window.matchMedia(MOBILE_MEDIA_QUERY);
+  const mediaQueryList: MediaQueryList = window.matchMedia(MOBILE_MEDIA_QUERY);
 
   const handleChange = (): void => {
     onStoreChange();

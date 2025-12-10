@@ -8,13 +8,21 @@ import { Check, ChevronDown, ChevronUp } from "lucide-react";
 
 import { cn } from "./utils";
 
-const Select = SelectPrimitive.Root;
-const SelectGroup = SelectPrimitive.Group;
-const SelectValue = SelectPrimitive.Value;
+export const Select = SelectPrimitive.Root;
+export const SelectGroup = SelectPrimitive.Group;
+export const SelectValue = SelectPrimitive.Value;
 
-type SelectTriggerProps = React.ComponentProps<typeof SelectPrimitive.Trigger>;
+export type SelectTriggerProps = React.ComponentProps<
+  typeof SelectPrimitive.Trigger
+>;
 
-function SelectTrigger({
+/**
+ * Trigger button for the select.
+ *
+ * - Full-width on mobile by default.
+ * - Uses design tokens for border, background and focus ring.
+ */
+export function SelectTrigger({
   className,
   children,
   ...props
@@ -25,10 +33,12 @@ function SelectTrigger({
       className={cn(
         "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-primary",
         "bg-surface px-3 py-1.5 text-sm text-primary shadow-sm",
-        "placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground",
+        "placeholder:text-tertiary selection:bg-[var(--color-primary-600)] selection:text-white",
         "transition-[background-color,color,box-shadow] outline-none cursor-pointer",
-        "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
-        "aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40",
+        "focus-visible:border-[var(--focus-ring)]",
+        "focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
+        "focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--focus-ring-offset)]",
+        "aria-invalid:border-[var(--error-border)] aria-invalid:bg-[var(--error-bg)] aria-invalid:text-[var(--error-text)]",
         "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
@@ -42,13 +52,24 @@ function SelectTrigger({
   );
 }
 
-type SelectContentProps = React.ComponentProps<
+export type SelectContentProps = React.ComponentProps<
   typeof SelectPrimitive.Content
 > & {
+  /**
+   * Controls how the popup is positioned.
+   * - "popper": aligns to the trigger dimensions.
+   * - "item-aligned": Radix default item alignment.
+   */
   position?: "item-aligned" | "popper";
 };
 
-function SelectContent({
+/**
+ * Popup panel for the select options.
+ *
+ * - Uses a portal so it can escape overflow/parents.
+ * - Keeps height constrained on small screens.
+ */
+export function SelectContent({
   className,
   children,
   position = "popper",
@@ -93,10 +114,17 @@ function SelectContent({
   );
 }
 
-function SelectLabel({
+export type SelectLabelProps = React.ComponentProps<
+  typeof SelectPrimitive.Label
+>;
+
+/**
+ * Group label inside the select dropdown.
+ */
+export function SelectLabel({
   className,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Label>): JSX.Element {
+}: SelectLabelProps): JSX.Element {
   return (
     <SelectPrimitive.Label
       data-slot="select-label"
@@ -109,11 +137,19 @@ function SelectLabel({
   );
 }
 
-function SelectItem({
+export type SelectItemProps = React.ComponentProps<typeof SelectPrimitive.Item>;
+
+/**
+ * Single selectable option row.
+ *
+ * - Uses our global highlight styles via `[data-slot="select-item"]`.
+ * - Shows a check icon when selected.
+ */
+export function SelectItem({
   className,
   children,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Item>): JSX.Element {
+}: SelectItemProps): JSX.Element {
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
@@ -132,26 +168,27 @@ function SelectItem({
   );
 }
 
-function SelectSeparator({
+export type SelectSeparatorProps = React.ComponentProps<
+  typeof SelectPrimitive.Separator
+>;
+
+/**
+ * Visual separator between groups of options.
+ */
+export function SelectSeparator({
   className,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Separator>): JSX.Element {
+}: SelectSeparatorProps): JSX.Element {
   return (
     <SelectPrimitive.Separator
       data-slot="select-separator"
-      className={cn("-mx-1 my-1 h-px bg-border-primary", className)}
+      className={cn("-mx-1 my-1 h-px bg-[var(--border-primary)]", className)}
       {...props}
     />
   );
 }
 
 export {
-  Select,
-  SelectGroup,
-  SelectValue,
-  SelectTrigger,
-  SelectContent,
-  SelectLabel,
-  SelectItem,
-  SelectSeparator,
+  // Re-export primitives for convenience
+  SelectPrimitive as SelectPrimitiveInternal,
 };

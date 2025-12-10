@@ -1,4 +1,4 @@
-/*src/app/globals.css*/
+/* src/app/globals.css */
 /* Tailwind v4 entrypoint */
 @import "tailwindcss";
 
@@ -155,6 +155,15 @@
     transition:
       background-color 0.2s ease,
       color 0.2s ease;
+  }
+
+  /* Make media responsive by default (mobile-friendly) */
+  img,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
+    height: auto;
   }
 
   a {

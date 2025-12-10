@@ -20,18 +20,13 @@ interface CardProps {
 
 /**
  * App-level Card wrapper.
+ *
+ * - Design-system Card üzerine sadece layout/padding ekler.
+ * - Stil (border, bg, radius) ui/card'da tanımlı kalır.
+ * - Mobile'da biraz daha sıkı, desktop'ta daha ferah padding.
  */
 export function Card({ children, className }: CardProps): JSX.Element {
-  return (
-    <UiCard
-      className={cn(
-        "rounded-2xl border border-primary bg-surface p-8",
-        className,
-      )}
-    >
-      {children}
-    </UiCard>
-  );
+  return <UiCard className={cn("p-6 sm:p-8", className)}>{children}</UiCard>;
 }
 
 export {

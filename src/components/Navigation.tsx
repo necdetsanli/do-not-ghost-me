@@ -67,19 +67,28 @@ export function Navigation(): JSX.Element {
       role="navigation"
       aria-label="Main navigation"
     >
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 md:px-8">
+      <div
+        className={cn(
+          "mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3",
+          "sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-0",
+          "md:px-8 md:h-16",
+        )}
+      >
         {/* Brand */}
         <Link
           href="/"
-          className="text-xl tracking-tight text-primary transition-opacity hover:opacity-70"
+          className="text-lg font-semibold tracking-tight text-primary transition-opacity hover:opacity-70 sm:text-xl"
           aria-label="Go to home page"
         >
           Do Not Ghost Me
         </Link>
 
         {/* Links + actions */}
-        <div className="flex items-center gap-6 md:gap-8">
-          <NavigationMenu viewport={false}>
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 md:gap-6 sm:justify-end">
+          <NavigationMenu
+            viewport={false}
+            className="w-full max-w-full justify-center sm:w-auto sm:max-w-max sm:justify-start"
+          >
             <NavigationMenuList>
               {NAV_ITEMS.map((item) => {
                 const active = isActivePath(currentPath, item);
@@ -118,6 +127,7 @@ export function Navigation(): JSX.Element {
             size="md"
             onClick={handleSubmitClick}
             aria-label="Submit a ghosting report"
+            className="w-full sm:w-auto"
           >
             Submit report
           </Button>
