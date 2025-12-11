@@ -12,6 +12,29 @@ This project follows **Semantic Versioning** (`MAJOR.MINOR.PATCH`).
 
 ---
 
+## [1.0.3] – 2025-12-11
+
+### Added
+
+- Company name autocomplete in the public report form:
+  - Replaced the plain text company field with a `CompanyAutocompleteInput` wrapper that still posts a simple string.
+  - As the user types, existing companies are fetched from `/api/companies/search` and shown in a compact suggestion dropdown.
+  - Suggestions are optional: users can always submit a completely new, free-text company name.
+  - Fully keyboard-accessible (ArrowUp/ArrowDown to navigate, Enter to select, Escape to close) with proper ARIA combobox wiring.
+
+- `/api/companies/search` endpoint:
+  - Read-only public API used by the autocomplete component to look up companies by a partial name.
+  - Trims and sanitizes the `q` query parameter, enforces a small result limit, and only returns minimal metadata (`id`, `name`, `country`).
+  - Designed to be fast and side-effect free so it can safely be called from the client while typing.
+
+### Security
+
+- Autocomplete suggestions reuse the existing privacy model:
+  - No reporter-level data, IP information, or rate-limit internals are exposed through the search API.
+  - The endpoint only exposes company metadata that is already visible elsewhere in the UI (name + country), keeping data minimization intact.
+
+---
+
 ## [1.0.2] – 2025-12-11
 
 Rename the ghosting leaderboard route and UI copy to use neutral, non-positive wording.

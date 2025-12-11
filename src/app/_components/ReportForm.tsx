@@ -18,6 +18,7 @@ import { Select } from "@/components/Select";
 import { CountrySelect } from "@/components/CountrySelect";
 import { Button } from "@/components/Button";
 import { Alert } from "@/components/Alert";
+import { CompanyAutocompleteInput } from "@/app/_components/CompanyAutocompleteInput";
 
 type SubmitStatus = "idle" | "submitting" | "success" | "error";
 
@@ -54,21 +55,45 @@ const categorySelectOptions = [
 ];
 
 /**
- * Report form section for the home page.
- * Handles client-side validation, submission and success/error states.
+ * Ghosting report form for the public home page.
+ *
+ * Responsibilities:
+ * - Render the main report submission form (company, stage, level, etc.).
+ * - Perform minimal client-side guards (e.g. country selection).
+ * - Submit the payload to the `/api/reports` endpoint as JSON.
+ * - Handle success and error states, including honeypot success path.
+ *
+ * Full validation, rate limiting and persistence are handled server-side
+ * via Zod schemas and domain-specific logic.
  */
 export function ReportForm(): JSX.Element {
   const [status, setStatus] = useState<SubmitStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Used to force-reset the whole form (including CountrySelect internal state).
-  const [formResetKey, setFormResetKey] = useState(0);
+  const [formResetKey, setFormResetKey] = useState<number>(0);
 
   // Mirror of CountrySelect internal state to ensure a country is actually selected.
   const [selectedCountryCode, setSelectedCountryCode] = useState<
     CountryCode | ""
   >("");
 
+  // Controlled state for the company name input so that the autocomplete
+  // component can manage suggestions while preserving a free-text value.
+  const [companyName, setCompanyName] = useState<string>("");
+
+  /**
+   * Handles report form submission:
+   * - Prevents default form submission.
+   * - Ensures that a country has been selected from the CountrySelect.
+   * - Builds a JSON payload from the form fields.
+   * - Sends the payload to `/api/reports` and interprets the response.
+   *
+   * Honeypot submissions (bot traffic) still respond with HTTP 200 and are
+   * treated as success to avoid leaking validation behavior to bots.
+   *
+   * @param event - The form submission event.
+   */
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>,
   ): Promise<void> {
@@ -83,12 +108,12 @@ export function ReportForm(): JSX.Element {
       return;
     }
 
-    const form = event.currentTarget;
-    const formData = new FormData(form);
+    const form: HTMLFormElement = event.currentTarget;
+    const formData: FormData = new FormData(form);
 
-    const rawCountryCode = String(formData.get("country") ?? "").trim();
+    const rawCountryCode: string = String(formData.get("country") ?? "").trim();
 
-    const rawDaysWithoutReply = String(
+    const rawDaysWithoutReply: string = String(
       formData.get("daysWithoutReply") ?? "",
     ).trim();
 
@@ -107,7 +132,7 @@ export function ReportForm(): JSX.Element {
     };
 
     try {
-      const res = await fetch("/api/reports", {
+      const res: Response = await fetch("/api/reports", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -116,13 +141,14 @@ export function ReportForm(): JSX.Element {
       });
 
       // Honeypot path returns 200, which is still ok → treat as success.
-      if (res.ok) {
+      if (res.ok === true) {
         setStatus("success");
         setErrorMessage(null);
 
         form.reset();
         setSelectedCountryCode("");
-        setFormResetKey((key) => key + 1);
+        setCompanyName("");
+        setFormResetKey((key: number): number => key + 1);
         return;
       }
 
@@ -158,12 +184,17 @@ export function ReportForm(): JSX.Element {
         setErrorMessage("Something went wrong.");
       }
     } catch (error) {
+      // Network or fetch-level error: log to console for client-side debugging only.
+      // Server-side logging and alerting remain in the API route implementations.
       console.error("Failed to submit report", error);
       setStatus("error");
       setErrorMessage("Network error while submitting the report.");
     }
   }
 
+  /**
+   * Clears the current alert state and returns the form status to idle.
+   */
   function clearAlert(): void {
     setStatus("idle");
     setErrorMessage(null);
@@ -188,7 +219,7 @@ export function ReportForm(): JSX.Element {
                 href="/companies"
                 className="font-medium text-[var(--color-primary-600)] underline"
               >
-                most reported companies
+                companies
               </a>
               .
             </p>
@@ -218,14 +249,16 @@ export function ReportForm(): JSX.Element {
             aria-label="Ghosting report form"
           >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {/* Company name */}
+              {/* Company name (free-text with suggestions) */}
               <div className="md:col-span-2">
-                <Input
-                  label="Company name"
+                <CompanyAutocompleteInput
                   name="companyName"
+                  label="Company name"
+                  value={companyName}
+                  onValueChange={setCompanyName}
                   placeholder="e.g. TechCorp Inc"
-                  required
-                  isRequired
+                  required={true}
+                  isRequired={true}
                   maxLength={120}
                 />
               </div>
