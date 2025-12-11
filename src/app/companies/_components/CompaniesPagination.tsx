@@ -1,13 +1,13 @@
 // src/app/top-companies/_components/TopCompaniesPagination.tsx
 import type { JSX } from "react";
-import type { TopCompaniesPaginationProps } from "../types";
+import type { CompaniesPaginationProps } from "../types";
 
 /**
  * Simple "Previous / Next" pagination controls.
  * Links are precomputed in the page component.
  */
-export function TopCompaniesPagination(
-  props: TopCompaniesPaginationProps,
+export function CompaniesPagination(
+  props: CompaniesPaginationProps,
 ): JSX.Element {
   const { hasResults, page, totalPages, previousHref, nextHref } = props;
 

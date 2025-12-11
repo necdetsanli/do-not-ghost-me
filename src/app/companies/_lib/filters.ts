@@ -1,4 +1,4 @@
-// src/app/top-companies/_lib/filters.ts
+// src/app/companies/_lib/filters.ts
 import type { CountryCode } from "@prisma/client";
 import {
   COUNTRY_OPTIONS,

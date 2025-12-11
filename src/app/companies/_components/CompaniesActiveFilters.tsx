@@ -6,13 +6,13 @@ import {
   labelForStage,
   labelForCountry,
 } from "@/lib/enums";
-import type { TopCompaniesActiveFiltersProps } from "../types";
+import type { CompaniesActiveFiltersProps } from "../types";
 
 /**
  * Chip-style summary of currently active filters.
  */
-export function TopCompaniesActiveFilters(
-  props: TopCompaniesActiveFiltersProps,
+export function CompaniesActiveFilters(
+  props: CompaniesActiveFiltersProps,
 ): JSX.Element {
   const { filters } = props;
   const { search, country, positionCategory, seniority, stage } = filters;

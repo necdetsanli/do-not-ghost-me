@@ -12,6 +12,22 @@ This project follows **Semantic Versioning** (`MAJOR.MINOR.PATCH`).
 
 ---
 
+## [1.0.2] – 2025-12-11
+
+Rename the ghosting leaderboard route and UI copy to use neutral, non-positive wording.
+
+---
+
+### Changed
+
+- Renamed the `/top-companies` route to `/companies` to avoid implying that highly reported companies are being endorsed.
+- Updated navigation and home hero CTA links to point to `/companies` and use neutral labels such as “Companies” instead of “Top companies”.
+- Refined inline copy around the companies leaderboard to clarify that companies are ordered by the number of ghosting reports, not by quality or endorsement.
+- Updated internal UI text (including report form and related components) to consistently refer to the page as the “Companies” view rather than “Top companies”.
+- Bumped the application version metadata (package.json) to align with the `1.0.2` release.
+
+---
+
 ## [1.0.1] – 2025-12-11
 
 Minor security, observability and metadata polish on top of the initial release.

@@ -15,14 +15,14 @@ import { Input } from "@/components/Input";
 import { Select } from "@/components/Select";
 import { Button } from "@/components/Button";
 import { CountrySelect } from "@/components/CountrySelect";
-import type { TopCompaniesFilterFormProps } from "../types";
+import type { CompaniesFilterFormProps } from "../types";
 
 /**
- * Filter/search form at the top of the "Top companies" page.
+ * Filter/search form at the top of the "Companies" page.
  * Uses a GET form so filters are reflected in the URL.
  */
-export function TopCompaniesFilterForm(
-  props: TopCompaniesFilterFormProps,
+export function CompaniesFilterForm(
+  props: CompaniesFilterFormProps,
 ): JSX.Element {
   const { filters } = props;
   const { search, country, positionCategory, seniority, stage } = filters;
@@ -79,7 +79,7 @@ export function TopCompaniesFilterForm(
 
         {/* Seniority filter (JobLevel) */}
         <Select
-          label="Seniority"
+          label="Job level"
           name="seniority"
           defaultValue={
             seniority !== undefined ? seniorityEnumToSlug(seniority) : ""

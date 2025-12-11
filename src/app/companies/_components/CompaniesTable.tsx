@@ -1,12 +1,12 @@
 // src/app/top-companies/_components/TopCompaniesTable.tsx
 import type { JSX } from "react";
 import { labelForCountry } from "@/lib/enums";
-import type { TopCompaniesTableProps } from "../types";
+import type { CompaniesTableProps } from "../types";
 
 /**
  * Main results table for the "Top companies" listing.
  */
-export function TopCompaniesTable(props: TopCompaniesTableProps): JSX.Element {
+export function CompaniesTable(props: CompaniesTableProps): JSX.Element {
   const { items, page, pageSize } = props;
 
   return (

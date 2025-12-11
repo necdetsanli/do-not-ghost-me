@@ -1,4 +1,4 @@
-// src/app/top-companies/types.ts
+// src/app/companies/types.ts
 import type {
   CountryCode,
   JobLevel,
@@ -10,7 +10,7 @@ import type {
  * Shape of a single row in the "Top companies" table.
  * Each row represents a (company, country) pair with an aggregated report count.
  */
-export type TopCompanyRow = {
+export type CompanyRow = {
   /** ID of the company (Company.id) */
   id: string;
   /** Human-readable company name */
@@ -56,7 +56,7 @@ export type ResolvedFilters = {
 /**
  * Props for the filter form at the top of the page.
  */
-export type TopCompaniesFilterFormProps = {
+export type CompaniesFilterFormProps = {
   /** Current filter values to pre-populate form controls */
   filters: ResolvedFilters;
 };
@@ -64,7 +64,7 @@ export type TopCompaniesFilterFormProps = {
 /**
  * Props for the "Active filters" chip summary.
  */
-export type TopCompaniesActiveFiltersProps = {
+export type CompaniesActiveFiltersProps = {
   /** Current filter values used to determine which chips to show */
   filters: ResolvedFilters;
 };
@@ -72,7 +72,7 @@ export type TopCompaniesActiveFiltersProps = {
 /**
  * Props for the summary text / empty state block above the table.
  */
-export type TopCompaniesResultSummaryProps = {
+export type CompaniesResultSummaryProps = {
   /** Whether there is at least one row of data */
   hasResults: boolean;
   /** Current page index (1-based) */
@@ -88,9 +88,9 @@ export type TopCompaniesResultSummaryProps = {
 /**
  * Props for the main results table.
  */
-export type TopCompaniesTableProps = {
+export type CompaniesTableProps = {
   /** Rows to render on the current page */
-  items: TopCompanyRow[];
+  items: CompanyRow[];
   /** Current page index (1-based), used to compute the row number column */
   page: number;
   /** Page size used for pagination, needed to compute absolute row numbers */
@@ -100,7 +100,7 @@ export type TopCompaniesTableProps = {
 /**
  * Props for the simple previous/next pagination controls.
  */
-export type TopCompaniesPaginationProps = {
+export type CompaniesPaginationProps = {
   /** Whether there is at least one row of data */
   hasResults: boolean;
   /** Current page index (1-based) */

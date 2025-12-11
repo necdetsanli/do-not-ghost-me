@@ -29,7 +29,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Home", exact: true },
-  { href: "/top-companies", label: "Top companies" },
+  { href: "/companies", label: "Companies" },
   { href: "/about", label: "About" },
 ];
 

@@ -1,11 +1,11 @@
-// src/app/top-companies/_lib/data.ts
+// src/app/companies/_lib/data.ts
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { ResolvedFilters, TopCompanyRow } from "../types";
 import { PAGE_SIZE } from "./constants";
 
 /**
- * Fetch one page of "top companies" and basic pagination metadata.
+ * Fetch one page of "companies" and basic pagination metadata.
  *
  * The query:
  * - applies the given filters on the Report table (and related Company),

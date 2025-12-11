@@ -185,10 +185,10 @@ export function ReportForm(): JSX.Element {
               All reports are anonymous. We collect minimal data and apply rate
               limiting to prevent abuse. You can browse aggregated statistics on{" "}
               <a
-                href="/top-companies"
+                href="/companies"
                 className="font-medium text-[var(--color-primary-600)] underline"
               >
-                top companies
+                most reported companies
               </a>
               .
             </p>

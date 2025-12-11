@@ -51,10 +51,10 @@ export function HomeHero(): JSX.Element {
           size="lg"
           type="button"
           onClick={(): void => {
-            router.push("/top-companies");
+            router.push("/companies");
           }}
         >
-          View top companies
+          View most reported companies
         </Button>
       </div>
 

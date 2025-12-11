@@ -1,12 +1,12 @@
 // src/app/top-companies/_components/TopCompaniesResultSummary.tsx
 import type { JSX } from "react";
-import type { TopCompaniesResultSummaryProps } from "../types";
+import type { CompaniesResultSummaryProps } from "../types";
 
 /**
  * Short text summary / empty-state section above the results table.
  */
-export function TopCompaniesResultSummary(
-  props: TopCompaniesResultSummaryProps,
+export function CompaniesResultSummary(
+  props: CompaniesResultSummaryProps,
 ): JSX.Element {
   const { hasResults, page, totalPages, totalCompanies, search } = props;
 
