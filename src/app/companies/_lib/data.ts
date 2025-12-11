@@ -1,7 +1,7 @@
 // src/app/companies/_lib/data.ts
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import type { ResolvedFilters, TopCompanyRow } from "../types";
+import type { ResolvedFilters, CompanyRow } from "../types";
 import { PAGE_SIZE } from "./constants";
 
 /**
@@ -27,7 +27,7 @@ import { PAGE_SIZE } from "./constants";
  *                 companyId while building the page.
  */
 export async function getCompaniesPage(filters: ResolvedFilters): Promise<{
-  items: TopCompanyRow[];
+  items: CompanyRow[];
   totalPages: number;
   totalCompanies: number;
 }> {
@@ -112,7 +112,7 @@ export async function getCompaniesPage(filters: ResolvedFilters): Promise<{
     ]),
   );
 
-  const items: TopCompanyRow[] = grouped.map((g) => {
+  const items: CompanyRow[] = grouped.map((g) => {
     type CountAll = { _all: number };
 
     const countAll =
