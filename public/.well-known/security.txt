@@ -1,0 +1,24 @@
+# Do Not Ghost Me - security.txt
+# Security contact and policy for responsible disclosure.
+# Spec: RFC 9116 (https://www.rfc-editor.org/rfc/rfc9116)
+
+Contact: mailto:security@donotghostme.com
+# Optional: add a PGP key if you later create one
+# Encryption: https://donotghostme.com/pgp-key.txt
+
+Policy: https://donotghostme.com/about
+# Optional: if you publish a dedicated security policy or bug bounty page:
+# Policy: https://donotghostme.com/security
+
+# Where you will thank researchers (can be a simple static page or GitHub doc)
+Acknowledgments: https://donotghostme.com/security-acknowledgments
+
+# Languages you can handle for security reports
+Preferred-Languages: en, tr
+
+# Canonical URL of this file
+Canonical: https://donotghostme.com/.well-known/security.txt
+
+# Expiry date (must be in the future, max ~1 year ahead).
+# Update this when you change contacts or once per year.
+Expires: 2026-12-11T00:00:00Z

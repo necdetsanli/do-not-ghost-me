@@ -12,6 +12,42 @@ This project follows **Semantic Versioning** (`MAJOR.MINOR.PATCH`).
 
 ---
 
+## [1.0.1] – 2025-12-11
+
+Minor security, observability and metadata polish on top of the initial release.
+
+---
+
+### Added
+
+- **Vercel Speed Insights integration**
+  - Installed the official `@vercel/speed-insights` package.
+  - Rendered `<SpeedInsights />` in the root layout to collect real-user performance telemetry in production.
+
+- **Security and SEO metadata files**
+  - Added a `security.txt` file under `/.well-known/security.txt` to publish a clear security contact and responsible disclosure policy.
+  - Added a `robots.txt` file that:
+    - Allows indexing of public pages (home, top companies, about).
+    - Disallows crawling of admin and API endpoints for better privacy and reduced attack surface.
+  - Added a dedicated `favicon.ico` for browser tabs, bookmarks and link previews.
+  - Introduced `THIRD_PARTY_LICENSES.md` and a `licenses/` directory to track third-party icon licensing (Apache-2.0 attribution).
+
+---
+
+### Changed
+
+- **Transport security hardening**
+  - Updated `next.config.ts` to enable HTTP Strict Transport Security (HSTS) with a `max-age` of 1 year in production responses, alongside existing security headers (CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy).
+
+---
+
+### Security
+
+- Improved transparency for security researchers via `/.well-known/security.txt`, clarifying how to report vulnerabilities and which languages are accepted.
+- Reduced the chance of sensitive or internal endpoints being indexed by search engines by explicitly disallowing `/admin` and `/api` paths in `robots.txt`.
+
+---
+
 ## [1.0.0] – 2025-12-10
 
 Initial public release of **Do Not Ghost Me**.

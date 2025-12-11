@@ -1,0 +1,17 @@
+# Do Not Ghost Me - robots.txt
+# Allow search engines to index public pages.
+# Keep admin and API endpoints out of search results.
+
+User-agent: *
+Allow: /
+
+# Do not index admin area or API endpoints.
+Disallow: /admin
+Disallow: /admin/
+Disallow: /admin/login
+Disallow: /api
+Disallow: /api/
+Disallow: /api/admin
+Disallow: /api/admin/
+
+Sitemap: https://donotghostme.com/sitemap.xml

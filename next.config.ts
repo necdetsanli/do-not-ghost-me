@@ -107,8 +107,8 @@ const securityHeaders = (() => {
     headers.push(
       {
         key: "Strict-Transport-Security",
-        // 2 years, include subdomains, and opt-in for browser preload lists.
-        value: "max-age=63072000; includeSubDomains; preload",
+        // 1 years, include subdomains, and opt-in for browser preload lists.
+        value: "max-age=31536000; includeSubDomains; preload",
       },
       {
         key: "Content-Security-Policy",

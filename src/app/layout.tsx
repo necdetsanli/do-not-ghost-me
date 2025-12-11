@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Navigation } from "@/components/Navigation";
 import { ThemeProvider } from "@/components/ui/theme-provider";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: "Do Not Ghost Me",
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: RootLayoutProps): JSX.Element {
             <main className="flex-1">{children}</main>
           </div>
         </ThemeProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
