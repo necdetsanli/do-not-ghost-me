@@ -6,18 +6,18 @@ Contact: mailto:security@donotghostme.com
 # Optional: add a PGP key if you later create one
 # Encryption: https://donotghostme.com/pgp-key.txt
 
-Policy: https://donotghostme.com/about
+Policy: https://www.donotghostme.com/about
 # Optional: if you publish a dedicated security policy or bug bounty page:
 # Policy: https://donotghostme.com/security
 
 # Where you will thank researchers (can be a simple static page or GitHub doc)
-Acknowledgments: https://donotghostme.com/security-acknowledgments
+# Acknowledgments: https://donotghostme.com/security-acknowledgments
 
 # Languages you can handle for security reports
 Preferred-Languages: en, tr
 
 # Canonical URL of this file
-Canonical: https://donotghostme.com/.well-known/security.txt
+Canonical: https://www.donotghostme.com/.well-known/security.txt
 
 # Expiry date (must be in the future, max ~1 year ahead).
 # Update this when you change contacts or once per year.

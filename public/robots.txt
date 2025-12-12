@@ -14,4 +14,4 @@ Disallow: /api/
 Disallow: /api/admin
 Disallow: /api/admin/
 
-Sitemap: https://donotghostme.com/sitemap.xml
+Sitemap: https://www.donotghostme.com/sitemap.xml
