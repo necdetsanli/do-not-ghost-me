@@ -70,7 +70,7 @@ const POSITION_CATEGORY_LABELS: Partial<Record<PositionCategory, string>> = {
   [PositionCategory.CONSULTING]: "Consulting",
   [PositionCategory.HR]: "HR / People",
   [PositionCategory.SALES_MARKETING]: "Sales & Marketing",
-  [PositionCategory.RD]: "R&D",
+  [PositionCategory.RESEARCH_DEVELOPMENT]: "R&D",
   [PositionCategory.DESIGN]: "Design",
   [PositionCategory.PRODUCT]: "Product Management",
   [PositionCategory.OPERATIONS]: "Operations",
