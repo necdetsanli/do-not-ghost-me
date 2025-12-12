@@ -12,6 +12,18 @@ This project follows **Semantic Versioning** (`MAJOR.MINOR.PATCH`).
 
 ---
 
+## [1.1.1] - 2025-12-12
+
+### Added
+
+- Client-side minimum fill-time guard on the public report form to mitigate automated spam submissions.
+
+### Changed
+
+- If the report form is submitted in under 4 seconds from the first interaction, the request is treated like a honeypot submission: the UI shows a success state, but no API call is made and no data is written to the database.
+
+---
+
 ## [1.1.0] – 2025-12-12
 
 ### Changed – Position categories
