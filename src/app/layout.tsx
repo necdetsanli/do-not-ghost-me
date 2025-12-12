@@ -7,8 +7,31 @@ import { ThemeProvider } from "@/components/ui/theme-provider";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
-  title: "Do Not Ghost Me",
+  metadataBase: new URL("https://www.donotghostme.com"),
+  title: {
+    default: "Do Not Ghost Me",
+    template: "%s | Do Not Ghost Me",
+  },
   description: "Report recruitment ghosting in a privacy-safe way.",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "Do Not Ghost Me",
+    description: "Report recruitment ghosting in a privacy-safe way.",
+    url: "https://www.donotghostme.com",
+    siteName: "Do Not Ghost Me",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Do Not Ghost Me",
+    description: "Report recruitment ghosting in a privacy-safe way.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 type RootLayoutProps = {
@@ -18,15 +41,6 @@ type RootLayoutProps = {
   children: ReactNode;
 };
 
-/**
- * Root layout for the app router.
- *
- * Wraps all pages with the theme provider, global navigation and base layout
- * while ensuring a mobile-friendly, full-height flex column structure.
- *
- * @param props - Component props containing the page children.
- * @returns The root HTML layout element for the application.
- */
 export default function RootLayout({ children }: RootLayoutProps): JSX.Element {
   return (
     <html lang="en" suppressHydrationWarning className="h-full">
