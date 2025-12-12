@@ -1,5 +1,5 @@
 # .github/ISSUE_TEMPLATE/privacy-security-concern.yml
-name: "Privacy / security concern"
+name: "Privacy / Security concern"
 description: "Report a security issue or a possible privacy risk in Do Not Ghost Me"
 title: "[Security] "
 labels: ["security", "privacy"]

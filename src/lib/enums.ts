@@ -4,8 +4,8 @@
 import { PositionCategory, JobLevel, Stage, CountryCode } from "@prisma/client";
 
 /**
- * Converts an enum value (e.g. "DEVOPS_SRE_PLATFORM") to a URL-safe slug
- * (e.g. "devops-sre-platform").
+ * Converts an enum value (e.g. "SALES_MARKETING") to a URL-safe slug
+ * (e.g. "sales-marketing").
  *
  * @param value - The raw enum string value.
  * @returns A lowercase, hyphen-separated slug.
@@ -15,8 +15,8 @@ export function enumToSlug(value: string): string {
 }
 
 /**
- * Converts an enum value (e.g. "DEVOPS_SRE_PLATFORM") to a human-readable label
- * (e.g. "Devops Sre Platform").
+ * Converts an enum value (e.g. "SALES_MARKETING") to a human-readable label
+ * (e.g. "Sales Marketing").
  *
  * Note: For nicer labels, this is typically overridden by custom maps below.
  *
@@ -63,17 +63,25 @@ export const COUNTRY_OPTIONS: readonly CountryCode[] = Object.values(
 // ---------------------------------------------------------------------------
 
 const POSITION_CATEGORY_LABELS: Partial<Record<PositionCategory, string>> = {
-  [PositionCategory.DEVOPS_SRE_PLATFORM]: "DevOps/SRE/Platform",
-  [PositionCategory.SOFTWARE_ENGINEERING]: "Software Engineering",
-  [PositionCategory.CLOUD_INFRA]: "Cloud/Infrastructure",
-  [PositionCategory.DATA_ML_AI]: "Data/ML/AI",
+  [PositionCategory.IT]: "IT",
+  [PositionCategory.ENGINEERING]: "Engineering",
+  [PositionCategory.FINANCE_ACCOUNTING]: "Finance & Accounting",
+  [PositionCategory.AUDIT_ADVISORY]: "Audit & Advisory",
+  [PositionCategory.CONSULTING]: "Consulting",
+  [PositionCategory.HR]: "HR / People",
+  [PositionCategory.SALES_MARKETING]: "Sales & Marketing",
+  [PositionCategory.RD]: "R&D",
   [PositionCategory.DESIGN]: "Design",
-  [PositionCategory.EMBEDDED_ROBOTICS]: "Embedded/Robotics/IoT",
-  [PositionCategory.MOBILE]: "Mobile",
+  [PositionCategory.PRODUCT]: "Product Management",
+  [PositionCategory.OPERATIONS]: "Operations",
+  [PositionCategory.PROJECT_PROGRAM]: "Project / Program Management",
+  [PositionCategory.ADMINISTRATION]: "Administration",
+  [PositionCategory.LEGAL_COMPLIANCE]: "Legal & Compliance",
+  [PositionCategory.CUSTOMER_SUPPORT]: "Customer Support",
+  [PositionCategory.EDUCATION_TRAINING]: "Education & Training",
+  [PositionCategory.HEALTHCARE_LIFE_SCIENCES]: "Healthcare & Life Sciences",
+  [PositionCategory.SUPPLY_CHAIN_LOGISTICS]: "Supply Chain & Logistics",
   [PositionCategory.OTHER]: "Other",
-  [PositionCategory.PRODUCT]: "Product",
-  [PositionCategory.QA_TEST]: "QA/Test",
-  [PositionCategory.SECURITY]: "Security",
 };
 
 const JOB_LEVEL_LABELS: Partial<Record<JobLevel, string>> = {
@@ -414,8 +422,8 @@ type SlugMaps<E extends string> = {
 /**
  * Builds bidirectional slug maps for a set of enum values.
  *
- * enumValue -> slug   (e.g. "DEVOPS_SRE_PLATFORM" -> "devops-sre-platform")
- * slug      -> enum   (e.g. "devops-sre-platform" -> "DEVOPS_SRE_PLATFORM")
+ * enumValue -> slug   (e.g. "SALES_MARKETING" -> "sales-marketing")
+ * slug      -> enum   (e.g. "sales-marketing" -> "SALES_MARKETING")
  *
  * @param values - The enum values to index.
  * @returns An object with forward and reverse slug maps.

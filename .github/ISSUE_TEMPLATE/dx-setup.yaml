@@ -1,5 +1,5 @@
 # .github/ISSUE_TEMPLATE/dx-setup.yml
-name: "Developer experience / local setup"
+name: "Developer experience / Local setup"
 description: "Problems with devcontainer, scripts/dev/setup-db.sh, scripts/dev/seed-dummy-reports.js or local environment."
 labels: ["dx", "documentation"]
 body:

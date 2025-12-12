@@ -1,5 +1,5 @@
 # .github/ISSUE_TEMPLATE/data-quality.yml
-name: "Data / stats quality issue"
+name: "Data / Stats quality issue"
 description: "Report inconsistencies or suspicious values in aggregated statistics or top companies ranking."
 labels: ["bug", "data-quality"]
 body:
