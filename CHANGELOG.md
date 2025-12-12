@@ -12,6 +12,44 @@ This project follows **Semantic Versioning** (`MAJOR.MINOR.PATCH`).
 
 ---
 
+## [1.1.0] – 2025-12-12
+
+### Changed – Position categories
+
+- Replaced the previous tech-heavy `PositionCategory` enum with a broader cross-functional taxonomy that also covers non-technical roles.
+- New categories:
+  - `IT`
+  - `ENGINEERING`
+  - `FINANCE_ACCOUNTING`
+  - `AUDIT_ADVISORY`
+  - `CONSULTING`
+  - `HR`
+  - `SALES_MARKETING`
+  - `RD`
+  - `DESIGN`
+  - `PRODUCT`
+  - `OPERATIONS`
+  - `PROJECT_PROGRAM`
+  - `ADMINISTRATION`
+  - `LEGAL_COMPLIANCE`
+  - `CUSTOMER_SUPPORT`
+  - `EDUCATION_TRAINING`
+  - `HEALTHCARE_LIFE_SCIENCES`
+  - `SUPPLY_CHAIN_LOGISTICS`
+  - `OTHER`
+- Updated `src/lib/enums.ts` so the UI shows friendly labels (e.g. “Finance & Accounting”, “Audit & Advisory”, “Healthcare & Life Sciences”, “Project / Program Management”).
+- Tweaked issue templates to use neutral language (not only tech roles) and better reflect the generic companies listing.
+
+### Notes for self-hosters
+
+- This release changes the Prisma `PositionCategory` enum.
+- Before deploying:
+  - Generate and apply the new Prisma migration.
+  - If you already have production data using the old categories, run a **data migration** to map old values to the new taxonomy (for example, `SOFTWARE_ENGINEERING` → `IT` or `ENGINEERING`, `DEVOPS_SRE_PLATFORM` → `IT`, etc.).
+- The project does not yet ship an automatic data-migration script for this change.
+
+---
+
 ## [1.0.3] – 2025-12-11
 
 ### Added
