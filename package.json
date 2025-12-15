@@ -90,6 +90,7 @@
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.0.15",
     "depcheck": "^1.4.7",
+    "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.0.7",
     "prettier": "^3.7.4",
