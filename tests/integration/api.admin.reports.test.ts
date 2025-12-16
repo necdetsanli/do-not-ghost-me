@@ -1,11 +1,5 @@
-//tests/integration/api.admin.reports.test.ts
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-/**
- * Hoisted mocks for the admin reports moderation route:
- * - `requireAdminRequest` guard
- * - Prisma `report.update` and `report.delete`
- */
 const {
   requireAdminRequestMock,
   prismaReportUpdateMock,
@@ -32,13 +26,10 @@ vi.mock("@/lib/db", () => ({
 import type { NextRequest } from "next/server";
 import { POST } from "@/app/api/admin/reports/[id]/route";
 
-/**
- * Minimal NextRequest-like object for the moderation route.
- * Only `formData()` and `url` are used.
- */
 function createFormRequest(
   fields: Record<string, string | null>,
   url = "https://example.test/api/admin/reports/report-123",
+  method = "POST",
 ): NextRequest {
   const fakeFormData = {
     get(name: string): FormDataEntryValue | null {
@@ -47,22 +38,19 @@ function createFormRequest(
     },
   } as unknown as FormData;
 
+  const pathname = new URL(url).pathname;
+
   return {
     url,
+    method,
+    nextUrl: { pathname },
     formData: async () => fakeFormData,
+    headers: new Headers(),
   } as unknown as NextRequest;
 }
 
-/**
- * Actual context type of the handler:
- * second parameter of the POST handler in the route.
- */
 type AdminReportsHandlerContext = Parameters<typeof POST>[1];
 
-/**
- * Helper to build the context object passed by Next.js, with a given id.
- * In Next.js 16, `params` is a Promise.
- */
 function createContext(id: string): AdminReportsHandlerContext {
   return {
     params: Promise.resolve({ id }),
@@ -76,7 +64,6 @@ describe("POST /api/admin/reports/[id]", () => {
 
   it("returns 400 when report id is missing or empty", async () => {
     const req = createFormRequest({ action: "flag" });
-    // Boş id simüle edelim
     const ctx = createContext("");
 
     const res = await POST(req, ctx);
@@ -102,17 +89,15 @@ describe("POST /api/admin/reports/[id]", () => {
     const res = await POST(req, ctx);
 
     expect(res.status).toBe(303);
+
     const location = res.headers.get("location");
     expect(location).not.toBeNull();
     expect(new URL(location as string).pathname).toBe("/admin");
 
     expect(requireAdminRequestMock).toHaveBeenCalledTimes(1);
-
     expect(prismaReportUpdateMock).toHaveBeenCalledTimes(1);
-    const updateCall = prismaReportUpdateMock.mock.calls[0];
-    expect(updateCall).toBeDefined();
-    const updateArg = updateCall![0];
 
+    const updateArg = prismaReportUpdateMock.mock.calls[0]?.[0];
     expect(updateArg.where).toEqual({ id: "report-1" });
     expect(updateArg.data.status).toBe("FLAGGED");
     expect(updateArg.data.flaggedReason).toBe("Spam / abusive content");
@@ -129,11 +114,7 @@ describe("POST /api/admin/reports/[id]", () => {
 
     expect(res.status).toBe(303);
 
-    expect(prismaReportUpdateMock).toHaveBeenCalledTimes(1);
-    const updateCall = prismaReportUpdateMock.mock.calls[0];
-    expect(updateCall).toBeDefined();
-    const updateArg = updateCall![0];
-
+    const updateArg = prismaReportUpdateMock.mock.calls[0]?.[0];
     expect(updateArg.where).toEqual({ id: "report-2" });
     expect(updateArg.data.status).toBe("ACTIVE");
     expect(updateArg.data.flaggedAt).toBeNull();
@@ -151,11 +132,7 @@ describe("POST /api/admin/reports/[id]", () => {
 
     expect(res.status).toBe(303);
 
-    expect(prismaReportUpdateMock).toHaveBeenCalledTimes(1);
-    const updateCall = prismaReportUpdateMock.mock.calls[0];
-    expect(updateCall).toBeDefined();
-    const updateArg = updateCall![0];
-
+    const updateArg = prismaReportUpdateMock.mock.calls[0]?.[0];
     expect(updateArg.where).toEqual({ id: "report-3" });
     expect(updateArg.data.status).toBe("DELETED");
     expect(updateArg.data.deletedAt).toBeInstanceOf(Date);
@@ -172,11 +149,10 @@ describe("POST /api/admin/reports/[id]", () => {
     expect(res.status).toBe(303);
 
     expect(prismaReportDeleteMock).toHaveBeenCalledTimes(1);
-    const deleteCall = prismaReportDeleteMock.mock.calls[0];
-    expect(deleteCall).toBeDefined();
-    const deleteArg = deleteCall![0];
+    expect(prismaReportDeleteMock.mock.calls[0]?.[0]).toEqual({
+      where: { id: "report-4" },
+    });
 
-    expect(deleteArg).toEqual({ where: { id: "report-4" } });
     expect(prismaReportUpdateMock).not.toHaveBeenCalled();
   });
 
