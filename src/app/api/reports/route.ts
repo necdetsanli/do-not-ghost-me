@@ -83,7 +83,7 @@ function isHoneypotOnlyValidationError(issues: HoneypotIssue[]): boolean {
  *    a bot submission and silently drop with HTTP 200.
  * 4. Find or create the corresponding company using a normalized name key.
  * 5. Enforce per-IP and per-company rate limits before writing anything.
- * 6. Persist the report row and return a 201 response with its identifier.
+ * 6. Persist the report row and return a 200 response with its identifier.
  *
  * On validation errors (excluding honeypot-only): HTTP 400 + structured Zod error.
  * On rate limit violations: HTTP 429 + user-friendly message.
@@ -217,7 +217,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         id: report.id,
         createdAt: report.createdAt,
       },
-      { status: 201 },
+      { status: 200 },
     );
   } catch (error: unknown) {
     if (isReportRateLimitError(error)) {
