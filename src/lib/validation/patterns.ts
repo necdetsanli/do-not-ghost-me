@@ -13,7 +13,7 @@ import { z } from "zod";
  *
  * @returns A regular expression that can be used to validate name-like strings.
  */
-export const NAME_LIKE_REGEX: RegExp = /^[\p{L}\p{N}\s_\-\/&()'",.+#]+$/u;
+export const NAME_LIKE_REGEX: RegExp = /^[\p{L}\p{N} _\-\/&()'",.+#]+$/u;
 
 /**
  * Checks whether a string contains at least one letter.
