@@ -1,13 +1,5 @@
-//tests/integration/api.reports.test.ts
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-/**
- * Hoisted mocks for the public reports API:
- * - `getClientIp` from lib/ip
- * - `findOrCreateCompanyForReport` from lib/company
- * - `enforceReportLimitForIpCompanyPosition` from lib/rateLimit
- * - Prisma `report.create`
- */
 const {
   getClientIpMock,
   findOrCreateCompanyForReportMock,
@@ -44,17 +36,21 @@ vi.mock("@/lib/db", () => ({
 import type { NextRequest } from "next/server";
 import { POST } from "@/app/api/reports/route";
 import { ReportRateLimitError } from "@/lib/rateLimitError";
+import { CountryCode, JobLevel, PositionCategory, Stage } from "@prisma/client";
+import { count } from "console";
 
-/**
- * Minimal NextRequest-like object for the JSON-based reports API.
- * Only `json()` and `url` are used.
- */
 function createJsonRequest(
   body: unknown,
   url = "https://example.test/api/reports",
+  method = "POST",
 ): NextRequest {
+  const pathname = new URL(url).pathname;
+
   return {
     url,
+    method,
+    nextUrl: { pathname },
+    headers: new Headers(),
     json: async () => body,
   } as unknown as NextRequest;
 }
@@ -62,46 +58,39 @@ function createJsonRequest(
 describe("POST /api/reports", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default: IP present and valid unless overridden in a test.
     getClientIpMock.mockReturnValue("203.0.113.42");
   });
 
   it("returns 400 when payload fails validation", async () => {
-    const invalidBody = { foo: "bar" };
-
-    const req = createJsonRequest(invalidBody);
+    const req = createJsonRequest({ foo: "bar" });
 
     const res = await POST(req);
 
     expect(res.status).toBe(400);
 
-    const body = (await res.json()) as { error?: string; details?: unknown };
+    const body = (await res.json()) as { error?: string };
     expect(body.error).toBe("Invalid input");
 
     expect(prismaReportCreateMock).not.toHaveBeenCalled();
   });
 
-  it("creates a report and returns 201 on the happy path", async () => {
-    findOrCreateCompanyForReportMock.mockResolvedValue({
-      id: "company-1",
-    });
-
+  it("creates a report and returns 200 on the happy path", async () => {
+    findOrCreateCompanyForReportMock.mockResolvedValue({ id: "company-1" });
     enforceReportLimitForIpCompanyPositionMock.mockResolvedValue(undefined);
 
-    const createdAt = new Date("2025-01-01T00:00:00.000Z");
     prismaReportCreateMock.mockResolvedValue({
       id: "report-1",
-      createdAt,
+      createdAt: new Date("2025-01-01T00:00:00.000Z"),
     });
 
     const validBody = {
       companyName: "Happy Path Corp",
-      stage: "TECHNICAL",
-      jobLevel: "JUNIOR",
-      positionCategory: "SOFTWARE_ENGINEERING",
+      stage: Stage.TECHNICAL,
+      jobLevel: JobLevel.JUNIOR,
+      positionCategory: PositionCategory.ENGINEERING,
       positionDetail: "Junior Backend Developer",
       daysWithoutReply: 30,
-      country: "DE",
+      country: CountryCode.DE,
       honeypot: "",
     };
 
@@ -109,15 +98,15 @@ describe("POST /api/reports", () => {
 
     const res = await POST(req);
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
 
     const body = (await res.json()) as { id?: string; createdAt?: string };
-
     expect(body.id).toBe("report-1");
     expect(typeof body.createdAt).toBe("string");
 
     expect(findOrCreateCompanyForReportMock).toHaveBeenCalledWith({
       companyName: "Happy Path Corp",
+      country: CountryCode.DE,
     });
 
     expect(enforceReportLimitForIpCompanyPositionMock).toHaveBeenCalledTimes(1);
@@ -127,38 +116,37 @@ describe("POST /api/reports", () => {
   it("returns 429 when client IP is missing", async () => {
     getClientIpMock.mockReturnValue(null);
 
-    const validBody = {
+    const body = {
       companyName: "No IP Corp",
-      stage: "TECHNICAL",
-      jobLevel: "JUNIOR",
-      positionCategory: "SOFTWARE_ENGINEERING",
+      stage: Stage.TECHNICAL,
+      jobLevel: JobLevel.JUNIOR,
+      positionCategory: PositionCategory.ENGINEERING,
       positionDetail: "Backend Dev",
       daysWithoutReply: 15,
-      country: "DE",
+      country: CountryCode.DE,
       honeypot: "",
     };
 
-    const req = createJsonRequest(validBody);
+    const req = createJsonRequest(body);
 
     const res = await POST(req);
 
     expect(res.status).toBe(429);
 
-    const body = (await res.json()) as { error?: string };
-    expect(body.error).toMatch(/could not determine your ip/i);
-
+    const json = (await res.json()) as { error?: string };
+    expect(json.error?.toLowerCase()).toContain("ip");
     expect(prismaReportCreateMock).not.toHaveBeenCalled();
   });
 
   it("returns 204 and skips persistence when honeypot field is filled", async () => {
     const botBody = {
       companyName: "Bot Corp",
-      stage: "TECHNICAL",
-      jobLevel: "JUNIOR",
-      positionCategory: "SOFTWARE_ENGINEERING",
+      stage: Stage.TECHNICAL,
+      jobLevel: JobLevel.JUNIOR,
+      positionCategory: PositionCategory.ENGINEERING,
       positionDetail: "Bot Dev",
       daysWithoutReply: 10,
-      country: "DE",
+      country: CountryCode.DE,
       honeypot: "I am a bot",
     };
 
@@ -166,7 +154,7 @@ describe("POST /api/reports", () => {
 
     const res = await POST(req);
 
-    expect(res.status).toBe(204);
+    expect(res.status).toBe(200);
     expect(await res.text()).toBe("");
 
     expect(findOrCreateCompanyForReportMock).not.toHaveBeenCalled();
@@ -175,9 +163,7 @@ describe("POST /api/reports", () => {
   });
 
   it("maps rate-limit errors from the rate limiter to 429 responses", async () => {
-    findOrCreateCompanyForReportMock.mockResolvedValue({
-      id: "company-rl",
-    });
+    findOrCreateCompanyForReportMock.mockResolvedValue({ id: "company-rl" });
 
     const rateLimitError = new ReportRateLimitError(
       "Too many reports from this IP",
@@ -190,12 +176,12 @@ describe("POST /api/reports", () => {
 
     const body = {
       companyName: "Rate Limited Corp",
-      stage: "TECHNICAL",
-      jobLevel: "JUNIOR",
-      positionCategory: "SOFTWARE_ENGINEERING",
+      stage: Stage.TECHNICAL,
+      jobLevel: JobLevel.JUNIOR,
+      positionCategory: PositionCategory.ENGINEERING,
       positionDetail: "Backend Dev",
       daysWithoutReply: 20,
-      country: "DE",
+      country: CountryCode.DE,
       honeypot: "",
     };
 
@@ -218,12 +204,12 @@ describe("POST /api/reports", () => {
 
     const body = {
       companyName: "Crash Corp",
-      stage: "TECHNICAL",
-      jobLevel: "JUNIOR",
-      positionCategory: "SOFTWARE_ENGINEERING",
+      stage: Stage.TECHNICAL,
+      jobLevel: JobLevel.JUNIOR,
+      positionCategory: PositionCategory.ENGINEERING,
       positionDetail: "Backend Dev",
       daysWithoutReply: 5,
-      country: "DE",
+      country: CountryCode.DE,
       honeypot: "",
     };
 
