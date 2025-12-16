@@ -84,6 +84,9 @@
   "devDependencies": {
     "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
     "@types/node": "^20",
     "@types/pg": "^8.15.6",
     "@types/react": "^19",
@@ -93,6 +96,7 @@
     "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.0.7",
+    "jsdom": "^27.3.0",
     "prettier": "^3.7.4",
     "prisma": "^7.1.0",
     "tailwindcss": "^4",
