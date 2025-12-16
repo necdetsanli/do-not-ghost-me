@@ -9,8 +9,8 @@
     "editor.formatOnSave": true
   },
   "forwardPorts": [3000, 5432],
-  "postCreateCommand": "bash -lc 'if [ -f package-lock.json ]; then npm ci; elif [ -f package.json ]; then npm install; fi && npx prisma generate'",
-  "postStartCommand": "bash -lc 'if [ -x scripts/dev/setup-db.sh ]; then scripts/dev/setup-db.sh; fi'",
+  "postCreateCommand": "bash -lc 'if [ -f package-lock.json ]; then npm ci; elif [ -f package.json ]; then npm install; fi && ./node_modules/.bin/prisma generate'",
+  "postStartCommand": "bash -lc 'if [ ! -x node_modules/.bin/prisma ]; then if [ -f package-lock.json ]; then npm ci; else npm install; fi; ./node_modules/.bin/prisma generate; fi; if [ -x scripts/dev/setup-db.sh ]; then scripts/dev/setup-db.sh; fi'",
   "remoteUser": "node",
   "customizations": {
     "vscode": {

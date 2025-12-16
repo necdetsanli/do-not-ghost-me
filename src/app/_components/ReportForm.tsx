@@ -2,7 +2,7 @@
 "use client";
 
 import type { JSX, FormEvent } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { CountryCode } from "@prisma/client";
 import {
   POSITION_CATEGORY_OPTIONS,
@@ -54,6 +54,9 @@ const categorySelectOptions = [
   })),
 ];
 
+/** Minimum time (ms) the form should be open / interacted with before submit. */
+const MIN_FORM_FILL_TIME_MS: number = 4000;
+
 /**
  * Ghosting report form for the public home page.
  *
@@ -82,9 +85,21 @@ export function ReportForm(): JSX.Element {
   // component can manage suggestions while preserving a free-text value.
   const [companyName, setCompanyName] = useState<string>("");
 
+  // Timestamp of the first interaction with the form (used for "too fast" detection).
+  const firstInteractionAtRef = useRef<number | null>(null);
+
+  /**
+   * Records the timestamp of the first user interaction with the form.
+   * This is used to detect submissions that happen "too fast" to be human.
+   */
+  function markFirstInteraction(): void {
+    firstInteractionAtRef.current ??= Date.now();
+  }
+
   /**
    * Handles report form submission:
    * - Prevents default form submission.
+   * - Applies a minimum fill-time guard (fast submissions are treated like honeypot).
    * - Ensures that a country has been selected from the CountrySelect.
    * - Builds a JSON payload from the form fields.
    * - Sends the payload to `/api/reports` and interprets the response.
@@ -98,6 +113,33 @@ export function ReportForm(): JSX.Element {
     event: FormEvent<HTMLFormElement>,
   ): Promise<void> {
     event.preventDefault();
+
+    const form: HTMLFormElement = event.currentTarget;
+
+    // Minimum fill-time guard: if the user submits "too fast", behave like honeypot.
+    const now: number = Date.now();
+    const firstInteractionAt: number | null = firstInteractionAtRef.current;
+
+    const hasMinimumFillTime: boolean =
+      firstInteractionAt !== null &&
+      now - firstInteractionAt >= MIN_FORM_FILL_TIME_MS;
+
+    if (hasMinimumFillTime === false) {
+      // Treat as a bot-like submission:
+      // - Do NOT call the API (no database write).
+      // - Show success and reset the form to avoid leaking behavior.
+      setStatus("success");
+      setErrorMessage(null);
+
+      form.reset();
+      setSelectedCountryCode("");
+      setCompanyName("");
+      setFormResetKey((key: number): number => key + 1);
+      firstInteractionAtRef.current = null;
+
+      return;
+    }
+
     setStatus("submitting");
     setErrorMessage(null);
 
@@ -108,7 +150,6 @@ export function ReportForm(): JSX.Element {
       return;
     }
 
-    const form: HTMLFormElement = event.currentTarget;
     const formData: FormData = new FormData(form);
 
     const rawCountryCode: string = String(formData.get("country") ?? "").trim();
@@ -149,6 +190,8 @@ export function ReportForm(): JSX.Element {
         setSelectedCountryCode("");
         setCompanyName("");
         setFormResetKey((key: number): number => key + 1);
+        firstInteractionAtRef.current = null;
+
         return;
       }
 
@@ -245,6 +288,7 @@ export function ReportForm(): JSX.Element {
           <form
             key={formResetKey}
             onSubmit={handleSubmit}
+            onChange={markFirstInteraction}
             className="space-y-6"
             aria-label="Ghosting report form"
           >

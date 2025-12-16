@@ -42,7 +42,7 @@ From the UI perspective:
   - Short explanation of the project
   - A “Submit a report” form
   - A small stats panel with total reports and “most reported this week”
-- `/top-companies` — **Ranking view**:
+- `/companies` — **Ranking view**:
   - Companies ranked by number of ghosting reports
   - Filters for country, category, seniority and stage
 - `/about` — **Project context**:
@@ -67,6 +67,7 @@ The app is intentionally minimal but production-oriented:
   - **Vitest** for unit and integration tests
   - **Playwright** for end-to-end (E2E) tests
 - **Containerized dev environment:** `.devcontainer` for reproducible local development in VS Code
+- **Docker Compose (optional):** `compose.yaml` for a reproducible local app + Postgres stack without VS Code Dev Containers
 
 Security and robustness:
 
@@ -88,15 +89,29 @@ Security and robustness:
 
 ## Running the project locally
 
-The repository includes a **VS Code Dev Container** configuration and helper scripts for setting up PostgreSQL and seeding dummy data. The recommended flow is to use the dev container so that your local environment stays clean and consistent.
+You can run the project in three ways:
 
-You’ll need:
+- **Option A (recommended):** VS Code Dev Container (reproducible dev environment, local Postgres runs inside the container)
+- **Option B:** Docker Compose (app + Postgres in containers, no VS Code required)
+- **Option C:** Run directly on your host (advanced)
 
-- **Docker** (Desktop, Podman + Docker shim, or equivalent)
-- **Visual Studio Code**
-- The **Dev Containers** extension (`ms-vscode-remote.remote-containers`)
+### Prerequisites
 
-> You can also run the project directly on your host machine without the dev container (see below), but that is primarily for advanced users.
+For Option A (Dev Container):
+
+- Docker (Desktop, Podman + Docker shim, or equivalent)
+- Visual Studio Code
+- Dev Containers extension (`ms-vscode-remote.remote-containers`)
+
+For Option B (Docker Compose):
+
+- Docker with `docker compose` support
+
+For Option C (Host):
+
+- Node.js >= 22
+- npm >= 11.6.4
+- PostgreSQL
 
 ### Option A – VS Code Dev Container (recommended)
 
@@ -111,20 +126,18 @@ cd do-not-ghost-me
 
 1. Open the folder in VS Code.
 2. When prompted, choose **“Reopen in Container”**.
-3. Alternatively, use the command palette:  
+3. Alternatively, use the command palette:
    `Dev Containers: Reopen in Container`.
 
-VS Code will build the container image defined by `.devcontainer/` and start a development environment with Node, PostgreSQL tooling, and other dependencies pre-installed.
+#### 3. Dependencies
 
-#### 3. Install dependencies
-
-Inside the dev container terminal:
+The dev container installs dependencies automatically on first create.
+If you ever need to reinstall manually:
 
 ```bash
-npm install
+npm ci
+npm run prisma:generate
 ```
-
-This will install all JavaScript / TypeScript dependencies, including Next.js, Prisma, Vitest and Playwright.
 
 #### 4. Configure environment variables
 
@@ -136,55 +149,39 @@ cp .env.example .env
 
 At minimum you should set:
 
-- `DATABASE_URL` – pointing to your local PostgreSQL instance (the dev container is set up to work with the bootstrap script below).
-- `ADMIN_PASSWORD` – the password you want to use for `/admin/login`.
-- `ADMIN_SESSION_SECRET` – a random secret for signing admin session tokens.
-- `ADMIN_ALLOWED_HOST` – usually `localhost:3000` for local development.
+- `DATABASE_URL`
+- `ADMIN_PASSWORD`
+- `ADMIN_SESSION_SECRET`
+- `ADMIN_CSRF_SECRET`
+- `ADMIN_ALLOWED_HOST`
+- `RATE_LIMIT_IP_SALT`
+
+> Never point `DATABASE_URL` at a production database while developing locally.
 
 #### 5. Set up the local PostgreSQL database
 
-Inside the dev container, you can either:
+Inside the dev container, the helper script:
 
-- Use the **helper shell script** under `dev/scripts/` (e.g. `setup-db.sh`) to:
-  - Start the local PostgreSQL service
-  - Create a dev user and database
-  - Grant privileges
-  - Run Prisma migrations
+- Starts the local PostgreSQL service
+- Creates a dev user and database (if missing)
+- Grants privileges
+- Applies Prisma migrations (`prisma migrate deploy`)
 
-or:
-
-- Run the steps manually:
+Run it from the project root:
 
 ```bash
-# Generate Prisma client (also runs automatically on postinstall)
-npm run prisma:generate
-
-# Apply migrations for development
-npm run prisma:migrate
+scripts/dev/setup-db.sh
 ```
-
-> The helper scripts under `dev/scripts/` are meant for **development only**.  
-> Never point `DATABASE_URL` at a production database when running them.
 
 #### 6. (Optional) Seed dummy data
 
-To stress-test `/top-companies` and see realistic distributions of reports, you can populate the database with lots of dummy companies and reports.
-
-The repo includes a development-only seeder script (under `dev/scripts/`, e.g. `seed-dummy-reports.js`). The recommended way to run it is via the npm script:
+To stress-test `/companies` and see realistic distributions of reports:
 
 ```bash
 npm run seed:dummy
 ```
 
-This script:
-
-- Refuses to run if `NODE_ENV` is not `development`.
-- Clears existing `Report` and `Company` data.
-- Inserts many companies with varied report counts to exercise aggregation and ranking logic.
-
 #### 7. Start the dev server
-
-Finally, run the Next.js dev server:
 
 ```bash
 npm run dev
@@ -193,15 +190,16 @@ npm run dev
 Then visit:
 
 - `http://localhost:3000/` – Home & report form
-- `http://localhost:3000/top-companies` – Aggregated ranking
+- `http://localhost:3000/companies` – Company ranking and filters
 - `http://localhost:3000/about` – Project overview
+- `http://localhost:3000/admin/login` – Admin login (local)
 
 #### 8. Admin dashboard (local)
 
 To access the admin moderation dashboard:
 
 1. Ensure `ADMIN_ALLOWED_HOST` in `.env` matches your local host (e.g. `localhost:3000`).
-2. Ensure `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` are set.
+2. Ensure `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, and `ADMIN_CSRF_SECRET` are set.
 3. Start the dev server (`npm run dev`).
 4. Visit:
    - `http://localhost:3000/admin/login` – sign in with `ADMIN_PASSWORD`.
@@ -214,54 +212,87 @@ The admin session is stored as a **signed, HttpOnly cookie**. To log out, use th
 
 ---
 
-### Option B – Run directly on your host
+### Option B – Docker Compose (app + Postgres)
 
-If you prefer not to use the dev container:
+This repo includes a `compose.yaml` that starts:
+
+- a local Postgres database
+- the Next.js dev server
+- Prisma client generation and migrations on startup
+
+#### 1. Start the stack
+
+```bash
+docker compose up --build
+```
+
+#### 2. Verify it is running
+
+In another terminal:
+
+```bash
+curl -I http://localhost:3000/
+docker compose exec db psql -U ghostuser -d donotghostme -c "select count(*) from \"_prisma_migrations\";"
+```
+
+#### 3. Stop (and optionally reset)
+
+```bash
+docker compose down
+# to wipe volumes (drops local DB data)
+docker compose down -v
+```
+
+> If you want to customize env values, edit the `compose.yaml` environment block or use an override file like `compose.override.yaml`. Do not commit real secrets.
+
+---
+
+### Option C – Run directly on your host (advanced)
+
+If you prefer not to use the dev container or Docker Compose:
 
 1. **Install prerequisites**
-   - Node.js (LTS)
+   - Node.js >= 22
+   - npm >= 11.6.4
    - PostgreSQL
-   - npm or pnpm (README assumes `npm`)
 
 2. **Clone the repo and install dependencies**
 
-   ```bash
-   git clone https://github.com/necdetsanli/do-not-ghost-me.git
-   cd do-not-ghost-me
-
-   npm install
-   ```
+```bash
+git clone https://github.com/necdetsanli/do-not-ghost-me.git
+cd do-not-ghost-me
+npm ci
+```
 
 3. **Create `.env`**
 
-   ```bash
-   cp .env.example .env
-   ```
+```bash
+cp .env.example .env
+```
 
-   Set `DATABASE_URL`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET` and `ADMIN_ALLOWED_HOST` as in the dev container instructions.
+Set `DATABASE_URL`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, `ADMIN_CSRF_SECRET`, and `ADMIN_ALLOWED_HOST` as in the dev container instructions.
 
 4. **Set up PostgreSQL**
    - Create a user and database that match your `DATABASE_URL`.
-   - Alternatively, run the same kind of logic as the dev container’s helper script does (create user, create DB, grant privileges, apply migrations).
 
-   Then, from the project root:
+Then, from the project root:
 
-   ```bash
-   npm run prisma:generate
-   npm run prisma:migrate
-   ```
+```bash
+npm run prisma:generate
+npm run prisma:migrate
+```
 
 5. **(Optional) Seed dummy data**
 
-   ```bash
-   npm run seed:dummy
-   ```
+```bash
+npm run seed:dummy
+```
 
 6. **Start the dev server**
 
-   ```bash
-   npm run dev
-   ```
+```bash
+npm run dev
+```
 
 The app will be available at `http://localhost:3000/`.
 

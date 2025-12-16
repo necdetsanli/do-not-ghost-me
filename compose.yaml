@@ -1,0 +1,63 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: dngm-db
+    environment:
+      POSTGRES_USER: ghostuser
+      POSTGRES_PASSWORD: ghostpass
+      POSTGRES_DB: donotghostme
+    ports:
+      - "5432:5432"
+    volumes:
+      - dngm_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ghostuser -d donotghostme"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  app:
+    image: node:24-bookworm-slim
+    container_name: dngm-app
+    working_dir: /app
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+
+      # Windows/WSL file watching reliability
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+
+      # Local DB
+      DATABASE_URL: postgresql://ghostuser:ghostpass@db:5432/donotghostme
+
+      # Dev-only values (NOT for production)
+      ADMIN_PASSWORD: "dev-admin-password"
+      ADMIN_ALLOWED_HOST: "localhost:3000"
+      ADMIN_SESSION_SECRET: "dev_admin_session_secret_please_change_32_chars_min"
+      ADMIN_CSRF_SECRET: "dev_admin_csrf_secret_please_change_32_chars_min"
+      RATE_LIMIT_IP_SALT: "dev_rate_limit_ip_salt_please_change_32_chars_min"
+      RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY: "10"
+      RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP: "3"
+    volumes:
+      - ./:/app:cached
+      - dngm_node_modules:/app/node_modules
+    command:
+      - bash
+      - -lc
+      - |
+        npm ci
+        ./node_modules/.bin/prisma generate
+        ./node_modules/.bin/prisma migrate deploy
+        npm run dev
+    restart: unless-stopped
+
+volumes:
+  dngm_pgdata:
+  dngm_node_modules:
