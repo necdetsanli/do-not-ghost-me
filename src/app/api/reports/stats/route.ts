@@ -5,6 +5,7 @@ import { ReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { logError, logInfo } from "@/lib/logger";
 import { formatUnknownError } from "@/lib/errorUtils";
+import { getUtcWeekStart } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ type ReportsStatsResponseBody = {
 /**
  * Returns aggregated statistics about reports:
  * - total number of ACTIVE reports (FLAGGED/DELETED excluded)
- * - most reported company in the last 7 days among ACTIVE reports (if any)
+ * - most reported company in the current UTC week among ACTIVE reports (if any)
  *
  * @param req - Incoming Next.js request.
  * @returns A JSON response with total reports and most reported company metadata.
@@ -29,8 +30,7 @@ type ReportsStatsResponseBody = {
 export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const now: Date = new Date();
-    const sevenDaysMs: number = 7 * 24 * 60 * 60 * 1000;
-    const sevenDaysAgo: Date = new Date(now.getTime() - sevenDaysMs);
+    const weekStartUtc: Date = getUtcWeekStart(now);
 
     const [totalReports, groups] = await Promise.all([
       prisma.report.count({
@@ -46,34 +46,30 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         where: {
           status: ReportStatus.ACTIVE,
           createdAt: {
-            gte: sevenDaysAgo,
+            gte: weekStartUtc,
           },
         },
-        orderBy: {
-          _count: {
-            companyId: "desc",
+        orderBy: [
+          {
+            _count: { companyId: "desc" },
           },
-        },
+          // Stable tie-break (not alphabetical, but deterministic).
+          {
+            companyId: "asc",
+          },
+        ],
         take: 1,
       }),
     ]);
 
     let mostReportedCompany: MostReportedCompanyPayload | null = null;
 
-    /**
-     * With noUncheckedIndexedAccess enabled, we must explicitly handle the
-     * possibility that there is no element.
-     */
     const [topGroup] = groups;
 
     if (topGroup !== undefined) {
       const company = await prisma.company.findUnique({
-        where: {
-          id: topGroup.companyId,
-        },
-        select: {
-          name: true,
-        },
+        where: { id: topGroup.companyId },
+        select: { name: true },
       });
 
       if (company !== null) {
@@ -92,6 +88,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     logInfo("[GET /api/reports/stats] Stats calculated", {
       totalReports,
       hasMostReportedCompany: mostReportedCompany !== null,
+      weekStartUtc: weekStartUtc.toISOString(),
       path: req.nextUrl.pathname,
       method: req.method,
     });
