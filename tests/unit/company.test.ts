@@ -1,3 +1,4 @@
+// tests/unit/company.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { CountryCode } from "@prisma/client";
 
