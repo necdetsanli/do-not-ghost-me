@@ -1,3 +1,4 @@
+// src/lib/normalization.ts
 /**
  * Normalizes a company name to a canonical form used for uniqueness checks.
  *
