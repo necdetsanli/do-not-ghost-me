@@ -1,4 +1,4 @@
-//tests/setup/test-env.ts
+// tests/setup/test-env.ts
 import { config as loadEnv } from "dotenv";
 
 /**
