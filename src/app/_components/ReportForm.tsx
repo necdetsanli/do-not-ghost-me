@@ -57,6 +57,21 @@ const categorySelectOptions = [
 /** Minimum time (ms) the form should be open / interacted with before submit. */
 const MIN_FORM_FILL_TIME_MS: number = 4000;
 
+/** Custom DOM event name dispatched after a successful report submission. */
+const REPORT_SUBMITTED_EVENT_NAME: string = "dngm:report-submitted";
+
+/**
+ * Notifies other client components (e.g. HomeStats) that a report was submitted successfully.
+ * This must never throw or affect the submit flow.
+ */
+function notifyReportSubmitted(): void {
+  try {
+    window.dispatchEvent(new Event(REPORT_SUBMITTED_EVENT_NAME));
+  } catch {
+    // Intentionally ignore: stats refresh is best-effort.
+  }
+}
+
 /**
  * Ghosting report form for the public home page.
  *
@@ -191,6 +206,7 @@ export function ReportForm(): JSX.Element {
         setCompanyName("");
         setFormResetKey((key: number): number => key + 1);
         firstInteractionAtRef.current = null;
+        notifyReportSubmitted();
 
         return;
       }
