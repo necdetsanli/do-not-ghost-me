@@ -1,3 +1,4 @@
+// tests/integration/api.reports.test.ts
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const {
@@ -37,7 +38,6 @@ import type { NextRequest } from "next/server";
 import { POST } from "@/app/api/reports/route";
 import { ReportRateLimitError } from "@/lib/rateLimitError";
 import { CountryCode, JobLevel, PositionCategory, Stage } from "@prisma/client";
-import { count } from "console";
 
 function createJsonRequest(
   body: unknown,

@@ -1,3 +1,4 @@
+// tests/unit/rateLimitError.test.ts
 import { describe, it, expect } from "vitest";
 import {
   DEFAULT_RATE_LIMIT_STATUS_CODE,

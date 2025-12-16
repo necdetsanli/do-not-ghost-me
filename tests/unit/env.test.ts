@@ -1,3 +1,4 @@
+// tests/unit/env.test.ts
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 type EnvMap = Record<string, string | undefined>;

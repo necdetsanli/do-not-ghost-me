@@ -1,3 +1,4 @@
+// tests/unit/logger.test.ts
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import path from "node:path";
 

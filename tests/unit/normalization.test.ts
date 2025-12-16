@@ -1,3 +1,4 @@
+// tests/unit/normalization.test.ts
 import { describe, it, expect } from "vitest";
 import { normalizeCompanyName } from "@/lib/normalization";
 
