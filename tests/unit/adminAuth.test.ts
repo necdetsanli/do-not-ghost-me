@@ -1,12 +1,13 @@
+// tests/unit/adminAuth.test.ts
 import { describe, it, expect, vi } from "vitest";
 import crypto from "node:crypto";
 import type { NextRequest, NextResponse } from "next/server";
 
 type MockEnv = {
   NODE_ENV: "production" | "development" | "test";
-  ADMIN_ALLOWED_HOST?: string;
-  ADMIN_PASSWORD?: string;
-  ADMIN_SESSION_SECRET?: string;
+  ADMIN_ALLOWED_HOST?: string | undefined;
+  ADMIN_PASSWORD?: string | undefined;
+  ADMIN_SESSION_SECRET?: string | undefined;
 };
 
 type LoggerMocks = {
@@ -179,6 +180,10 @@ describe("adminAuth session token lifecycle", () => {
     const payload = mod.verifyAdminSessionToken(token);
 
     expect(payload).not.toBeNull();
+    if (payload === null) {
+      throw new Error("Expected a non-null payload");
+    }
+    expect(payload.exp).toBeGreaterThan(payload.iat);
     expect(payload?.sub).toBe("admin");
     expect(typeof payload?.iat).toBe("number");
     expect(typeof payload?.exp).toBe("number");
