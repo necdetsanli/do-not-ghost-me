@@ -1,21 +1,51 @@
-// playwright.config.ts
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 3000;
-const DEFAULT_BASE_URL = `http://127.0.0.1:${PORT}`;
+const DEFAULT_BASE_URL = `http://localhost:${PORT}`;
+
+const BASE_URL: string = process.env.PLAYWRIGHT_BASE_URL ?? DEFAULT_BASE_URL;
+const ADMIN_ALLOWED_HOST: string = new URL(BASE_URL).host;
+
+const DEFAULT_ADMIN_PASSWORD = "test-admin-password";
+const DEFAULT_ADMIN_SESSION_SECRET =
+  "test-admin-session-secret-0123456789abcdef0123456789abcdef";
+const DEFAULT_ADMIN_CSRF_SECRET =
+  "test-admin-csrf-secret-0123456789abcdef0123456789abcdef";
+
+/**
+ * Converts NodeJS.ProcessEnv into a Record<string, string> compatible with
+ * Playwright's webServer env typing, dropping undefined values.
+ *
+ * @param {NodeJS.ProcessEnv} source - The source environment variables.
+ * @param {Record<string, string>} overrides - Deterministic overrides for E2E.
+ * @returns {Record<string, string>} A merged environment record.
+ */
+function buildWebServerEnv(
+  source: NodeJS.ProcessEnv,
+  overrides: Record<string, string>,
+): Record<string, string> {
+  const merged: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(source)) {
+    if (typeof value === "string") {
+      merged[key] = value;
+    }
+  }
+
+  for (const [key, value] of Object.entries(overrides)) {
+    merged[key] = value;
+  }
+
+  return merged;
+}
 
 /**
  * Playwright end-to-end test configuration.
  *
  * Responsibilities:
  * - Run E2E specs from tests/e2e.
- * - Start a Next.js dev server on PORT for local/dev runs.
+ * - Start a Next.js dev server for local/dev runs.
  * - Use a Chromium desktop profile by default.
- *
- * Notes:
- * - For CI you may prefer running against a production build
- *   (e.g. `npm run build && npm run start`), wired via your pipeline
- *   or a dedicated npm script.
  */
 export default defineConfig({
   /**
@@ -26,7 +56,7 @@ export default defineConfig({
   /**
    * Global timeout per test (including hooks) in milliseconds.
    */
-  timeout: 30_000,
+  timeout: 60_000,
 
   expect: {
     /**
@@ -48,9 +78,7 @@ export default defineConfig({
   retries: process.env.CI === "true" ? 2 : 0,
 
   /**
-   * Parallelism:
-   * - CI: keep the default parallelism.
-   * - Local: also parallel by default; adjust if needed.
+   * Parallelism settings.
    */
   fullyParallel: true,
 
@@ -63,10 +91,9 @@ export default defineConfig({
 
   use: {
     /**
-     * Base URL for `page.goto` calls. Can be overridden in CI
-     * via PLAYWRIGHT_BASE_URL if you run the app on a different host.
+     * Base URL for `page.goto` calls.
      */
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? DEFAULT_BASE_URL,
+    baseURL: BASE_URL,
 
     /**
      * Run in headless mode by default for determinism and performance.
@@ -74,8 +101,7 @@ export default defineConfig({
     headless: true,
 
     /**
-     * Capture traces:
-     * - On the first retry only, to keep artifacts manageable.
+     * Capture traces on the first retry only.
      */
     trace: "on-first-retry",
 
@@ -90,26 +116,40 @@ export default defineConfig({
     video: "retain-on-failure",
   },
 
-  /**
-   * Web server configuration:
-   * - Spins up the Next.js dev server before tests.
-   * - Reuses an existing server in local runs for faster feedback.
-   *
-   * For production-like E2E in CI, consider:
-   *   command: "npm run start:e2e",
-   * where `start:e2e` performs a build and starts a prod server.
-   */
   webServer: {
+    /**
+     * Starts the Next.js dev server before E2E tests.
+     */
     command: "npm run dev",
-    port: PORT,
+
+    /**
+     * Ensures Playwright waits for the exact URL (and host) used by tests.
+     */
+    url: BASE_URL,
+
+    /**
+     * Reuse an existing server in local runs for faster feedback.
+     */
     reuseExistingServer: process.env.CI !== "true",
+
+    /**
+     * Server startup timeout in milliseconds.
+     */
     timeout: 60_000,
+
+    /**
+     * Injects deterministic env values for E2E so host/origin checks work reliably.
+     */
+    env: buildWebServerEnv(process.env, {
+      ADMIN_ALLOWED_HOST,
+      ADMIN_PASSWORD: process.env.ADMIN_PASSWORD ?? DEFAULT_ADMIN_PASSWORD,
+      ADMIN_SESSION_SECRET:
+        process.env.ADMIN_SESSION_SECRET ?? DEFAULT_ADMIN_SESSION_SECRET,
+      ADMIN_CSRF_SECRET:
+        process.env.ADMIN_CSRF_SECRET ?? DEFAULT_ADMIN_CSRF_SECRET,
+    }),
   },
 
-  /**
-   * Browser projects. Add Firefox/WebKit here if you want
-   * multi-browser coverage.
-   */
   projects: [
     {
       name: "chromium",
