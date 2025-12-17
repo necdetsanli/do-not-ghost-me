@@ -8,7 +8,7 @@ import { test, expect } from "@playwright/test";
  */
 test.describe("security: inline styles", () => {
   test("no unexpected <style> tags in main public pages", async ({ page }) => {
-    const paths = ["/", "/top-companies"];
+    const paths = ["/", "/companies"];
 
     for (const path of paths) {
       const response = await page.goto(path);
