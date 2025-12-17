@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { ReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { logError } from "@/lib/logger";
+import { logError, logWarn } from "@/lib/logger";
 import { formatUnknownError } from "@/lib/errorUtils";
 import { getUtcWeekStart } from "@/lib/dates";
 
@@ -50,13 +50,94 @@ function addDaysUtc(date: Date, days: number): Date {
 }
 
 /**
- * Returns aggregated statistics about reports:
- * - total number of ACTIVE reports (FLAGGED/DELETED excluded)
- * - most reported company in the current UTC week among ACTIVE reports (if any)
+ * Picks the most reported company deterministically:
+ * - Primary: reportCount desc
+ * - Tie-break: company name asc (case-insensitive)
+ * - Final tie-break: companyId asc
  *
- * This endpoint is safe to poll:
- * - it returns only aggregated public stats already shown on the home page
- * - it uses conservative cache headers to reduce database load
+ * NOTE:
+ * - This function does not assume `candidates` are pre-sorted.
+ *
+ * @param candidates - Candidate groups for this week.
+ * @returns The chosen company payload or null.
+ */
+async function pickMostReportedCompanyThisWeek(
+  candidates: Array<{ companyId: string; reportCount: number }>,
+): Promise<MostReportedCompanyPayload | null> {
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const maxCount: number = candidates.reduce((max, cur) => {
+    return cur.reportCount > max ? cur.reportCount : max;
+  }, 0);
+
+  const tied = candidates.filter((c) => c.reportCount === maxCount);
+
+  if (tied.length === 0) {
+    return null;
+  }
+
+  const ids: string[] = tied.map((t) => t.companyId);
+
+  const companies = await prisma.company.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, name: true },
+  });
+
+  const nameById = new Map<string, string>();
+  for (const c of companies) {
+    nameById.set(c.id, c.name);
+  }
+
+  const resolved = tied
+    .map((t) => {
+      const name = nameById.get(t.companyId);
+      if (typeof name !== "string" || name.trim().length === 0) {
+        return null;
+      }
+      return { companyId: t.companyId, name, reportCount: t.reportCount };
+    })
+    .filter(
+      (x): x is { companyId: string; name: string; reportCount: number } =>
+        x !== null,
+    );
+
+  if (resolved.length === 0) {
+    logWarn(
+      "[GET /api/reports/stats] No company records found for top groups",
+      {
+        companyIds: ids,
+        maxCount,
+      },
+    );
+    return null;
+  }
+
+  resolved.sort((a, b) => {
+    const nameCmp: number = a.name.localeCompare(b.name, "en", {
+      sensitivity: "base",
+    });
+
+    if (nameCmp !== 0) {
+      return nameCmp;
+    }
+
+    return a.companyId.localeCompare(b.companyId);
+  });
+
+  const winner = resolved[0];
+  if (winner === undefined) {
+    return null;
+  }
+
+  return { name: winner.name, reportCount: winner.reportCount };
+}
+
+/**
+ * Returns aggregated statistics about reports:
+ * - total number of ACTIVE reports across all time
+ * - most reported company in the current UTC week among ACTIVE reports (if any)
  *
  * @returns A JSON response with total reports and most reported company metadata.
  */
@@ -92,26 +173,17 @@ export async function GET(): Promise<NextResponse> {
             companyId: "asc",
           },
         ],
-        take: 1,
+        take: 50,
       }),
     ]);
 
-    let mostReportedCompany: MostReportedCompanyPayload | null = null;
-    const topGroup = groups[0];
+    const candidates = groups.map((g) => ({
+      companyId: g.companyId,
+      reportCount: g._count.companyId,
+    }));
 
-    if (topGroup !== undefined) {
-      const company = await prisma.company.findUnique({
-        where: { id: topGroup.companyId },
-        select: { name: true },
-      });
-
-      if (company !== null) {
-        mostReportedCompany = {
-          name: company.name,
-          reportCount: topGroup._count.companyId,
-        };
-      }
-    }
+    const mostReportedCompany =
+      await pickMostReportedCompanyThisWeek(candidates);
 
     const body: ReportsStatsResponseBody = {
       totalReports,
@@ -121,8 +193,7 @@ export async function GET(): Promise<NextResponse> {
     return NextResponse.json(body, {
       status: 200,
       headers: {
-        "cache-control":
-          "public, max-age=0, s-maxage=15, stale-while-revalidate=60",
+        "cache-control": "no-store",
       },
     });
   } catch (error: unknown) {
