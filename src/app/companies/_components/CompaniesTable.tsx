@@ -1,4 +1,4 @@
-// src/app/top-companies/_components/TopCompaniesTable.tsx
+// src/app/companies/_components/CompaniesTable.tsx
 import type { JSX } from "react";
 import { labelForCountry } from "@/lib/enums";
 import type { CompaniesTableProps } from "../types";
