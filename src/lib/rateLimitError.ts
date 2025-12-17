@@ -27,6 +27,24 @@ export const DEFAULT_RATE_LIMIT_STATUS_CODE = 429;
 export const MISSING_IP_MESSAGE = "Client IP is required to submit a report.";
 
 /**
+ * Shared message for daily IP limit violations.
+ */
+export const DAILY_IP_LIMIT_MESSAGE =
+  "You have reached the daily report limit.";
+
+/**
+ * Shared message for per-company limit violations.
+ */
+export const COMPANY_POSITION_LIMIT_MESSAGE =
+  "You have reached the maximum number of reports for this company.";
+
+/**
+ * Shared message for duplicate company+position submissions.
+ */
+export const DUPLICATE_POSITION_LIMIT_MESSAGE =
+  "You have already submitted a report for this position at this company.";
+
+/**
  * Domain-specific error for report-related rate limits.
  *
  * This is intentionally separate from generic HTTP or transport
