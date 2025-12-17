@@ -6,7 +6,7 @@
 
 > **adminSessionCookieOptions**(): `object`
 
-Defined in: [src/lib/adminAuth.ts:326](https://github.com/necdetsanli/do-not-ghost-me/blob/f815d119d02b97ec11bd28b7513de788a5e5222e/src/lib/adminAuth.ts#L326)
+Defined in: [src/lib/adminAuth.ts:410](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/adminAuth.ts#L410)
 
 Common cookie options for admin session.
 

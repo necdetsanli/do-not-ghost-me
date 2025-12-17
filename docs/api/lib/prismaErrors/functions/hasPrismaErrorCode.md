@@ -6,7 +6,7 @@
 
 > **hasPrismaErrorCode**(`error`, `code`): `boolean`
 
-Defined in: [src/lib/prismaErrors.ts:18](https://github.com/necdetsanli/do-not-ghost-me/blob/f815d119d02b97ec11bd28b7513de788a5e5222e/src/lib/prismaErrors.ts#L18)
+Defined in: [src/lib/prismaErrors.ts:18](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/prismaErrors.ts#L18)
 
 Checks whether an unknown error value looks like a Prisma error
 with the given error code (for example "P2002").

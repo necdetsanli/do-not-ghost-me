@@ -6,7 +6,7 @@
 
 > **enforceReportLimitForIpCompanyPosition**(`args`): `Promise`\<`void`\>
 
-Defined in: [src/lib/rateLimit.ts:102](https://github.com/necdetsanli/do-not-ghost-me/blob/f815d119d02b97ec11bd28b7513de788a5e5222e/src/lib/rateLimit.ts#L102)
+Defined in: [src/lib/rateLimit.ts:104](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/rateLimit.ts#L104)
 
 Enforces IP-based rate limits for creating a report:
 
@@ -17,6 +17,11 @@ Enforces IP-based rate limits for creating a report:
 If a limit is reached, this function throws a ReportRateLimitError.
 Database or network failures are rethrown as-is so that callers can
 differentiate between rate-limit and infrastructure issues.
+
+Concurrency notes:
+- Daily counting is done via UPSERT (atomic) and validated after the increment.
+- Per-company counting is protected by a PostgreSQL advisory transaction lock
+  on (ipHash, companyId) to make count+insert strict under concurrency.
 
 ## Parameters
 

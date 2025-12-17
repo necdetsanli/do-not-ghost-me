@@ -6,7 +6,7 @@
 
 > **createCsrfToken**(`purpose`): `string`
 
-Defined in: [src/lib/csrf.ts:147](https://github.com/necdetsanli/do-not-ghost-me/blob/f815d119d02b97ec11bd28b7513de788a5e5222e/src/lib/csrf.ts#L147)
+Defined in: [src/lib/csrf.ts:147](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/csrf.ts#L147)
 
 Create a CSRF token bound to a specific purpose (for example "admin-login").
 
