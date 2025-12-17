@@ -20,6 +20,15 @@ vi.mock("node:fs", () => ({
   default: fsMock,
 }));
 
+/**
+ * Applies a partial set of environment variables for a test.
+ *
+ * - When a value is `undefined`, the variable is removed from process.env.
+ * - Otherwise it is set as-is.
+ *
+ * @param vars - Key/value environment variables to apply.
+ * @returns void
+ */
 function setEnv(vars: Record<string, string | undefined>): void {
   for (const [k, v] of Object.entries(vars)) {
     if (v === undefined) {
@@ -30,6 +39,12 @@ function setEnv(vars: Record<string, string | undefined>): void {
   }
 }
 
+/**
+ * Creates a minimal writable stream mock that behaves like a Node.js stream:
+ * `.on()` is chainable and returns the same stream instance.
+ *
+ * @returns A stream mock implementing the subset used by the logger.
+ */
 function makeStream(): StreamMock {
   const stream: StreamMock = {
     destroyed: false,
@@ -40,6 +55,14 @@ function makeStream(): StreamMock {
   return stream;
 }
 
+/**
+ * Loads the logger module fresh after resetting the module graph.
+ *
+ * This is important because logger initialization reads environment variables
+ * and may initialize file streams at import time.
+ *
+ * @returns A promise resolving to the imported logger module.
+ */
 async function loadLogger() {
   vi.resetModules();
   return import("@/lib/logger");
@@ -47,6 +70,14 @@ async function loadLogger() {
 
 const originalEnv = { ...process.env };
 
+/**
+ * Unit tests for lib/logger.
+ *
+ * Focus areas:
+ * - log level defaults & thresholds
+ * - safe JSON context handling (including stringify failures)
+ * - file logging behavior (server-only, opt-in, robust against failures)
+ */
 describe("lib/logger", () => {
   beforeEach(() => {
     fsMock.existsSync.mockReset();
@@ -67,7 +98,7 @@ describe("lib/logger", () => {
   afterEach(() => {
     vi.restoreAllMocks();
 
-    // restore env
+    // Restore env back to original snapshot to avoid cross-test leakage.
     for (const key of Object.keys(process.env)) {
       if (originalEnv[key] === undefined) {
         delete process.env[key];
@@ -76,6 +107,7 @@ describe("lib/logger", () => {
       }
     }
 
+    // Clean up browser-like global to keep tests isolated.
     if (
       Object.prototype.hasOwnProperty.call(
         globalThis as unknown as object,
@@ -87,6 +119,10 @@ describe("lib/logger", () => {
     }
   });
 
+  /**
+   * Verifies default threshold selection: in non-production environments,
+   * the logger is permissive (debug enabled) when no explicit level is set.
+   */
   it("defaults to debug level in non-production when APP_LOG_LEVEL is missing", async () => {
     setEnv({ NODE_ENV: "test", APP_LOG_LEVEL: undefined });
 
@@ -96,6 +132,10 @@ describe("lib/logger", () => {
     expect(console.log).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * Verifies default threshold selection: in production environments,
+   * the logger becomes stricter (debug disabled) when no explicit level is set.
+   */
   it("defaults to info level in production when APP_LOG_LEVEL is missing", async () => {
     setEnv({ NODE_ENV: "production", APP_LOG_LEVEL: undefined });
 
@@ -105,6 +145,10 @@ describe("lib/logger", () => {
     expect(console.log).toHaveBeenCalledTimes(0);
   });
 
+  /**
+   * Verifies the threshold filter: when level=warn,
+   * info logs are dropped while warn logs are emitted.
+   */
   it("honors APP_LOG_LEVEL threshold (warn drops info)", async () => {
     setEnv({ NODE_ENV: "test", APP_LOG_LEVEL: "warn" });
 
@@ -117,6 +161,10 @@ describe("lib/logger", () => {
     expect(console.error).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * Ensures structured JSON context is appended when it can be stringified,
+   * and that timestamps follow the expected ISO format.
+   */
   it("includes JSON context when it can stringify", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2025-01-01T00:00:00.000Z"));
@@ -136,6 +184,11 @@ describe("lib/logger", () => {
     vi.useRealTimers();
   });
 
+  /**
+   * Ensures the logger never throws if JSON context serialization fails,
+   * e.g. due to circular references. It should fall back safely and emit
+   * an error log for debugging visibility.
+   */
   it("does not throw if context stringify fails (circular)", async () => {
     const { logInfo } = await loadLogger();
 
@@ -148,6 +201,10 @@ describe("lib/logger", () => {
     expect(console.log).toHaveBeenCalled();
   });
 
+  /**
+   * Ensures file logging is disabled in browser-like environments.
+   * When `window` exists, the logger must not attempt any fs operations.
+   */
   it("does not attempt file I/O in browser-like environments (window defined)", async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).window = {};
@@ -163,6 +220,12 @@ describe("lib/logger", () => {
     expect(fsMock.createWriteStream).toHaveBeenCalledTimes(0);
   });
 
+  /**
+   * Ensures file logging works in server environments when enabled:
+   * - creates parent directory when missing,
+   * - initializes a write stream once,
+   * - appends log lines to the stream.
+   */
   it("writes to file when enabled and in server environment", async () => {
     const stream = makeStream();
     fsMock.existsSync.mockReturnValue(false);
@@ -191,6 +254,10 @@ describe("lib/logger", () => {
     expect(stream.write).toHaveBeenCalledTimes(2);
   });
 
+  /**
+   * Ensures robustness: if file stream initialization throws,
+   * the logger must not crash the application and should emit an error log.
+   */
   it("never throws if file stream initialization fails", async () => {
     fsMock.createWriteStream.mockImplementation(() => {
       throw new Error("boom");

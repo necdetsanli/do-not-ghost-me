@@ -1,5 +1,5 @@
 // tests/unit/adminAuth.test.ts
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import crypto from "node:crypto";
 import type { NextRequest, NextResponse } from "next/server";
 
@@ -16,6 +16,12 @@ type LoggerMocks = {
   logError: ReturnType<typeof vi.fn>;
 };
 
+/**
+ * Encodes input as RFC 4648 base64url without padding.
+ *
+ * @param input - Buffer or string to encode.
+ * @returns Base64url-encoded string without padding.
+ */
 function b64urlEncode(input: Buffer | string): string {
   return Buffer.from(input)
     .toString("base64")
@@ -24,12 +30,29 @@ function b64urlEncode(input: Buffer | string): string {
     .replace(/=+$/g, "");
 }
 
+/**
+ * Computes HMAC-SHA256 over the given data and returns the signature as base64url.
+ *
+ * @param data - Data to sign (string).
+ * @param secret - HMAC secret.
+ * @returns Base64url signature.
+ */
 function signHmacSha256B64url(data: string, secret: string): string {
   const hmac = crypto.createHmac("sha256", secret);
   hmac.update(data);
   return b64urlEncode(hmac.digest());
 }
 
+/**
+ * Builds a minimal NextRequest-like object for unit testing adminAuth utilities.
+ *
+ * Notes:
+ * - Implements only the fields used by the module (method, headers, nextUrl, cookies.get()).
+ * - cookies.get("dg_admin") returns the provided cookieValue, if non-empty.
+ *
+ * @param args - Request field overrides.
+ * @returns NextRequest-like object.
+ */
 function makeReq({
   url = "https://example.test/admin",
   method = "POST",
@@ -88,6 +111,17 @@ function makeReq({
   } as unknown as NextRequest;
 }
 
+/**
+ * Loads the adminAuth module with isolated module state and per-test env overrides.
+ *
+ * This helper:
+ * - Resets the module registry so env changes take effect.
+ * - Provides a mocked logger so tests can assert side effects without console noise.
+ * - Mocks "@/env" so adminAuth reads a controlled env object.
+ *
+ * @param envOverrides - Partial env overrides for this test instance.
+ * @returns Loaded module plus logger/env handles.
+ */
 async function loadAdminAuth(envOverrides: Partial<MockEnv>) {
   vi.resetModules();
 
@@ -113,6 +147,10 @@ async function loadAdminAuth(envOverrides: Partial<MockEnv>) {
 }
 
 describe("adminAuth.verifyAdminPassword", () => {
+  /**
+   * Ensures the password verifier fails closed when the admin password is
+   * missing, and that misconfiguration is logged only once (to reduce noise).
+   */
   it("returns false and logs once when ADMIN_PASSWORD is missing", async () => {
     const { mod, logger } = await loadAdminAuth({ ADMIN_PASSWORD: undefined });
 
@@ -125,6 +163,10 @@ describe("adminAuth.verifyAdminPassword", () => {
     expect(logger.logError).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * Ensures constant-time comparison path is exercised for mismatched length
+   * candidates (module should still invoke timingSafeEqual against equal-length buffers).
+   */
   it("returns false when candidate length differs from configured password", async () => {
     const { mod } = await loadAdminAuth({ ADMIN_PASSWORD: "secret" });
 
@@ -138,6 +180,9 @@ describe("adminAuth.verifyAdminPassword", () => {
     spy.mockRestore();
   });
 
+  /**
+   * Ensures exact matches succeed.
+   */
   it("returns true when passwords match exactly", async () => {
     const { mod } = await loadAdminAuth({ ADMIN_PASSWORD: "secret" });
 
@@ -145,6 +190,9 @@ describe("adminAuth.verifyAdminPassword", () => {
     expect(ok).toBe(true);
   });
 
+  /**
+   * Ensures same-length but different strings fail.
+   */
   it("returns false when same-length passwords do not match", async () => {
     const { mod } = await loadAdminAuth({ ADMIN_PASSWORD: "secret" });
 
@@ -152,6 +200,10 @@ describe("adminAuth.verifyAdminPassword", () => {
     expect(ok).toBe(false);
   });
 
+  /**
+   * Ensures verification never throws if crypto.timingSafeEqual errors, and
+   * instead fails closed.
+   */
   it("returns false when timingSafeEqual throws", async () => {
     const { mod } = await loadAdminAuth({ ADMIN_PASSWORD: "secret" });
 
@@ -167,6 +219,10 @@ describe("adminAuth.verifyAdminPassword", () => {
 });
 
 describe("adminAuth session token lifecycle", () => {
+  /**
+   * Ensures createAdminSessionToken() produces a token that verifies to a valid
+   * payload with expected subject and time bounds.
+   */
   it("creates and verifies a valid admin session token", async () => {
     const { mod } = await loadAdminAuth({
       NODE_ENV: "test",
@@ -184,14 +240,18 @@ describe("adminAuth session token lifecycle", () => {
       throw new Error("Expected a non-null payload");
     }
     expect(payload.exp).toBeGreaterThan(payload.iat);
-    expect(payload?.sub).toBe("admin");
-    expect(typeof payload?.iat).toBe("number");
-    expect(typeof payload?.exp).toBe("number");
-    expect(payload?.exp).toBeGreaterThan(payload?.iat);
+    expect(payload.sub).toBe("admin");
+    expect(typeof payload.iat).toBe("number");
+    expect(typeof payload.exp).toBe("number");
+    expect(payload.exp).toBeGreaterThan(payload.iat);
 
     vi.useRealTimers();
   });
 
+  /**
+   * Ensures malformed tokens (not in "payload.sig" format) are rejected and
+   * produce a warning log.
+   */
   it("returns null for malformed tokens", async () => {
     const { mod, logger } = await loadAdminAuth({});
 
@@ -201,6 +261,9 @@ describe("adminAuth session token lifecycle", () => {
     expect(logger.logWarn).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * Ensures empty token parts are rejected and produce a warning log.
+   */
   it("returns null for empty payload/signature parts", async () => {
     const { mod, logger } = await loadAdminAuth({});
 
@@ -210,6 +273,9 @@ describe("adminAuth session token lifecycle", () => {
     expect(logger.logWarn).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * Ensures signature mismatch is detected (tampered signature) and rejected.
+   */
   it("returns null when signature mismatch occurs", async () => {
     const { mod, logger } = await loadAdminAuth({
       ADMIN_SESSION_SECRET: "secret",
@@ -226,6 +292,9 @@ describe("adminAuth session token lifecycle", () => {
     expect(logger.logWarn).toHaveBeenCalled();
   });
 
+  /**
+   * Ensures payload JSON parsing is validated even when the signature is valid.
+   */
   it("returns null for invalid JSON payload even if signature is valid", async () => {
     const { mod, logger, env } = await loadAdminAuth({
       ADMIN_SESSION_SECRET: "secret",
@@ -244,6 +313,10 @@ describe("adminAuth session token lifecycle", () => {
     expect(logger.logWarn).toHaveBeenCalled();
   });
 
+  /**
+   * Ensures the verifier enforces the expected subject ("admin") and rejects
+   * tokens with other subjects even if signed correctly.
+   */
   it("returns null for invalid subject", async () => {
     const { mod, logger, env } = await loadAdminAuth({
       ADMIN_SESSION_SECRET: "secret",
@@ -264,6 +337,9 @@ describe("adminAuth session token lifecycle", () => {
     expect(logger.logWarn).toHaveBeenCalled();
   });
 
+  /**
+   * Ensures expired tokens are rejected even if otherwise well-formed and signed.
+   */
   it("returns null for expired tokens", async () => {
     const { mod, logger, env } = await loadAdminAuth({
       ADMIN_SESSION_SECRET: "secret",
@@ -284,6 +360,10 @@ describe("adminAuth session token lifecycle", () => {
     expect(logger.logWarn).toHaveBeenCalled();
   });
 
+  /**
+   * Ensures verifier fails closed when the signing secret is missing and logs
+   * the misconfiguration (and continues logging per call).
+   */
   it("returns null and logs when ADMIN_SESSION_SECRET is missing (signing misconfiguration)", async () => {
     const { mod, logger } = await loadAdminAuth({
       ADMIN_SESSION_SECRET: undefined,
@@ -304,6 +384,9 @@ describe("adminAuth session token lifecycle", () => {
 });
 
 describe("adminAuth host/origin checks", () => {
+  /**
+   * Ensures host restriction can be disabled (open) when ADMIN_ALLOWED_HOST is unset.
+   */
   it("allows all hosts when ADMIN_ALLOWED_HOST is not set", async () => {
     const { mod } = await loadAdminAuth({ ADMIN_ALLOWED_HOST: undefined });
 
@@ -313,6 +396,9 @@ describe("adminAuth host/origin checks", () => {
     expect(ok).toBe(true);
   });
 
+  /**
+   * Ensures exact host matching is enforced when ADMIN_ALLOWED_HOST is configured.
+   */
   it("enforces exact host match when ADMIN_ALLOWED_HOST is set", async () => {
     const { mod } = await loadAdminAuth({ ADMIN_ALLOWED_HOST: "example.test" });
 
@@ -323,6 +409,9 @@ describe("adminAuth host/origin checks", () => {
     expect(ok2).toBe(false);
   });
 
+  /**
+   * Ensures Origin header is accepted when it matches the expected admin origin.
+   */
   it("allows origin when it matches expected admin origin", async () => {
     const { mod } = await loadAdminAuth({ ADMIN_ALLOWED_HOST: "example.test" });
 
@@ -337,6 +426,9 @@ describe("adminAuth host/origin checks", () => {
     expect(ok).toBe(true);
   });
 
+  /**
+   * Ensures Referer is accepted as a fallback when Origin is not provided.
+   */
   it("allows referer fallback when origin is missing", async () => {
     const { mod } = await loadAdminAuth({ ADMIN_ALLOWED_HOST: "example.test" });
 
@@ -351,6 +443,10 @@ describe("adminAuth host/origin checks", () => {
     expect(ok).toBe(true);
   });
 
+  /**
+   * Ensures unsafe methods are denied when neither Origin nor Referer is present
+   * (CSRF hardening).
+   */
   it("denies non-safe methods when origin and referer are missing", async () => {
     const { mod } = await loadAdminAuth({ ADMIN_ALLOWED_HOST: "example.test" });
 
@@ -364,6 +460,9 @@ describe("adminAuth host/origin checks", () => {
     expect(ok).toBe(false);
   });
 
+  /**
+   * Ensures safe methods are allowed even without Origin/Referer (read-only requests).
+   */
   it("allows safe methods even when origin and referer are missing", async () => {
     const { mod } = await loadAdminAuth({ ADMIN_ALLOWED_HOST: "example.test" });
 
@@ -379,6 +478,10 @@ describe("adminAuth host/origin checks", () => {
 });
 
 describe("adminAuth.requireAdminRequest", () => {
+  /**
+   * Ensures the guard rejects requests from disallowed hosts before doing any
+   * session verification work.
+   */
   it("throws when host is not allowed", async () => {
     const { mod } = await loadAdminAuth({ ADMIN_ALLOWED_HOST: "example.test" });
 
@@ -395,6 +498,9 @@ describe("adminAuth.requireAdminRequest", () => {
     );
   });
 
+  /**
+   * Ensures the guard rejects requests with missing/invalid session cookies.
+   */
   it("throws when session is missing/invalid", async () => {
     const { mod } = await loadAdminAuth({ ADMIN_ALLOWED_HOST: "example.test" });
 
@@ -411,6 +517,10 @@ describe("adminAuth.requireAdminRequest", () => {
     );
   });
 
+  /**
+   * Ensures the guard returns a verified payload and logs authorization success
+   * when host/origin/session are all valid.
+   */
   it("returns payload when request is authorized", async () => {
     const { mod, logger } = await loadAdminAuth({
       ADMIN_ALLOWED_HOST: "example.test",
@@ -435,6 +545,10 @@ describe("adminAuth.requireAdminRequest", () => {
 });
 
 describe("adminAuth cookie helpers", () => {
+  /**
+   * Ensures cookie options are stable and security-focused (httpOnly + strict),
+   * with a defined maxAge.
+   */
   it("returns standardized cookie options", async () => {
     const { mod } = await loadAdminAuth({ NODE_ENV: "test" });
 
@@ -447,6 +561,10 @@ describe("adminAuth cookie helpers", () => {
     expect(typeof opts.maxAge).toBe("number");
   });
 
+  /**
+   * Ensures withAdminSessionCookie mutates the response with the expected cookie
+   * name/value/options and returns the same response object for chaining.
+   */
   it("attaches admin session cookie to response", async () => {
     const { mod } = await loadAdminAuth({});
 

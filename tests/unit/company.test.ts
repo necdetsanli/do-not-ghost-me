@@ -1,5 +1,5 @@
 // tests/unit/company.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CountryCode } from "@prisma/client";
 
 const {
@@ -49,6 +49,13 @@ type CompanyForReportShape = Awaited<
   ReturnType<typeof findOrCreateCompanyForReport>
 >;
 
+/**
+ * Creates a Company shape matching the select projection used by
+ * findOrCreateCompanyForReport().
+ *
+ * @param args - Company field overrides.
+ * @returns Company object matching the function's return type.
+ */
 function makeCompany(args: {
   id?: string;
   name: string;
@@ -79,6 +86,10 @@ describe("findOrCreateCompanyForReport", () => {
     logErrorMock.mockReset();
   });
 
+  /**
+   * Ensures invalid inputs that normalize to an empty identifier are rejected
+   * (fail fast) and do not hit the database.
+   */
   it("throws when normalized company name is empty", async () => {
     normalizeCompanyNameMock.mockReturnValue("");
 
@@ -96,6 +107,10 @@ describe("findOrCreateCompanyForReport", () => {
     expect(prismaCompanyCreateMock).not.toHaveBeenCalled();
   });
 
+  /**
+   * Ensures an existing company row is reused by its unique key
+   * (normalizedName + country) without attempting a create.
+   */
   it("reuses an existing company by (normalizedName, country)", async () => {
     normalizeCompanyNameMock.mockReturnValue("acme");
     const existing = makeCompany({
@@ -135,6 +150,10 @@ describe("findOrCreateCompanyForReport", () => {
     expect(logWarnMock).not.toHaveBeenCalled();
   });
 
+  /**
+   * Ensures a new company is created when no row exists for the unique key,
+   * and that the stored name is trimmed while normalizedName is derived.
+   */
   it("creates a new company when none exists", async () => {
     normalizeCompanyNameMock.mockReturnValue("acme");
     prismaCompanyFindUniqueMock.mockResolvedValue(null);
@@ -176,6 +195,10 @@ describe("findOrCreateCompanyForReport", () => {
     expect(logErrorMock).not.toHaveBeenCalled();
   });
 
+  /**
+   * Ensures a concurrent create race (unique violation) is handled by
+   * re-reading the row and returning it instead of failing the request.
+   */
   it("handles a concurrent create race by re-reading on unique violation", async () => {
     normalizeCompanyNameMock.mockReturnValue("acme");
     prismaCompanyFindUniqueMock.mockResolvedValueOnce(null);
@@ -207,6 +230,10 @@ describe("findOrCreateCompanyForReport", () => {
     expect(logErrorMock).not.toHaveBeenCalled();
   });
 
+  /**
+   * Ensures we do not silently succeed if a unique violation occurs but the
+   * follow-up read still does not find the row; the original error is rethrown.
+   */
   it("rethrows when unique violation occurs but the row is still missing after retry", async () => {
     normalizeCompanyNameMock.mockReturnValue("acme");
     prismaCompanyFindUniqueMock.mockResolvedValueOnce(null);
@@ -231,6 +258,10 @@ describe("findOrCreateCompanyForReport", () => {
     expect(logErrorMock).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * Ensures non-unique database errors are not masked as concurrency races:
+   * they must be logged and rethrown as-is.
+   */
   it("logs and rethrows non-unique database errors", async () => {
     normalizeCompanyNameMock.mockReturnValue("acme");
     prismaCompanyFindUniqueMock.mockResolvedValue(null);

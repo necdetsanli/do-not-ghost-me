@@ -56,10 +56,18 @@ vi.mock("@prisma/client", () => {
   return { PrismaClient };
 });
 
+/**
+ * Sets a global prisma stub to control module-level singleton behavior.
+ *
+ * @param value - Value to assign to globalThis.prisma.
+ */
 function setGlobalPrismaStub(value: unknown): void {
   (globalThis as unknown as { prisma?: unknown }).prisma = value;
 }
 
+/**
+ * Removes globalThis.prisma to simulate a fresh runtime.
+ */
 function deleteGlobalPrismaStub(): void {
   delete (globalThis as unknown as { prisma?: unknown }).prisma;
 }
@@ -75,6 +83,12 @@ afterEach(() => {
 });
 
 describe("lib/db", () => {
+  /**
+   * Ensures createPrismaClient builds a Prisma client using:
+   * - a pg Pool with DATABASE_URL
+   * - PrismaPg adapter
+   * - non-production logging + pretty error format
+   */
   it("createPrismaClient uses Pool + PrismaPg adapter and non-production log settings", async () => {
     envMock.NODE_ENV = "development";
 
@@ -107,6 +121,10 @@ describe("lib/db", () => {
     expect(prismaClientArgs.errorFormat).toBe("pretty");
   });
 
+  /**
+   * Ensures production mode uses the stricter logging + minimal error format
+   * to reduce noise and payload size.
+   */
   it("createPrismaClient uses production log settings when NODE_ENV=production", async () => {
     envMock.NODE_ENV = "production";
 
@@ -135,6 +153,11 @@ describe("lib/db", () => {
     expect(prismaClientArgs.errorFormat).toBe("minimal");
   });
 
+  /**
+   * Ensures the module exports a singleton `prisma` instance and, in
+   * non-production, caches it on globalThis to support hot reload / dev server
+   * re-import behavior without creating multiple client instances.
+   */
   it("exports a singleton prisma and caches it on globalThis in non-production", async () => {
     envMock.NODE_ENV = "development";
 
@@ -149,6 +172,10 @@ describe("lib/db", () => {
     expect(globalPrisma).toBe(mod.prisma);
   });
 
+  /**
+   * Ensures production does not cache prisma on globalThis so that each runtime
+   * relies on module scoping and avoids leaking state between executions.
+   */
   it("does not cache prisma on globalThis in production", async () => {
     envMock.NODE_ENV = "production";
 
