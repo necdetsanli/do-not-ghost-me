@@ -1,11 +1,15 @@
 {
   "$schema": "https://typedoc.org/schema.json",
 
-  "tsconfig": "tsconfig.json",
+  "tsconfig": "tsconfig.typedoc.json",
 
-  "entryPoints": [
-    "src/lib",
-    "src/app/**/_lib"
+  "entryPoints": ["src"],
+
+  "exclude": [
+    "**/tests/**",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "**/e2e/**"
   ],
 
   "out": "docs/api",
