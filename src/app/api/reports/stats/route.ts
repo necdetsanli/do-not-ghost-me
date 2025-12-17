@@ -1,36 +1,151 @@
 // src/app/api/reports/stats/route.ts
-import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { ReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { logError, logInfo } from "@/lib/logger";
+import { logError, logWarn } from "@/lib/logger";
 import { formatUnknownError } from "@/lib/errorUtils";
+import { getUtcWeekStart } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Payload for the "most reported company" object returned by the stats endpoint.
+ */
 type MostReportedCompanyPayload = {
+  /**
+   * Company display name.
+   */
   name: string;
+
+  /**
+   * Number of ACTIVE reports for this company in the current UTC week.
+   */
   reportCount: number;
 };
 
+/**
+ * Response body shape for GET /api/reports/stats.
+ */
 type ReportsStatsResponseBody = {
+  /**
+   * Total number of ACTIVE reports across all time.
+   */
   totalReports: number;
+
+  /**
+   * Most reported company for the current UTC week among ACTIVE reports, or null if none.
+   */
   mostReportedCompany: MostReportedCompanyPayload | null;
 };
 
 /**
- * Returns aggregated statistics about reports:
- * - total number of ACTIVE reports (FLAGGED/DELETED excluded)
- * - most reported company in the last 7 days among ACTIVE reports (if any)
+ * Adds a number of days to a Date in UTC by using millisecond arithmetic.
  *
- * @param req - Incoming Next.js request.
+ * @param date - Base date.
+ * @param days - Number of days to add.
+ * @returns A new Date advanced by the given number of days.
+ */
+function addDaysUtc(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+/**
+ * Picks the most reported company deterministically:
+ * - Primary: reportCount desc
+ * - Tie-break: company name asc (case-insensitive)
+ * - Final tie-break: companyId asc
+ *
+ * NOTE:
+ * - This function does not assume `candidates` are pre-sorted.
+ *
+ * @param candidates - Candidate groups for this week.
+ * @returns The chosen company payload or null.
+ */
+async function pickMostReportedCompanyThisWeek(
+  candidates: Array<{ companyId: string; reportCount: number }>,
+): Promise<MostReportedCompanyPayload | null> {
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const maxCount: number = candidates.reduce((max, cur) => {
+    return cur.reportCount > max ? cur.reportCount : max;
+  }, 0);
+
+  const tied = candidates.filter((c) => c.reportCount === maxCount);
+
+  if (tied.length === 0) {
+    return null;
+  }
+
+  const ids: string[] = tied.map((t) => t.companyId);
+
+  const companies = await prisma.company.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, name: true },
+  });
+
+  const nameById = new Map<string, string>();
+  for (const c of companies) {
+    nameById.set(c.id, c.name);
+  }
+
+  const resolved = tied
+    .map((t) => {
+      const name = nameById.get(t.companyId);
+      if (typeof name !== "string" || name.trim().length === 0) {
+        return null;
+      }
+      return { companyId: t.companyId, name, reportCount: t.reportCount };
+    })
+    .filter(
+      (x): x is { companyId: string; name: string; reportCount: number } =>
+        x !== null,
+    );
+
+  if (resolved.length === 0) {
+    logWarn(
+      "[GET /api/reports/stats] No company records found for top groups",
+      {
+        companyIds: ids,
+        maxCount,
+      },
+    );
+    return null;
+  }
+
+  resolved.sort((a, b) => {
+    const nameCmp: number = a.name.localeCompare(b.name, "en", {
+      sensitivity: "base",
+    });
+
+    if (nameCmp !== 0) {
+      return nameCmp;
+    }
+
+    return a.companyId.localeCompare(b.companyId);
+  });
+
+  const winner = resolved[0];
+  if (winner === undefined) {
+    return null;
+  }
+
+  return { name: winner.name, reportCount: winner.reportCount };
+}
+
+/**
+ * Returns aggregated statistics about reports:
+ * - total number of ACTIVE reports across all time
+ * - most reported company in the current UTC week among ACTIVE reports (if any)
+ *
  * @returns A JSON response with total reports and most reported company metadata.
  */
-export async function GET(req: NextRequest): Promise<NextResponse> {
+export async function GET(): Promise<NextResponse> {
   try {
     const now: Date = new Date();
-    const sevenDaysMs: number = 7 * 24 * 60 * 60 * 1000;
-    const sevenDaysAgo: Date = new Date(now.getTime() - sevenDaysMs);
+    const weekStartUtc: Date = getUtcWeekStart(now);
+    const weekEndUtc: Date = addDaysUtc(weekStartUtc, 7);
 
     const [totalReports, groups] = await Promise.all([
       prisma.report.count({
@@ -46,57 +161,41 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         where: {
           status: ReportStatus.ACTIVE,
           createdAt: {
-            gte: sevenDaysAgo,
+            gte: weekStartUtc,
+            lt: weekEndUtc,
           },
         },
-        orderBy: {
-          _count: {
-            companyId: "desc",
+        orderBy: [
+          {
+            _count: { companyId: "desc" },
           },
-        },
-        take: 1,
+          {
+            companyId: "asc",
+          },
+        ],
+        take: 50,
       }),
     ]);
 
-    let mostReportedCompany: MostReportedCompanyPayload | null = null;
+    const candidates = groups.map((g) => ({
+      companyId: g.companyId,
+      reportCount: g._count.companyId,
+    }));
 
-    /**
-     * With noUncheckedIndexedAccess enabled, we must explicitly handle the
-     * possibility that there is no element.
-     */
-    const [topGroup] = groups;
-
-    if (topGroup !== undefined) {
-      const company = await prisma.company.findUnique({
-        where: {
-          id: topGroup.companyId,
-        },
-        select: {
-          name: true,
-        },
-      });
-
-      if (company !== null) {
-        mostReportedCompany = {
-          name: company.name,
-          reportCount: topGroup._count.companyId,
-        };
-      }
-    }
+    const mostReportedCompany =
+      await pickMostReportedCompanyThisWeek(candidates);
 
     const body: ReportsStatsResponseBody = {
       totalReports,
       mostReportedCompany,
     };
 
-    logInfo("[GET /api/reports/stats] Stats calculated", {
-      totalReports,
-      hasMostReportedCompany: mostReportedCompany !== null,
-      path: req.nextUrl.pathname,
-      method: req.method,
+    return NextResponse.json(body, {
+      status: 200,
+      headers: {
+        "cache-control": "no-store",
+      },
     });
-
-    return NextResponse.json(body, { status: 200 });
   } catch (error: unknown) {
     logError("[GET /api/reports/stats] Unexpected error", {
       error: formatUnknownError(error),
@@ -104,7 +203,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 },
+      {
+        status: 500,
+        headers: {
+          "cache-control": "no-store",
+        },
+      },
     );
   }
 }

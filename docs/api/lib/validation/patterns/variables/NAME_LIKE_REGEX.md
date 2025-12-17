@@ -6,7 +6,7 @@
 
 > `const` **NAME\_LIKE\_REGEX**: `RegExp`
 
-Defined in: [src/lib/validation/patterns.ts:16](https://github.com/necdetsanli/do-not-ghost-me/blob/f815d119d02b97ec11bd28b7513de788a5e5222e/src/lib/validation/patterns.ts#L16)
+Defined in: [src/lib/validation/patterns.ts:16](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/validation/patterns.ts#L16)
 
 Shared regular expression for values that look like a "name", such as:
 - Company name

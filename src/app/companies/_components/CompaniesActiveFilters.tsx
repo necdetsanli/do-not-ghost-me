@@ -1,4 +1,4 @@
-// src/app/top-companies/_components/TopCompaniesActiveFilters.tsx
+// src/app/companies/_components/CompaniesActiveFilters.tsx
 import type { JSX } from "react";
 import {
   labelForCategory,

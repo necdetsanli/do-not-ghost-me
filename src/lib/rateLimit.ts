@@ -3,7 +3,13 @@ import crypto from "node:crypto";
 import type { PositionCategory } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { env } from "@/env";
-import { MISSING_IP_MESSAGE, ReportRateLimitError } from "@/lib/rateLimitError";
+import {
+  MISSING_IP_MESSAGE,
+  DAILY_IP_LIMIT_MESSAGE,
+  COMPANY_POSITION_LIMIT_MESSAGE,
+  DUPLICATE_POSITION_LIMIT_MESSAGE,
+  ReportRateLimitError,
+} from "@/lib/rateLimitError";
 import { toUtcDayKey } from "@/lib/dates";
 import { hasPrismaErrorCode } from "@/lib/prismaErrors";
 import { logWarn, logError } from "@/lib/logger";
@@ -14,15 +20,6 @@ const MAX_REPORTS_PER_COMPANY_PER_IP: number =
 
 const MAX_REPORTS_PER_IP_PER_DAY: number =
   env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY;
-
-const DAILY_IP_LIMIT_MESSAGE =
-  "You have reached the daily report limit for this IP address.";
-
-const COMPANY_POSITION_LIMIT_MESSAGE =
-  "You have reached the maximum number of reports for this company from this IP address.";
-
-const DUPLICATE_POSITION_LIMIT_MESSAGE =
-  "You have already submitted a report for this position at this company from this IP address.";
 
 /**
  * Arguments required to enforce IP-based rate limits for report creation.
@@ -91,6 +88,11 @@ export function hashIp(ip: string): string {
  * Database or network failures are rethrown as-is so that callers can
  * differentiate between rate-limit and infrastructure issues.
  *
+ * Concurrency notes:
+ * - Daily counting is done via UPSERT (atomic) and validated after the increment.
+ * - Per-company counting is protected by a PostgreSQL advisory transaction lock
+ *   on (ipHash, companyId) to make count+insert strict under concurrency.
+ *
  * @param args - Arguments for rate limiting.
  * @param args.ip - The client IP string (may be null/undefined and will be validated).
  * @param args.companyId - The company ID the report is associated with.
@@ -119,111 +121,56 @@ export async function enforceReportLimitForIpCompanyPosition(
   const positionKey: string = `${positionCategory}:${normalizedPositionDetail}`;
 
   await prisma.$transaction(async (tx) => {
-    // 1) Global per-day IP limit.
-    const existingDaily = await tx.reportIpDailyLimit.findUnique({
-      where: {
-        uniq_ip_day: {
-          ipHash,
-          day: dayKey,
-        },
-      },
-    });
+    // 1) Global per-day IP limit (atomic UPSERT).
+    let dailyRow: { id: string; count: number };
 
-    if (existingDaily === null) {
-      try {
-        await tx.reportIpDailyLimit.create({
-          data: {
-            ipHash,
-            day: dayKey,
-            count: 1,
-          },
-        });
-      } catch (error: unknown) {
-        const isUniqueViolation: boolean =
-          hasPrismaErrorCode(error, "P2002") === true;
-
-        if (isUniqueViolation === false) {
-          logError("[rateLimit] Unexpected error creating daily IP limit row", {
-            ipHash,
-            day: dayKey,
-            error: formatUnknownError(error),
-          });
-          throw error;
-        }
-
-        const concurrentDaily = await tx.reportIpDailyLimit.findUnique({
-          where: {
-            uniq_ip_day: {
-              ipHash,
-              day: dayKey,
-            },
-          },
-        });
-
-        if (concurrentDaily === null) {
-          logError(
-            "[rateLimit] Concurrent daily limit insert failed and follow-up lookup returned null",
-            {
-              ipHash,
-              day: dayKey,
-            },
-          );
-          throw error;
-        }
-
-        if (concurrentDaily.count >= maxPerDay) {
-          logWarn("[rateLimit] Daily IP limit exceeded (concurrent path)", {
-            ipHash,
-            day: dayKey,
-            maxPerDay,
-            currentCount: concurrentDaily.count,
-          });
-
-          throw new ReportRateLimitError(
-            DAILY_IP_LIMIT_MESSAGE,
-            "daily-ip-limit",
-          );
-        }
-
-        await tx.reportIpDailyLimit.update({
-          where: {
-            id: concurrentDaily.id,
-          },
-          data: {
-            count: {
-              increment: 1,
-            },
-          },
-        });
-      }
-    } else {
-      if (existingDaily.count >= maxPerDay) {
-        logWarn("[rateLimit] Daily IP limit exceeded", {
-          ipHash,
-          day: dayKey,
-          maxPerDay,
-          currentCount: existingDaily.count,
-        });
-
-        throw new ReportRateLimitError(
-          DAILY_IP_LIMIT_MESSAGE,
-          "daily-ip-limit",
-        );
-      }
-
-      await tx.reportIpDailyLimit.update({
+    try {
+      dailyRow = await tx.reportIpDailyLimit.upsert({
         where: {
-          id: existingDaily.id,
+          uniq_ip_day: {
+            ipHash,
+            day: dayKey,
+          },
         },
-        data: {
+        create: {
+          ipHash,
+          day: dayKey,
+          count: 1,
+        },
+        update: {
           count: {
             increment: 1,
           },
         },
+        select: {
+          id: true,
+          count: true,
+        },
       });
+    } catch (error: unknown) {
+      logError("[rateLimit] Unexpected error upserting daily IP limit row", {
+        ipHash,
+        day: dayKey,
+        error: formatUnknownError(error),
+      });
+      throw error;
     }
 
-    // 2) Per-company limit from this IP.
+    if (dailyRow.count > maxPerDay) {
+      logWarn("[rateLimit] Daily IP limit exceeded", {
+        ipHash,
+        day: dayKey,
+        maxPerDay,
+        currentCount: dailyRow.count,
+      });
+
+      throw new ReportRateLimitError(DAILY_IP_LIMIT_MESSAGE, "daily-ip-limit");
+    }
+
+    // 2) Strict per-company enforcement under concurrency using advisory lock.
+    // This serializes rate-limit checks for the same (ipHash, companyId) pair.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${ipHash}), hashtext(${companyId}))`;
+
     const existingCompanyCount: number = await tx.reportIpCompanyLimit.count({
       where: {
         ipHash,
@@ -274,7 +221,6 @@ export async function enforceReportLimitForIpCompanyPosition(
         );
       }
 
-      // Unknown error (DB/network/etc.) – log and rethrow to be handled by the caller.
       logError(
         "[rateLimit] Unexpected error while enforcing company/position limit",
         {

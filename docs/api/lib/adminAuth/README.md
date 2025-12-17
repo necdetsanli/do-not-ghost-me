@@ -17,6 +17,7 @@
 - [adminSessionCookieOptions](functions/adminSessionCookieOptions.md)
 - [createAdminSessionToken](functions/createAdminSessionToken.md)
 - [isAllowedAdminHost](functions/isAllowedAdminHost.md)
+- [isOriginAllowed](functions/isOriginAllowed.md)
 - [requireAdminRequest](functions/requireAdminRequest.md)
 - [verifyAdminPassword](functions/verifyAdminPassword.md)
 - [verifyAdminSessionToken](functions/verifyAdminSessionToken.md)

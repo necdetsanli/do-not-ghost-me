@@ -6,7 +6,7 @@
 
 > **categoryEnumToSlug**(`cat`): `string`
 
-Defined in: [src/lib/enums.ts:453](https://github.com/necdetsanli/do-not-ghost-me/blob/f815d119d02b97ec11bd28b7513de788a5e5222e/src/lib/enums.ts#L453)
+Defined in: [src/lib/enums.ts:461](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/enums.ts#L461)
 
 Maps a PositionCategory enum value to its URL slug.
 

@@ -18,6 +18,12 @@ type CompanySuggestion = {
 };
 
 /**
+ * Maximum accepted length for the search query.
+ * This avoids overly large inputs turning into expensive DB queries.
+ */
+const MAX_QUERY_LENGTH: number = 120;
+
+/**
  * Suggest existing companies by name prefix (case-insensitive).
  *
  * This endpoint is **best-effort**:
@@ -28,6 +34,10 @@ type CompanySuggestion = {
  *
  * Query params:
  * - q: partial company name typed by the user.
+ *
+ * Ordering:
+ * - name ASC
+ * - id ASC (tie-breaker for deterministic ordering)
  *
  * @param req - Incoming Next.js request.
  * @returns A JSON array of suggestions or an error payload on failure.
@@ -48,16 +58,23 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json<CompanySuggestion[]>([], { status: 200 });
     }
 
+    const q: string = trimmed.slice(0, MAX_QUERY_LENGTH);
+
     const companies = await prisma.company.findMany({
       where: {
         name: {
-          startsWith: trimmed,
+          startsWith: q,
           mode: "insensitive",
         },
       },
-      orderBy: {
-        name: "asc",
-      },
+      orderBy: [
+        {
+          name: "asc",
+        },
+        {
+          id: "asc",
+        },
+      ],
       take: 10,
       select: {
         id: true,

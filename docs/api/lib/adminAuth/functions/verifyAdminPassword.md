@@ -6,7 +6,7 @@
 
 > **verifyAdminPassword**(`candidate`): `boolean`
 
-Defined in: [src/lib/adminAuth.ts:93](https://github.com/necdetsanli/do-not-ghost-me/blob/f815d119d02b97ec11bd28b7513de788a5e5222e/src/lib/adminAuth.ts#L93)
+Defined in: [src/lib/adminAuth.ts:93](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/adminAuth.ts#L93)
 
 Verify the admin password supplied in the login form against
 the configured ADMIN_PASSWORD value using a constant-time

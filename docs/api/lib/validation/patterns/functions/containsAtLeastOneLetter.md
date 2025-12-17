@@ -6,7 +6,7 @@
 
 > **containsAtLeastOneLetter**(`value`): `boolean`
 
-Defined in: [src/lib/validation/patterns.ts:25](https://github.com/necdetsanli/do-not-ghost-me/blob/f815d119d02b97ec11bd28b7513de788a5e5222e/src/lib/validation/patterns.ts#L25)
+Defined in: [src/lib/validation/patterns.ts:25](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/validation/patterns.ts#L25)
 
 Checks whether a string contains at least one letter.
 Uses Unicode property escapes so it works for non-ASCII alphabets as well.

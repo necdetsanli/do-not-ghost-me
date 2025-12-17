@@ -6,7 +6,7 @@
 
 > **verifyAdminSessionToken**(`token`): [`AdminSessionPayload`](../type-aliases/AdminSessionPayload.md) \| `null`
 
-Defined in: [src/lib/adminAuth.ts:164](https://github.com/necdetsanli/do-not-ghost-me/blob/f815d119d02b97ec11bd28b7513de788a5e5222e/src/lib/adminAuth.ts#L164)
+Defined in: [src/lib/adminAuth.ts:164](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/adminAuth.ts#L164)
 
 Verify a signed admin session token.
 

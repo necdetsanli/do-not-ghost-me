@@ -36,12 +36,26 @@ jobs:
             }
 
             // -----------------------------------------------------------------
-            // 1) Enforce target branch: only "staging" is allowed
+            // 1) Enforce target branch rules
             // -----------------------------------------------------------------
             const baseBranch = pr.base.ref;
+            const prAuthor = pr.user.login;
+            const repoOwner = context.repo.owner;
+
+            // Anyone can target staging
             const allowedBranches = ['staging'];
 
-            if (!allowedBranches.includes(baseBranch)) {
+            // Only the repo owner can target main
+            if (baseBranch === 'main') {
+              if (prAuthor !== repoOwner) {
+                core.setFailed(
+                  `Invalid base branch "${baseBranch}". Only the repository owner can create pull requests targeting "main". ` +
+                  `Contributors should target the "staging" branch instead.`
+                );
+                return;
+              }
+              core.info('PR targets main branch - author is repo owner, validation passed.');
+            } else if (! allowedBranches.includes(baseBranch)) {
               core.setFailed(
                 `Invalid base branch "${baseBranch}". Pull requests must target the "staging" branch. Please change the base to "staging".`
               );

@@ -6,7 +6,7 @@
 
 > **formatUtcDateTime**(`inputDate`): `string`
 
-Defined in: [src/lib/dates.ts:34](https://github.com/necdetsanli/do-not-ghost-me/blob/f815d119d02b97ec11bd28b7513de788a5e5222e/src/lib/dates.ts#L34)
+Defined in: [src/lib/dates.ts:34](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/dates.ts#L34)
 
 Formats a Date as a compact UTC date-time string: "YYYY-MM-DD HH:MM".
 

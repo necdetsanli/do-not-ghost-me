@@ -40,3 +40,24 @@ export function formatUtcDateTime(inputDate: Date): string {
 
   return `${dayKey} ${timePart}`;
 }
+
+/**
+ * Returns the start of the current week in UTC (Monday 00:00:00.000).
+ *
+ * Week definition: Monday -> next Monday, based on UTC.
+ *
+ * @param date - Any date within the target week.
+ * @returns A Date representing Monday 00:00 UTC of the same week.
+ */
+export function getUtcWeekStart(date: Date): Date {
+  const midnightUtc: Date = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+
+  // JS: Sunday=0 ... Saturday=6
+  // We want Monday=0 ... Sunday=6
+  const dayOfWeekMondayBased: number = (midnightUtc.getUTCDay() + 6) % 7;
+
+  midnightUtc.setUTCDate(midnightUtc.getUTCDate() - dayOfWeekMondayBased);
+  return midnightUtc;
+}

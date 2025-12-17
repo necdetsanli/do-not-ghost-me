@@ -6,7 +6,7 @@
 
 > **verifyCsrfToken**(`purpose`, `token`): `boolean`
 
-Defined in: [src/lib/csrf.ts:191](https://github.com/necdetsanli/do-not-ghost-me/blob/f815d119d02b97ec11bd28b7513de788a5e5222e/src/lib/csrf.ts#L191)
+Defined in: [src/lib/csrf.ts:191](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/csrf.ts#L191)
 
 Verify a CSRF token for a specific purpose.
 

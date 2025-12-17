@@ -1,0 +1,277 @@
+// tests/unit/logger.test.ts
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import path from "node:path";
+
+type StreamMock = {
+  destroyed: boolean;
+  write: ReturnType<typeof vi.fn>;
+  on: ReturnType<typeof vi.fn>;
+};
+
+const { fsMock } = vi.hoisted(() => ({
+  fsMock: {
+    existsSync: vi.fn(),
+    mkdirSync: vi.fn(),
+    createWriteStream: vi.fn(),
+  },
+}));
+
+vi.mock("node:fs", () => ({
+  default: fsMock,
+}));
+
+/**
+ * Applies a partial set of environment variables for a test.
+ *
+ * - When a value is `undefined`, the variable is removed from process.env.
+ * - Otherwise it is set as-is.
+ *
+ * @param vars - Key/value environment variables to apply.
+ * @returns void
+ */
+function setEnv(vars: Record<string, string | undefined>): void {
+  for (const [k, v] of Object.entries(vars)) {
+    if (v === undefined) {
+      delete process.env[k];
+    } else {
+      process.env[k] = v;
+    }
+  }
+}
+
+/**
+ * Creates a minimal writable stream mock that behaves like a Node.js stream:
+ * `.on()` is chainable and returns the same stream instance.
+ *
+ * @returns A stream mock implementing the subset used by the logger.
+ */
+function makeStream(): StreamMock {
+  const stream: StreamMock = {
+    destroyed: false,
+    write: vi.fn(),
+    on: vi.fn(),
+  };
+  stream.on.mockImplementation(() => stream);
+  return stream;
+}
+
+/**
+ * Loads the logger module fresh after resetting the module graph.
+ *
+ * This is important because logger initialization reads environment variables
+ * and may initialize file streams at import time.
+ *
+ * @returns A promise resolving to the imported logger module.
+ */
+async function loadLogger() {
+  vi.resetModules();
+  return import("@/lib/logger");
+}
+
+const originalEnv = { ...process.env };
+
+/**
+ * Unit tests for lib/logger.
+ *
+ * Focus areas:
+ * - log level defaults & thresholds
+ * - safe JSON context handling (including stringify failures)
+ * - file logging behavior (server-only, opt-in, robust against failures)
+ */
+describe("lib/logger", () => {
+  beforeEach(() => {
+    fsMock.existsSync.mockReset();
+    fsMock.mkdirSync.mockReset();
+    fsMock.createWriteStream.mockReset();
+
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    setEnv({
+      APP_LOG_LEVEL: undefined,
+      APP_LOG_TO_FILE: undefined,
+      APP_LOG_FILE: undefined,
+      NODE_ENV: "test",
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+
+    // Restore env back to original snapshot to avoid cross-test leakage.
+    for (const key of Object.keys(process.env)) {
+      if (originalEnv[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = originalEnv[key] as string;
+      }
+    }
+
+    // Clean up browser-like global to keep tests isolated.
+    if (
+      Object.prototype.hasOwnProperty.call(
+        globalThis as unknown as object,
+        "window",
+      )
+    ) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (globalThis as any).window;
+    }
+  });
+
+  /**
+   * Verifies default threshold selection: in non-production environments,
+   * the logger is permissive (debug enabled) when no explicit level is set.
+   */
+  it("defaults to debug level in non-production when APP_LOG_LEVEL is missing", async () => {
+    setEnv({ NODE_ENV: "test", APP_LOG_LEVEL: undefined });
+
+    const { logDebug } = await loadLogger();
+    logDebug("hello");
+
+    expect(console.log).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Verifies default threshold selection: in production environments,
+   * the logger becomes stricter (debug disabled) when no explicit level is set.
+   */
+  it("defaults to info level in production when APP_LOG_LEVEL is missing", async () => {
+    setEnv({ NODE_ENV: "production", APP_LOG_LEVEL: undefined });
+
+    const { logDebug } = await loadLogger();
+    logDebug("hello");
+
+    expect(console.log).toHaveBeenCalledTimes(0);
+  });
+
+  /**
+   * Verifies the threshold filter: when level=warn,
+   * info logs are dropped while warn logs are emitted.
+   */
+  it("honors APP_LOG_LEVEL threshold (warn drops info)", async () => {
+    setEnv({ NODE_ENV: "test", APP_LOG_LEVEL: "warn" });
+
+    const { logInfo, logWarn } = await loadLogger();
+
+    logInfo("info");
+    logWarn("warn");
+
+    expect(console.log).toHaveBeenCalledTimes(0);
+    expect(console.error).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Ensures structured JSON context is appended when it can be stringified,
+   * and that timestamps follow the expected ISO format.
+   */
+  it("includes JSON context when it can stringify", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2025-01-01T00:00:00.000Z"));
+
+    const { logInfo } = await loadLogger();
+
+    logInfo("hello", { a: 1 });
+
+    expect(console.log).toHaveBeenCalledTimes(1);
+
+    const line = (console.log as unknown as { mock: { calls: unknown[][] } })
+      .mock.calls[0]?.[0];
+    expect(String(line)).toContain("[2025-01-01T00:00:00.000Z]");
+    expect(String(line)).toContain("hello");
+    expect(String(line)).toContain('"a":1');
+
+    vi.useRealTimers();
+  });
+
+  /**
+   * Ensures the logger never throws if JSON context serialization fails,
+   * e.g. due to circular references. It should fall back safely and emit
+   * an error log for debugging visibility.
+   */
+  it("does not throw if context stringify fails (circular)", async () => {
+    const { logInfo } = await loadLogger();
+
+    const ctx: Record<string, unknown> = {};
+    ctx.self = ctx;
+
+    expect(() => logInfo("hello", ctx)).not.toThrow();
+
+    expect(console.error).toHaveBeenCalled();
+    expect(console.log).toHaveBeenCalled();
+  });
+
+  /**
+   * Ensures file logging is disabled in browser-like environments.
+   * When `window` exists, the logger must not attempt any fs operations.
+   */
+  it("does not attempt file I/O in browser-like environments (window defined)", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).window = {};
+
+    setEnv({
+      APP_LOG_TO_FILE: "true",
+      APP_LOG_FILE: "logs/test.log",
+    });
+
+    const { logInfo } = await loadLogger();
+    logInfo("hello");
+
+    expect(fsMock.createWriteStream).toHaveBeenCalledTimes(0);
+  });
+
+  /**
+   * Ensures file logging works in server environments when enabled:
+   * - creates parent directory when missing,
+   * - initializes a write stream once,
+   * - appends log lines to the stream.
+   */
+  it("writes to file when enabled and in server environment", async () => {
+    const stream = makeStream();
+    fsMock.existsSync.mockReturnValue(false);
+    fsMock.createWriteStream.mockReturnValue(stream);
+
+    setEnv({
+      APP_LOG_TO_FILE: "true",
+      APP_LOG_FILE: "logs/test.log",
+      APP_LOG_LEVEL: "debug",
+    });
+
+    const { logInfo } = await loadLogger();
+
+    logInfo("hello");
+    logInfo("hello2");
+
+    expect(fsMock.mkdirSync).toHaveBeenCalledTimes(1);
+    expect(fsMock.createWriteStream).toHaveBeenCalledTimes(1);
+
+    const expectedPath = path.resolve("logs/test.log");
+    expect(fsMock.createWriteStream).toHaveBeenCalledWith(expectedPath, {
+      flags: "a",
+      encoding: "utf8",
+    });
+
+    expect(stream.write).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * Ensures robustness: if file stream initialization throws,
+   * the logger must not crash the application and should emit an error log.
+   */
+  it("never throws if file stream initialization fails", async () => {
+    fsMock.createWriteStream.mockImplementation(() => {
+      throw new Error("boom");
+    });
+
+    setEnv({
+      APP_LOG_TO_FILE: "true",
+      APP_LOG_FILE: "logs/test.log",
+      APP_LOG_LEVEL: "debug",
+    });
+
+    const { logInfo } = await loadLogger();
+
+    expect(() => logInfo("hello")).not.toThrow();
+    expect(console.error).toHaveBeenCalled();
+  });
+});

@@ -6,7 +6,7 @@
 
 > **isPrismaUniqueViolation**(`error`): `boolean`
 
-Defined in: [src/lib/prismaErrors.ts:35](https://github.com/necdetsanli/do-not-ghost-me/blob/f815d119d02b97ec11bd28b7513de788a5e5222e/src/lib/prismaErrors.ts#L35)
+Defined in: [src/lib/prismaErrors.ts:35](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/prismaErrors.ts#L35)
 
 Returns true if the given error looks like a Prisma
 unique constraint violation (code "P2002").

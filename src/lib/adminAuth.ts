@@ -270,6 +270,77 @@ export function isAllowedAdminHost(req: NextRequest): boolean {
 }
 
 /**
+ * Returns true if the request origin is allowed for the admin surface.
+ *
+ * This is a defense-in-depth check against CSRF and cross-site requests.
+ *
+ * Rules:
+ * - If ADMIN_ALLOWED_HOST is not configured, origin checks are disabled (allow all).
+ * - For safe methods (GET/HEAD/OPTIONS), missing Origin/Referer is allowed.
+ * - For non-safe methods (POST/PUT/PATCH/DELETE), Origin or Referer must match the expected admin origin.
+ *
+ * Expected admin origin is derived from:
+ * - protocol: x-forwarded-proto header when present, otherwise req.nextUrl.protocol
+ * - host: ADMIN_ALLOWED_HOST
+ *
+ * @param req - Incoming NextRequest.
+ * @returns True when origin is allowed, false otherwise.
+ */
+export function isOriginAllowed(req: NextRequest): boolean {
+  const requiredHost: string | undefined = env.ADMIN_ALLOWED_HOST;
+
+  if (requiredHost === undefined || requiredHost === "") {
+    return true;
+  }
+
+  const method: string = req.method;
+  const isSafeMethod: boolean =
+    method === "GET" || method === "HEAD" || method === "OPTIONS";
+
+  const protoHeader: string = req.headers.get("x-forwarded-proto") ?? "";
+  let proto: string;
+
+  if (protoHeader === "http" || protoHeader === "https") {
+    proto = protoHeader;
+  } else {
+    const raw: string = req.nextUrl.protocol; // "https:" | "http:"
+    proto = raw.replace(":", "");
+  }
+
+  if (proto !== "http" && proto !== "https") {
+    proto = "https";
+  }
+
+  const expectedOrigin: string = `${proto}://${requiredHost}`;
+
+  const originHeader: string | null = req.headers.get("origin");
+  if (originHeader !== null && originHeader !== "") {
+    try {
+      const origin: string = new URL(originHeader).origin;
+      return origin === expectedOrigin;
+    } catch {
+      return false;
+    }
+  }
+
+  const refererHeader: string | null = req.headers.get("referer");
+  if (refererHeader !== null && refererHeader !== "") {
+    try {
+      const refOrigin: string = new URL(refererHeader).origin;
+      return refOrigin === expectedOrigin;
+    } catch {
+      return false;
+    }
+  }
+
+  if (isSafeMethod === true) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Validate that this request is allowed to reach the admin surface:
  * - passes the host check (ADMIN_ALLOWED_HOST), and
  * - carries a valid admin session cookie.
@@ -288,6 +359,19 @@ export function requireAdminRequest(req: NextRequest): AdminSessionPayload {
     });
 
     throw new Error("Admin access is not allowed from this host.");
+  }
+
+  const originAllowed: boolean = isOriginAllowed(req);
+
+  if (originAllowed === false) {
+    logWarn("Blocked admin request due to origin/referer mismatch", {
+      host: req.headers.get("host") ?? null,
+      origin: req.headers.get("origin") ?? null,
+      referer: req.headers.get("referer") ?? null,
+      method: req.method,
+    });
+
+    throw new Error("Admin access is not allowed from this origin.");
   }
 
   const cookieValue: string | null =

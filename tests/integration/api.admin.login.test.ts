@@ -1,229 +1,436 @@
-// tests/integration/api.admin.login.test.ts
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { NextRequest, type NextResponse } from "next/server";
-import { POST } from "@/app/api/admin/login/route";
-import {
-  verifyAdminPassword,
-  createAdminSessionToken,
-  withAdminSessionCookie,
-} from "@/lib/adminAuth";
-import { verifyCsrfToken } from "@/lib/csrf";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { NextRequest } from "next/server";
 
-// Mock env so ADMIN_ALLOWED_HOST is stable in tests.
-vi.mock("@/env", () => ({
-  env: {
-    ADMIN_ALLOWED_HOST: "127.0.0.1:3000",
-  },
-}));
+/**
+ * Environment snapshot type for safe restore.
+ */
+type EnvSnapshot = Record<string, string | undefined>;
 
-// Mock admin auth helpers.
-vi.mock("@/lib/adminAuth", () => ({
-  verifyAdminPassword: vi.fn(),
-  createAdminSessionToken: vi.fn(),
-  withAdminSessionCookie: vi.fn((res) => res),
-}));
-
-// Mock CSRF verification. We test the login flow, not HMAC details.
-vi.mock("@/lib/csrf", () => ({
-  verifyCsrfToken: vi.fn(),
-}));
-
-const ADMIN_HOST = "127.0.0.1:3000";
-const LOGIN_URL = `http://${ADMIN_HOST}/api/admin/login`;
-const CSRF_FIELD_NAME = "_csrf";
-const PASSWORD_FIELD_NAME = "password";
-
-function buildFormBody(form: Record<string, string>): string {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(form)) {
-    params.set(key, value);
-  }
-  return params.toString();
+/**
+ * Takes a snapshot of process.env keys used in these tests.
+ *
+ * @returns Snapshot object.
+ */
+function snapshotEnv(): EnvSnapshot {
+  return {
+    NODE_ENV: process.env.NODE_ENV,
+    DATABASE_URL: process.env.DATABASE_URL,
+    RATE_LIMIT_IP_SALT: process.env.RATE_LIMIT_IP_SALT,
+    ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
+    ADMIN_SESSION_SECRET: process.env.ADMIN_SESSION_SECRET,
+    ADMIN_ALLOWED_HOST: process.env.ADMIN_ALLOWED_HOST,
+    ADMIN_CSRF_SECRET: process.env.ADMIN_CSRF_SECRET,
+  };
 }
 
-function makeRequestWithForm({
-  host = ADMIN_HOST,
-  origin = `http://${ADMIN_HOST}`,
-  form,
-}: {
-  host?: string;
-  origin?: string;
-  form: Record<string, string>;
-}): NextRequest {
-  const headers = new Headers();
-  headers.set("host", host);
-  headers.set("origin", origin);
-  headers.set("content-type", "application/x-www-form-urlencoded");
+/**
+ * Restores process.env from a snapshot.
+ *
+ * @param snap - Environment snapshot.
+ * @returns void
+ */
+function restoreEnv(snap: EnvSnapshot): void {
+  process.env.NODE_ENV = snap.NODE_ENV;
+  process.env.DATABASE_URL = snap.DATABASE_URL;
+  process.env.RATE_LIMIT_IP_SALT = snap.RATE_LIMIT_IP_SALT;
+  process.env.ADMIN_PASSWORD = snap.ADMIN_PASSWORD;
+  process.env.ADMIN_SESSION_SECRET = snap.ADMIN_SESSION_SECRET;
+  process.env.ADMIN_ALLOWED_HOST = snap.ADMIN_ALLOWED_HOST;
+  process.env.ADMIN_CSRF_SECRET = snap.ADMIN_CSRF_SECRET;
+}
 
-  const body = buildFormBody(form);
+/**
+ * Applies a minimal valid env for importing the app env schema.
+ *
+ * @param overrides - Partial env overrides for a test.
+ * @returns void
+ */
+function applyBaseEnv(overrides: Partial<Record<string, string>> = {}): void {
+  process.env.NODE_ENV = overrides.NODE_ENV ?? "test";
+  process.env.DATABASE_URL =
+    overrides.DATABASE_URL ?? "postgresql://user:pass@localhost:5432/testdb";
+  process.env.RATE_LIMIT_IP_SALT =
+    overrides.RATE_LIMIT_IP_SALT ??
+    "test-rate-limit-salt-32-bytes-minimum-000000";
+  process.env.ADMIN_PASSWORD =
+    overrides.ADMIN_PASSWORD ?? "test-admin-password";
+  process.env.ADMIN_SESSION_SECRET =
+    overrides.ADMIN_SESSION_SECRET ??
+    "test-admin-session-secret-32-bytes-minimum-0000000";
+  process.env.ADMIN_CSRF_SECRET =
+    overrides.ADMIN_CSRF_SECRET ??
+    "test-admin-csrf-secret-32-bytes-minimum-000000000";
+  process.env.ADMIN_ALLOWED_HOST = overrides.ADMIN_ALLOWED_HOST;
+}
 
-  return new NextRequest(LOGIN_URL, {
+/**
+ * Builds a NextRequest for POST /api/admin/login with the desired headers and form fields.
+ *
+ * @param url - Absolute URL for the request.
+ * @param headers - Request headers.
+ * @param form - Form fields encoded as application/x-www-form-urlencoded.
+ * @returns NextRequest instance.
+ */
+function buildLoginPostRequest(
+  url: string,
+  headers: Record<string, string>,
+  form: Record<string, string>,
+): NextRequest {
+  const body = new URLSearchParams(form);
+
+  return new NextRequest(url, {
     method: "POST",
-    headers,
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      ...headers,
+    },
     body,
   });
 }
 
-beforeEach(() => {
-  // Reset all mocks to a known state before each test.
-  vi.mocked(verifyCsrfToken).mockReset().mockReturnValue(true);
-  vi.mocked(verifyAdminPassword).mockReset();
-  vi.mocked(createAdminSessionToken).mockReset();
-  vi.mocked(withAdminSessionCookie)
-    .mockReset()
-    .mockImplementation((res) => res);
-});
+/**
+ * Imports the login route handler with a fresh module graph after env changes.
+ *
+ * @returns The imported POST handler.
+ */
+async function importLoginPost(): Promise<{
+  POST: (req: NextRequest) => Promise<Response>;
+}> {
+  vi.resetModules();
+  const mod = await import("@/app/api/admin/login/route");
+  return { POST: mod.POST as (req: NextRequest) => Promise<Response> };
+}
 
-afterEach(() => {
-  vi.clearAllMocks();
-});
+/**
+ * Imports CSRF helper with a fresh module graph (depends on env).
+ *
+ * @returns CSRF helper functions.
+ */
+async function importCsrfHelpers(): Promise<{
+  createCsrfToken: (purpose: string) => string;
+}> {
+  vi.resetModules();
+  const mod = await import("@/lib/csrf");
+  return {
+    createCsrfToken: mod.createCsrfToken as (purpose: string) => string,
+  };
+}
+
+/**
+ * Asserts a redirect response to /admin/login?error=1.
+ *
+ * @param res - Response to assert.
+ * @returns Promise resolved after assertions.
+ */
+async function expectErrorRedirect(res: Response): Promise<void> {
+  expect(res.status).toBe(303);
+  const location = res.headers.get("location");
+  expect(typeof location).toBe("string");
+  expect(location as string).toContain("/admin/login");
+  expect(location as string).toContain("error=1");
+}
+
+/**
+ * Extracts the Set-Cookie header (single header) if present.
+ *
+ * @param res - Response object.
+ * @returns Set-Cookie string or null.
+ */
+function getSetCookie(res: Response): string | null {
+  const raw = res.headers.get("set-cookie");
+  if (typeof raw !== "string" || raw.trim().length === 0) {
+    return null;
+  }
+  return raw;
+}
 
 describe("POST /api/admin/login", () => {
-  it("returns 403 when admin host is not allowed", async () => {
-    const headers = new Headers();
-    headers.set("host", "evil.example.com");
-    headers.set("origin", "http://evil.example.com");
-    headers.set("content-type", "application/x-www-form-urlencoded");
+  let snap: EnvSnapshot;
 
-    const body = buildFormBody({
-      [PASSWORD_FIELD_NAME]: "irrelevant",
-      [CSRF_FIELD_NAME]: "test-csrf-token",
-    });
-
-    const request = new NextRequest(LOGIN_URL, {
-      method: "POST",
-      headers,
-      body,
-    });
-
-    const response = await POST(request);
-
-    expect(response.status).toBe(403);
-
-    const json = (await response.json()) as { error: string };
-    expect(json).toEqual({
-      error: "Admin access is not allowed from this host.",
-    });
-
-    // When host is forbidden, we should not even attempt authentication.
-    expect(verifyAdminPassword).not.toHaveBeenCalled();
-    expect(createAdminSessionToken).not.toHaveBeenCalled();
-    expect(withAdminSessionCookie).not.toHaveBeenCalled();
+  beforeEach(() => {
+    snap = snapshotEnv();
+    delete (globalThis as unknown as { __adminLoginRateLimitStore?: unknown })
+      .__adminLoginRateLimitStore;
   });
 
-  it("redirects back to /admin/login?error=1 when password field is missing", async () => {
-    const request = makeRequestWithForm({
-      form: {
-        [CSRF_FIELD_NAME]: "test-csrf-token",
-      },
-    });
-
-    // CSRF is considered valid in this test.
-    vi.mocked(verifyCsrfToken).mockReturnValue(true);
-
-    const response = await POST(request);
-
-    // NextResponse.redirect uses 307 for temporary redirects.
-    expect(response.status).toBe(307);
-
-    const location = response.headers.get("location");
-    expect(location).not.toBeNull();
-
-    const redirectedUrl = new URL(location ?? "");
-    expect(redirectedUrl.pathname).toBe("/admin/login");
-    expect(redirectedUrl.search).toBe("?error=1");
-
-    // No password → we should not hit auth or session creation.
-    expect(verifyAdminPassword).not.toHaveBeenCalled();
-    expect(createAdminSessionToken).not.toHaveBeenCalled();
-    expect(withAdminSessionCookie).not.toHaveBeenCalled();
+  afterEach(() => {
+    restoreEnv(snap);
+    vi.restoreAllMocks();
   });
 
-  it("redirects back to /admin/login?error=1 when password is invalid", async () => {
-    const request = makeRequestWithForm({
-      form: {
-        [PASSWORD_FIELD_NAME]: "wrong-password",
-        [CSRF_FIELD_NAME]: "test-csrf-token",
+  it("returns 403 JSON when ADMIN_ALLOWED_HOST is set and Host header mismatches", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
+
+    const { POST } = await importLoginPost();
+
+    const req = buildLoginPostRequest(
+      "https://allowed.test/api/admin/login",
+      {
+        host: "evil.test",
       },
-    });
+      { password: "whatever", _csrf: "irrelevant" },
+    );
 
-    const verifyMock = vi.mocked(verifyAdminPassword);
-    verifyMock.mockResolvedValue(false);
-    vi.mocked(verifyCsrfToken).mockReturnValue(true);
+    const res = await POST(req);
+    expect(res.status).toBe(403);
 
-    const response = await POST(request);
-
-    expect(response.status).toBe(307);
-
-    const location = response.headers.get("location");
-    expect(location).not.toBeNull();
-
-    const redirectedUrl = new URL(location ?? "");
-    expect(redirectedUrl.pathname).toBe("/admin/login");
-    expect(redirectedUrl.search).toBe("?error=1");
-
-    expect(verifyMock).toHaveBeenCalledTimes(1);
-    expect(verifyMock).toHaveBeenCalledWith("wrong-password");
-
-    expect(createAdminSessionToken).not.toHaveBeenCalled();
-    expect(withAdminSessionCookie).not.toHaveBeenCalled();
+    const json = (await res.json()) as { error?: string };
+    expect(json.error).toBe("Admin access is not allowed from this host.");
   });
 
-  it("on successful login, verifies password, creates a session token and passes it to withAdminSessionCookie", async () => {
-    const request = makeRequestWithForm({
-      form: {
-        [PASSWORD_FIELD_NAME]: "test-admin-password",
-        [CSRF_FIELD_NAME]: "test-csrf-token",
+  it("returns 403 JSON when Origin header is present and mismatches allowed host", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
+
+    const { POST } = await importLoginPost();
+
+    const req = buildLoginPostRequest(
+      "https://allowed.test/api/admin/login",
+      {
+        host: "allowed.test",
+        origin: "https://evil.test",
       },
+      { password: "whatever", _csrf: "irrelevant" },
+    );
+
+    const res = await POST(req);
+    expect(res.status).toBe(403);
+
+    const json = (await res.json()) as { error?: string };
+    expect(json.error).toBe("Admin access is not allowed from this host.");
+  });
+
+  it("redirects to /admin/login?error=1 when CSRF is invalid", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
+
+    const { POST } = await importLoginPost();
+
+    const req = buildLoginPostRequest(
+      "https://allowed.test/api/admin/login",
+      {
+        host: "allowed.test",
+        origin: "https://allowed.test",
+        "x-forwarded-for": "203.0.113.21",
+      },
+      { password: "test-admin-password", _csrf: "invalid-csrf" },
+    );
+
+    const res = await POST(req);
+    await expectErrorRedirect(res);
+    expect(getSetCookie(res)).toBeNull();
+  });
+
+  it("redirects to /admin/login?error=1 when password is missing", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
+
+    const { createCsrfToken } = await importCsrfHelpers();
+    const csrf = createCsrfToken("admin-login");
+
+    const { POST } = await importLoginPost();
+
+    const req = buildLoginPostRequest(
+      "https://allowed.test/api/admin/login",
+      {
+        host: "allowed.test",
+        origin: "https://allowed.test",
+        "x-forwarded-for": "203.0.113.22",
+      },
+      { _csrf: csrf },
+    );
+
+    const res = await POST(req);
+    await expectErrorRedirect(res);
+    expect(getSetCookie(res)).toBeNull();
+  });
+
+  it("redirects to /admin/login?error=1 when password is wrong", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
+
+    const { createCsrfToken } = await importCsrfHelpers();
+    const csrf = createCsrfToken("admin-login");
+
+    const { POST } = await importLoginPost();
+
+    const req = buildLoginPostRequest(
+      "https://allowed.test/api/admin/login",
+      {
+        host: "allowed.test",
+        origin: "https://allowed.test",
+        "x-forwarded-for": "203.0.113.23",
+      },
+      { password: "wrong-password", _csrf: csrf },
+    );
+
+    const res = await POST(req);
+    await expectErrorRedirect(res);
+    expect(getSetCookie(res)).toBeNull();
+  });
+
+  it("redirects to /admin and sets a signed HttpOnly session cookie when password is correct", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
+
+    const { createCsrfToken } = await importCsrfHelpers();
+    const csrf = createCsrfToken("admin-login");
+
+    const { POST } = await importLoginPost();
+
+    const req = buildLoginPostRequest(
+      "https://allowed.test/api/admin/login",
+      {
+        host: "allowed.test",
+        origin: "https://allowed.test",
+        "x-forwarded-for": "203.0.113.24",
+      },
+      { password: "test-admin-password", _csrf: csrf },
+    );
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(303);
+    const location = res.headers.get("location");
+    expect(location).toBe("https://allowed.test/admin");
+
+    const setCookie = getSetCookie(res);
+    expect(typeof setCookie).toBe("string");
+    expect(setCookie as string).toContain("dg_admin=");
+    expect(setCookie as string).toContain("HttpOnly");
+    expect(setCookie as string).toMatch(/SameSite=strict/i);
+    expect(setCookie as string).toContain("Path=/");
+  });
+
+  it("returns 429 JSON after too many failed attempts from the same IP", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
+
+    const { createCsrfToken } = await importCsrfHelpers();
+    const csrf = createCsrfToken("admin-login");
+
+    const { POST } = await importLoginPost();
+
+    const url = "https://allowed.test/api/admin/login";
+    const headers = {
+      host: "allowed.test",
+      origin: "https://allowed.test",
+      "x-forwarded-for": "203.0.113.25",
+    } satisfies Record<string, string>;
+
+    for (let i = 0; i < 5; i += 1) {
+      const req = buildLoginPostRequest(url, headers, {
+        password: "wrong-password",
+        _csrf: csrf,
+      });
+      const res = await POST(req);
+      await expectErrorRedirect(res);
+    }
+
+    const sixthReq = buildLoginPostRequest(url, headers, {
+      password: "wrong-password",
+      _csrf: csrf,
     });
+    const sixthRes = await POST(sixthReq);
 
-    const verifyMock = vi.mocked(verifyAdminPassword);
-    const createTokenMock = vi.mocked(createAdminSessionToken);
-    const withCookieMock = vi.mocked(withAdminSessionCookie);
+    expect(sixthRes.status).toBe(429);
+    const json = (await sixthRes.json()) as { error?: string };
+    expect(typeof json.error).toBe("string");
+    expect(json.error as string).toMatch(/too many admin login attempts/i);
+  });
+  it("returns 403 JSON when Origin header is not a valid URL", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
 
-    vi.mocked(verifyCsrfToken).mockReturnValue(true);
-    verifyMock.mockResolvedValue(true);
-    createTokenMock.mockResolvedValue("test-session-token");
+    const { POST } = await importLoginPost();
 
-    // By default our mock returns the base response, but we also inspect args.
-    withCookieMock.mockImplementation((res) => res);
+    const req = buildLoginPostRequest(
+      "https://allowed.test/api/admin/login",
+      {
+        host: "allowed.test",
+        origin: "not-a-url",
+      },
+      { password: "whatever", _csrf: "irrelevant" },
+    );
 
-    const response = await POST(request);
+    const res = await POST(req);
+    expect(res.status).toBe(403);
 
-    // Password verification
-    expect(verifyMock).toHaveBeenCalledTimes(1);
-    expect(verifyMock).toHaveBeenCalledWith("test-admin-password");
+    const json = (await res.json()) as { error?: string };
+    expect(json.error).toBe("Admin access is not allowed from this host.");
+  });
 
-    // Session token creation
-    expect(createTokenMock).toHaveBeenCalledTimes(1);
-    expect(createTokenMock).toHaveBeenCalledWith();
+  it("resets IP lock after lock window expires", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
 
-    // Cookie attachment
-    expect(withCookieMock).toHaveBeenCalledTimes(1);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2025-01-01T00:00:00.000Z"));
 
-    const firstCall = withCookieMock.mock.calls[0] as unknown as [
-      NextResponse<unknown>,
-      string,
-    ];
-    const [cookieResponseArg, tokenArg] = firstCall;
+    const { createCsrfToken } = await importCsrfHelpers();
+    const csrf = createCsrfToken("admin-login");
 
-    expect(tokenArg).toBe("test-session-token");
+    const { POST } = await importLoginPost();
 
-    const cookieLocation = cookieResponseArg.headers.get("location");
-    expect(cookieLocation).not.toBeNull();
+    const url = "https://allowed.test/api/admin/login";
+    const headers = {
+      host: "allowed.test",
+      origin: "https://allowed.test",
+      "x-forwarded-for": "203.0.113.77",
+    } satisfies Record<string, string>;
 
-    const cookieRedirectUrl = new URL(cookieLocation ?? "");
-    expect(cookieRedirectUrl.pathname).toBe("/admin");
-    expect(cookieRedirectUrl.search).toBe("");
+    for (let i = 0; i < 5; i += 1) {
+      const req = buildLoginPostRequest(url, headers, {
+        password: "wrong-password",
+        _csrf: csrf,
+      });
+      const res = await POST(req);
+      await expectErrorRedirect(res);
+    }
 
-    // Final response returned from POST should be the redirected response.
-    expect(response.status).toBe(307);
+    const lockedReq = buildLoginPostRequest(url, headers, {
+      password: "wrong-password",
+      _csrf: csrf,
+    });
+    const lockedRes = await POST(lockedReq);
+    expect(lockedRes.status).toBe(429);
 
-    const finalLocation = response.headers.get("location");
-    expect(finalLocation).not.toBeNull();
+    // 15 minutes + 1ms (lock duration in route.ts)
+    vi.setSystemTime(new Date("2025-01-01T00:15:00.001Z"));
 
-    const finalRedirectUrl = new URL(finalLocation ?? "");
-    expect(finalRedirectUrl.pathname).toBe("/admin");
-    expect(finalRedirectUrl.search).toBe("");
+    const afterLockReq = buildLoginPostRequest(url, headers, {
+      password: "wrong-password",
+      _csrf: csrf,
+    });
+    const afterLockRes = await POST(afterLockReq);
+
+    // Not 429 anymore; proceeds and fails password -> redirect.
+    await expectErrorRedirect(afterLockRes);
+
+    vi.useRealTimers();
+  });
+
+  it("returns 500 JSON when CSRF verification throws unexpectedly", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
+
+    vi.resetModules();
+    vi.doMock("@/lib/csrf", () => ({
+      verifyCsrfToken: () => {
+        throw new Error("boom");
+      },
+    }));
+
+    const mod = await import("@/app/api/admin/login/route");
+    const POST = mod.POST as (req: NextRequest) => Promise<Response>;
+
+    const req = buildLoginPostRequest(
+      "https://allowed.test/api/admin/login",
+      {
+        host: "allowed.test",
+        origin: "https://allowed.test",
+        "x-forwarded-for": "203.0.113.78",
+      },
+      { password: "test-admin-password", _csrf: "any" },
+    );
+
+    const res = await POST(req);
+    expect(res.status).toBe(500);
+
+    const json = (await res.json()) as { error?: string };
+    expect(json.error).toBe("Internal server error");
+
+    vi.unmock("@/lib/csrf");
   });
 });

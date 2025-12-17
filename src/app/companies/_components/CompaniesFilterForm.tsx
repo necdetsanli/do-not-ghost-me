@@ -1,4 +1,4 @@
-// src/app/top-companies/_components/TopCompaniesFilterForm.tsx
+// src/app/companies/_components/CompaniesFilterForm.tsx
 import type { JSX } from "react";
 import {
   POSITION_CATEGORY_OPTIONS,

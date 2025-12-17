@@ -6,7 +6,7 @@
 
 > **isAllowedAdminHost**(`req`): `boolean`
 
-Defined in: [src/lib/adminAuth.ts:260](https://github.com/necdetsanli/do-not-ghost-me/blob/f815d119d02b97ec11bd28b7513de788a5e5222e/src/lib/adminAuth.ts#L260)
+Defined in: [src/lib/adminAuth.ts:260](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/adminAuth.ts#L260)
 
 Returns true if this request is allowed to touch the admin surface
 from a host perspective (based on ADMIN_ALLOWED_HOST).

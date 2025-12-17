@@ -281,7 +281,7 @@ function buildErrorRedirectResponse(req: NextRequest): NextResponse {
   url.pathname = "/admin/login";
   url.searchParams.set(LOGIN_ERROR_QUERY_KEY, LOGIN_ERROR_QUERY_VALUE);
 
-  return NextResponse.redirect(url);
+  return NextResponse.redirect(url, 303);
 }
 
 /**
@@ -300,7 +300,7 @@ function buildSuccessRedirectResponse(
   url.pathname = "/admin";
   url.search = "";
 
-  const baseResponse = NextResponse.redirect(url);
+  const baseResponse = NextResponse.redirect(url, 303);
   return withAdminSessionCookie(baseResponse, sessionToken);
 }
 

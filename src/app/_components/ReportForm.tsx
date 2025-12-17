@@ -57,6 +57,24 @@ const categorySelectOptions = [
 /** Minimum time (ms) the form should be open / interacted with before submit. */
 const MIN_FORM_FILL_TIME_MS: number = 4000;
 
+/** Custom DOM event name dispatched after a successful report submission. */
+const REPORT_SUBMITTED_EVENT_NAME: string = "dngm:report-submitted";
+
+/**
+ * Notifies other client components (e.g. HomeStats) that a report was submitted successfully.
+ * This must never throw or affect the submit flow.
+ *
+ * IMPORTANT:
+ * - Must only be called for "real" submissions (i.e. not honeypot).
+ */
+function notifyReportSubmitted(): void {
+  try {
+    window.dispatchEvent(new Event(REPORT_SUBMITTED_EVENT_NAME));
+  } catch {
+    // Intentionally ignore: stats refresh is best-effort.
+  }
+}
+
 /**
  * Ghosting report form for the public home page.
  *
@@ -107,6 +125,10 @@ export function ReportForm(): JSX.Element {
    * Honeypot submissions (bot traffic) still respond with HTTP 200 and are
    * treated as success to avoid leaking validation behavior to bots.
    *
+   * IMPORTANT:
+   * - We only dispatch `dngm:report-submitted` for REAL submissions.
+   * - If the honeypot field is non-empty, we must not trigger a stats refresh.
+   *
    * @param event - The form submission event.
    */
   async function handleSubmit(
@@ -152,6 +174,22 @@ export function ReportForm(): JSX.Element {
 
     const formData: FormData = new FormData(form);
 
+    const honeypotValue: string = String(formData.get("hp") ?? "").trim();
+
+    // Bot submission: do NOT call the API and do NOT notify stats updates.
+    if (honeypotValue.length > 0) {
+      setStatus("success");
+      setErrorMessage(null);
+
+      form.reset();
+      setSelectedCountryCode("");
+      setCompanyName("");
+      setFormResetKey((key: number): number => key + 1);
+      firstInteractionAtRef.current = null;
+
+      return;
+    }
+
     const rawCountryCode: string = String(formData.get("country") ?? "").trim();
 
     const rawDaysWithoutReply: string = String(
@@ -169,7 +207,7 @@ export function ReportForm(): JSX.Element {
       positionDetail: String(formData.get("positionDetail") ?? "").trim(),
       daysWithoutReply,
       country: rawCountryCode,
-      honeypot: String(formData.get("hp") ?? "").trim(),
+      honeypot: honeypotValue,
     };
 
     try {
@@ -191,6 +229,11 @@ export function ReportForm(): JSX.Element {
         setCompanyName("");
         setFormResetKey((key: number): number => key + 1);
         firstInteractionAtRef.current = null;
+
+        // IMPORTANT: do NOT refresh stats for honeypot submissions.
+        if (honeypotValue.length === 0) {
+          notifyReportSubmitted();
+        }
 
         return;
       }

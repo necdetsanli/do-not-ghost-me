@@ -1,3 +1,4 @@
+// src/app/page.tsx
 import type { JSX } from "react";
 import { HomeHero } from "@/app/_components/HomeHero";
 import { HomeStatsPanel } from "@/app/_components/HomeStatsPanel";

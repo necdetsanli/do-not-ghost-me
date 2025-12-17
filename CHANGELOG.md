@@ -8,7 +8,31 @@ This project follows **Semantic Versioning** (`MAJOR.MINOR.PATCH`).
 
 ## [Unreleased]
 
-- Planned / in progress changes will be tracked here after `1.0.0`.
+- Test suite refresh + coverage hardening (unit/integration/e2e) is in progress. Some test updates have landed, but the effort is not complete yet.
+
+---
+
+## [1.2.0] - 2025-12-17
+
+### Fixed
+
+- Made “Most reported this week” follow a deterministic **UTC calendar-week** boundary (Monday 00:00 → next Monday 00:00, UTC), avoiding rolling-window / caching ambiguity.
+
+### Added
+
+- Home page stats now refresh **without a full page reload** after a successful report submission (and when navigating back to Home), so users can see:
+  - Total report count
+  - “Most reported this week”
+    update based on the latest data.
+
+- Stabilized `/companies` ordering when multiple companies share the same report count:
+  - `reportCount` DESC
+  - company name A→Z (stable tie-break)
+  - `id` as final tie-break for deterministic pagination
+
+### Changed
+
+- Regenerated and reorganized API documentation under `docs/api` (TypeDoc Markdown output).
 
 ---
 

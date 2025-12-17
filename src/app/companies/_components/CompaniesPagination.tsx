@@ -1,4 +1,4 @@
-// src/app/top-companies/_components/TopCompaniesPagination.tsx
+// src/app/companies/_components/CompaniesPagination.tsx
 import type { JSX } from "react";
 import type { CompaniesPaginationProps } from "../types";
 

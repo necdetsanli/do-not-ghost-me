@@ -1,4 +1,4 @@
-// src/app/top-companies/_components/TopCompaniesResultSummary.tsx
+// src/app/companies/_components/CompaniesResultSummary.tsx
 import type { JSX } from "react";
 import type { CompaniesResultSummaryProps } from "../types";
 
