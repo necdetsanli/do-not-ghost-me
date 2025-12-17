@@ -8,9 +8,9 @@ export const dynamic = "force-dynamic";
 const CSRF_FIELD_NAME = "_csrf";
 
 type AdminLoginPageProps = {
-  searchParams?: {
+  searchParams?: Promise<{
     error?: string;
-  };
+  }>;
 };
 
 export const metadata: Metadata = {
@@ -27,13 +27,25 @@ export const metadata: Metadata = {
  * - Reads query params (e.g. ?error=1) to show error feedback.
  * - Renders a minimal, centered login card.
  * - Does not use client components (no "use client") to keep it simple and secure.
+ *
+ * @param props - Page props including lazy searchParams.
+ * @returns Admin login page JSX.
  */
-export default function AdminLoginPage(
+export default async function AdminLoginPage(
   props: AdminLoginPageProps,
-): JSX.Element {
-  const csrfToken = createCsrfToken("admin-login");
+): Promise<JSX.Element> {
+  const csrfToken: string = createCsrfToken("admin-login");
 
-  const hasError: boolean = props.searchParams?.error === "1";
+  const resolvedSearchParams:
+    | {
+        error?: string;
+      }
+    | undefined =
+    props.searchParams !== undefined && props.searchParams !== null
+      ? await props.searchParams
+      : undefined;
+
+  const hasError: boolean = resolvedSearchParams?.error === "1";
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-base px-4 py-8">
@@ -46,15 +58,14 @@ export default function AdminLoginPage(
           </p>
         </header>
 
-        {/* Error message when redirected back with ?error=1 */}
-        {hasError === true && (
+        {hasError === true ? (
           <div
             role="alert"
             className="mb-4 alert-error rounded-md border px-3 py-2 text-sm"
           >
             Invalid password or session token. Please try again.
           </div>
-        )}
+        ) : null}
 
         <form
           method="POST"
