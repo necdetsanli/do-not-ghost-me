@@ -10,18 +10,10 @@ type EnvShape = {
   RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY: number;
 };
 
-type DailyRow = {
-  id: string;
-  ipHash: string;
-  day: string;
-  count: number;
-};
-
 type TxShape = {
+  $executeRaw: ReturnType<typeof vi.fn>;
   reportIpDailyLimit: {
-    findUnique: ReturnType<typeof vi.fn>;
-    create: ReturnType<typeof vi.fn>;
-    update: ReturnType<typeof vi.fn>;
+    upsert: ReturnType<typeof vi.fn>;
   };
   reportIpCompanyLimit: {
     count: ReturnType<typeof vi.fn>;
@@ -60,30 +52,52 @@ vi.mock("@/lib/logger", () => ({
   logError: logErrorMock,
 }));
 
+vi.mock("@/lib/errorUtils", () => ({
+  formatUnknownError: (e: unknown) => String(e),
+}));
+
 vi.mock("@/lib/db", () => ({
   prisma: {
     $transaction: prismaTransactionMock,
   },
 }));
 
+/**
+ * Computes the expected HMAC SHA-256 for a given IP and salt.
+ *
+ * @param ip - Raw client IP.
+ * @param salt - Secret salt configured for rate limiting.
+ * @returns Lowercase hex digest of the HMAC.
+ */
 function hmacHex(ip: string, salt: string): string {
   const hmac = crypto.createHmac("sha256", salt);
   hmac.update(ip);
   return hmac.digest("hex");
 }
 
+/**
+ * Creates an Error shaped like a Prisma unique constraint violation.
+ *
+ * @param message - Optional message for the error.
+ * @returns An Error object with a Prisma-like `code`.
+ */
 function makeP2002Error(message = "P2002"): Error & { code: string } {
   const err = new Error(message) as Error & { code: string };
   err.code = "P2002";
   return err;
 }
 
+/**
+ * Builds a minimal transaction object that matches the subset of Prisma client
+ * used by rateLimit.ts inside prisma.$transaction().
+ *
+ * @returns A transaction-shaped object with all methods mocked.
+ */
 function makeTx(): TxShape {
   return {
+    $executeRaw: vi.fn(),
     reportIpDailyLimit: {
-      findUnique: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
+      upsert: vi.fn(),
     },
     reportIpCompanyLimit: {
       count: vi.fn(),
@@ -92,10 +106,16 @@ function makeTx(): TxShape {
   };
 }
 
+/**
+ * Dynamically imports lib/rateLimit after resetting module state.
+ *
+ * @returns An object containing:
+ * - mod: the rateLimit module
+ * - errorMod: the rateLimitError module
+ */
 async function loadRateLimit() {
   vi.resetModules();
 
-  // IMPORTANT: import rateLimitError AFTER reset so class identity matches what rateLimit uses.
   const errorMod = await import("@/lib/rateLimitError");
   const mod = await import("@/lib/rateLimit");
 
@@ -183,13 +203,16 @@ describe("lib/rateLimit.ts", () => {
       expect(prismaTransactionMock).toHaveBeenCalledTimes(0);
     });
 
-    it("happy path: creates daily row, increments company position row, no logs", async () => {
+    it("happy path: upserts daily row, inserts company position row, no logs", async () => {
       const { mod } = await loadRateLimit();
 
       const tx = makeTx();
 
-      tx.reportIpDailyLimit.findUnique.mockResolvedValueOnce(null);
-      tx.reportIpDailyLimit.create.mockResolvedValueOnce(undefined);
+      tx.reportIpDailyLimit.upsert.mockResolvedValueOnce({
+        id: "daily-1",
+        count: 1,
+      });
+      tx.$executeRaw.mockResolvedValueOnce(0);
 
       tx.reportIpCompanyLimit.count.mockResolvedValueOnce(0);
       tx.reportIpCompanyLimit.create.mockResolvedValueOnce(undefined);
@@ -212,13 +235,14 @@ describe("lib/rateLimit.ts", () => {
         positionDetail: positionDetailRaw,
       });
 
-      expect(tx.reportIpDailyLimit.findUnique).toHaveBeenCalledWith({
+      expect(tx.reportIpDailyLimit.upsert).toHaveBeenCalledWith({
         where: { uniq_ip_day: { ipHash: expectedIpHash, day: dayKey } },
+        create: { ipHash: expectedIpHash, day: dayKey, count: 1 },
+        update: { count: { increment: 1 } },
+        select: { id: true, count: true },
       });
 
-      expect(tx.reportIpDailyLimit.create).toHaveBeenCalledWith({
-        data: { ipHash: expectedIpHash, day: dayKey, count: 1 },
-      });
+      expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
 
       expect(tx.reportIpCompanyLimit.count).toHaveBeenCalledWith({
         where: { ipHash: expectedIpHash, companyId },
@@ -236,67 +260,15 @@ describe("lib/rateLimit.ts", () => {
       expect(logErrorMock).toHaveBeenCalledTimes(0);
     });
 
-    it("daily row: on concurrent insert (P2002), re-reads and increments when below max", async () => {
-      const { mod } = await loadRateLimit();
-
-      const tx = makeTx();
-
-      tx.reportIpDailyLimit.findUnique.mockResolvedValueOnce(null);
-
-      const p2002 = makeP2002Error();
-      tx.reportIpDailyLimit.create.mockRejectedValueOnce(p2002);
-
-      const concurrent: DailyRow = {
-        id: "daily-1",
-        ipHash: "x",
-        day: dayKey,
-        count: 1,
-      };
-      tx.reportIpDailyLimit.findUnique.mockResolvedValueOnce(concurrent);
-
-      tx.reportIpDailyLimit.update.mockResolvedValueOnce(undefined);
-
-      tx.reportIpCompanyLimit.count.mockResolvedValueOnce(0);
-      tx.reportIpCompanyLimit.create.mockResolvedValueOnce(undefined);
-
-      prismaTransactionMock.mockImplementation(async (fn: unknown) => {
-        const cb = fn as (t: TxShape) => Promise<void>;
-        return cb(tx);
-      });
-
-      await mod.enforceReportLimitForIpCompanyPosition({
-        ip: "203.0.113.5",
-        companyId,
-        positionCategory,
-        positionDetail: positionDetailRaw,
-      });
-
-      expect(tx.reportIpDailyLimit.update).toHaveBeenCalledWith({
-        where: { id: "daily-1" },
-        data: { count: { increment: 1 } },
-      });
-
-      expect(logWarnMock).toHaveBeenCalledTimes(0);
-      expect(logErrorMock).toHaveBeenCalledTimes(0);
-    });
-
-    it("daily row: on concurrent insert (P2002), throws daily-ip-limit when concurrent count is already max", async () => {
+    it("daily limit exceeded throws daily-ip-limit and does not touch company lock/path", async () => {
       const { mod, errorMod } = await loadRateLimit();
 
       const tx = makeTx();
 
-      tx.reportIpDailyLimit.findUnique.mockResolvedValueOnce(null);
-
-      const p2002 = makeP2002Error();
-      tx.reportIpDailyLimit.create.mockRejectedValueOnce(p2002);
-
-      const concurrentAtMax: DailyRow = {
+      tx.reportIpDailyLimit.upsert.mockResolvedValueOnce({
         id: "daily-1",
-        ipHash: "x",
-        day: dayKey,
-        count: env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY,
-      };
-      tx.reportIpDailyLimit.findUnique.mockResolvedValueOnce(concurrentAtMax);
+        count: env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY + 1,
+      });
 
       prismaTransactionMock.mockImplementation(async (fn: unknown) => {
         const cb = fn as (t: TxShape) => Promise<void>;
@@ -312,49 +284,20 @@ describe("lib/rateLimit.ts", () => {
 
       await expect(call).rejects.toBeInstanceOf(errorMod.ReportRateLimitError);
       await expect(call).rejects.toThrow(
-        "You have reached the daily report limit for this IP address.",
+        "You have reached the daily report limit.",
       );
 
+      expect(tx.$executeRaw).toHaveBeenCalledTimes(0);
       expect(logWarnMock).toHaveBeenCalledTimes(1);
     });
 
-    it("daily row: on concurrent insert (P2002), rethrows if follow-up lookup returns null", async () => {
+    it("daily upsert unexpected error logs and rethrows", async () => {
       const { mod } = await loadRateLimit();
 
       const tx = makeTx();
-
-      tx.reportIpDailyLimit.findUnique.mockResolvedValueOnce(null);
-
-      const p2002 = makeP2002Error();
-      tx.reportIpDailyLimit.create.mockRejectedValueOnce(p2002);
-
-      tx.reportIpDailyLimit.findUnique.mockResolvedValueOnce(null);
-
-      prismaTransactionMock.mockImplementation(async (fn: unknown) => {
-        const cb = fn as (t: TxShape) => Promise<void>;
-        return cb(tx);
-      });
-
-      const call = mod.enforceReportLimitForIpCompanyPosition({
-        ip: "203.0.113.5",
-        companyId,
-        positionCategory,
-        positionDetail: positionDetailRaw,
-      });
-
-      await expect(call).rejects.toBe(p2002);
-      expect(logErrorMock).toHaveBeenCalledTimes(1);
-    });
-
-    it("daily row: non-unique error on create logs and rethrows", async () => {
-      const { mod } = await loadRateLimit();
-
-      const tx = makeTx();
-
-      tx.reportIpDailyLimit.findUnique.mockResolvedValueOnce(null);
-
       const dbErr = new Error("db failure");
-      tx.reportIpDailyLimit.create.mockRejectedValueOnce(dbErr);
+
+      tx.reportIpDailyLimit.upsert.mockRejectedValueOnce(dbErr);
 
       prismaTransactionMock.mockImplementation(async (fn: unknown) => {
         const cb = fn as (t: TxShape) => Promise<void>;
@@ -372,89 +315,16 @@ describe("lib/rateLimit.ts", () => {
       expect(logErrorMock).toHaveBeenCalledTimes(1);
     });
 
-    it("existing daily row at max throws daily-ip-limit", async () => {
-      const { mod, errorMod } = await loadRateLimit();
-
-      const tx = makeTx();
-
-      const existingAtMax: DailyRow = {
-        id: "daily-1",
-        ipHash: "x",
-        day: dayKey,
-        count: env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY,
-      };
-
-      tx.reportIpDailyLimit.findUnique.mockResolvedValueOnce(existingAtMax);
-
-      prismaTransactionMock.mockImplementation(async (fn: unknown) => {
-        const cb = fn as (t: TxShape) => Promise<void>;
-        return cb(tx);
-      });
-
-      const call = mod.enforceReportLimitForIpCompanyPosition({
-        ip: "203.0.113.5",
-        companyId,
-        positionCategory,
-        positionDetail: positionDetailRaw,
-      });
-
-      await expect(call).rejects.toBeInstanceOf(errorMod.ReportRateLimitError);
-      await expect(call).rejects.toThrow(
-        "You have reached the daily report limit for this IP address.",
-      );
-
-      expect(logWarnMock).toHaveBeenCalledTimes(1);
-    });
-
-    it("existing daily row below max increments via update", async () => {
-      const { mod } = await loadRateLimit();
-
-      const tx = makeTx();
-
-      const existing: DailyRow = {
-        id: "daily-1",
-        ipHash: "x",
-        day: dayKey,
-        count: 1,
-      };
-
-      tx.reportIpDailyLimit.findUnique.mockResolvedValueOnce(existing);
-      tx.reportIpDailyLimit.update.mockResolvedValueOnce(undefined);
-
-      tx.reportIpCompanyLimit.count.mockResolvedValueOnce(0);
-      tx.reportIpCompanyLimit.create.mockResolvedValueOnce(undefined);
-
-      prismaTransactionMock.mockImplementation(async (fn: unknown) => {
-        const cb = fn as (t: TxShape) => Promise<void>;
-        return cb(tx);
-      });
-
-      await mod.enforceReportLimitForIpCompanyPosition({
-        ip: "203.0.113.5",
-        companyId,
-        positionCategory,
-        positionDetail: positionDetailRaw,
-      });
-
-      expect(tx.reportIpDailyLimit.update).toHaveBeenCalledTimes(1);
-      expect(tx.reportIpDailyLimit.update).toHaveBeenCalledWith({
-        where: { id: "daily-1" },
-        data: { count: { increment: 1 } },
-      });
-    });
-
     it("per-company limit exceeded throws company-position-limit", async () => {
       const { mod, errorMod } = await loadRateLimit();
 
       const tx = makeTx();
 
-      tx.reportIpDailyLimit.findUnique.mockResolvedValueOnce({
+      tx.reportIpDailyLimit.upsert.mockResolvedValueOnce({
         id: "daily-1",
-        ipHash: "x",
-        day: dayKey,
-        count: 0,
-      } satisfies DailyRow);
-      tx.reportIpDailyLimit.update.mockResolvedValueOnce(undefined);
+        count: 1,
+      });
+      tx.$executeRaw.mockResolvedValueOnce(0);
 
       tx.reportIpCompanyLimit.count.mockResolvedValueOnce(
         env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP,
@@ -474,24 +344,22 @@ describe("lib/rateLimit.ts", () => {
 
       await expect(call).rejects.toBeInstanceOf(errorMod.ReportRateLimitError);
       await expect(call).rejects.toThrow(
-        "You have reached the maximum number of reports for this company from this IP address.",
+        "You have reached the maximum number of reports for this company.",
       );
 
       expect(logWarnMock).toHaveBeenCalledTimes(1);
     });
 
-    it("duplicate company+position (P2002 on create) throws company-position-limit with duplicate message", async () => {
+    it("duplicate company+position (P2002 on create) throws duplicate message", async () => {
       const { mod, errorMod } = await loadRateLimit();
 
       const tx = makeTx();
 
-      tx.reportIpDailyLimit.findUnique.mockResolvedValueOnce({
+      tx.reportIpDailyLimit.upsert.mockResolvedValueOnce({
         id: "daily-1",
-        ipHash: "x",
-        day: dayKey,
-        count: 0,
-      } satisfies DailyRow);
-      tx.reportIpDailyLimit.update.mockResolvedValueOnce(undefined);
+        count: 1,
+      });
+      tx.$executeRaw.mockResolvedValueOnce(0);
 
       tx.reportIpCompanyLimit.count.mockResolvedValueOnce(0);
 
@@ -512,7 +380,7 @@ describe("lib/rateLimit.ts", () => {
 
       await expect(call).rejects.toBeInstanceOf(errorMod.ReportRateLimitError);
       await expect(call).rejects.toThrow(
-        "You have already submitted a report for this position at this company from this IP address.",
+        "You have already submitted a report for this position at this company.",
       );
 
       expect(logWarnMock).toHaveBeenCalledTimes(1);
@@ -523,13 +391,11 @@ describe("lib/rateLimit.ts", () => {
 
       const tx = makeTx();
 
-      tx.reportIpDailyLimit.findUnique.mockResolvedValueOnce({
+      tx.reportIpDailyLimit.upsert.mockResolvedValueOnce({
         id: "daily-1",
-        ipHash: "x",
-        day: dayKey,
-        count: 0,
-      } satisfies DailyRow);
-      tx.reportIpDailyLimit.update.mockResolvedValueOnce(undefined);
+        count: 1,
+      });
+      tx.$executeRaw.mockResolvedValueOnce(0);
 
       tx.reportIpCompanyLimit.count.mockResolvedValueOnce(0);
 
@@ -557,12 +423,10 @@ describe("lib/rateLimit.ts", () => {
 
       const tx = makeTx();
 
-      tx.reportIpDailyLimit.findUnique.mockResolvedValueOnce({
+      tx.reportIpDailyLimit.upsert.mockResolvedValueOnce({
         id: "daily-1",
-        ipHash: "x",
-        day: dayKey,
-        count: env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY,
-      } satisfies DailyRow);
+        count: env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY + 1,
+      });
 
       prismaTransactionMock.mockImplementation(async (fn: unknown) => {
         const cb = fn as (t: TxShape) => Promise<void>;

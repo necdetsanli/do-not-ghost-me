@@ -1,146 +1,216 @@
 // tests/unit/reports.stats.route.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { NextRequest } from "next/server";
-import { ReportStatus } from "@prisma/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const {
-  reportCountMock,
-  reportGroupByMock,
-  companyFindUniqueMock,
-  logInfoMock,
-  logErrorMock,
-} = vi.hoisted(() => ({
-  reportCountMock: vi.fn(),
-  reportGroupByMock: vi.fn(),
-  companyFindUniqueMock: vi.fn(),
-  logInfoMock: vi.fn(),
-  logErrorMock: vi.fn(),
-}));
-
-vi.mock("@/lib/db", () => ({
-  prisma: {
-    report: {
-      count: reportCountMock,
-      groupBy: reportGroupByMock,
+const { prismaMock, logErrorMock, logWarnMock, getUtcWeekStartMock } =
+  vi.hoisted(() => ({
+    prismaMock: {
+      report: {
+        count: vi.fn(),
+        groupBy: vi.fn(),
+      },
+      company: {
+        findMany: vi.fn(),
+      },
     },
-    company: {
-      findUnique: companyFindUniqueMock,
+    logErrorMock: vi.fn(),
+    logWarnMock: vi.fn(),
+    getUtcWeekStartMock: vi.fn(),
+  }));
+
+vi.mock("next/server", () => ({
+  NextResponse: {
+    json: (
+      body: unknown,
+      init?: { status?: number; headers?: HeadersInit },
+    ) => {
+      return new Response(JSON.stringify(body), {
+        status: init?.status ?? 200,
+        headers: init?.headers,
+      });
     },
   },
 }));
 
+vi.mock("@/lib/db", () => ({
+  prisma: prismaMock,
+}));
+
 vi.mock("@/lib/logger", () => ({
-  logInfo: logInfoMock,
   logError: logErrorMock,
+  logWarn: logWarnMock,
 }));
 
 vi.mock("@/lib/errorUtils", () => ({
-  formatUnknownError: (e: unknown) => String(e),
+  formatUnknownError: (err: unknown) => String(err),
 }));
 
-/**
- * Creates a minimal NextRequest-like object for API route testing.
- *
- * @param url - Request URL.
- * @returns A mocked NextRequest object.
- */
-function makeReq(
-  url: string = "https://example.test/api/reports/stats",
-): NextRequest {
-  return {
-    method: "GET",
-    nextUrl: new URL(url),
-  } as unknown as NextRequest;
+vi.mock("@/lib/dates", () => ({
+  getUtcWeekStart: getUtcWeekStartMock,
+}));
+
+type GroupByRow = {
+  companyId: string;
+  _count: { companyId: number };
+};
+
+type JsonResponse = {
+  totalReports?: number;
+  mostReportedCompany?: { name: string; reportCount: number } | null;
+  error?: string;
+};
+
+async function importGet(): Promise<() => Promise<Response>> {
+  vi.resetModules();
+  const mod = await import("@/app/api/reports/stats/route");
+  return mod.GET as unknown as () => Promise<Response>;
+}
+
+async function readJson(res: Response): Promise<JsonResponse> {
+  const txt = await res.text();
+  return JSON.parse(txt) as JsonResponse;
 }
 
 describe("GET /api/reports/stats", () => {
   beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2025-01-01T12:00:00.000Z"));
+    vi.clearAllMocks();
 
-    reportCountMock.mockReset();
-    reportGroupByMock.mockReset();
-    companyFindUniqueMock.mockReset();
-    logInfoMock.mockReset();
-    logErrorMock.mockReset();
+    // Deterministic week window
+    getUtcWeekStartMock.mockReturnValue(
+      new Date(Date.UTC(2025, 0, 6, 0, 0, 0)),
+    );
+
+    prismaMock.report.count.mockResolvedValue(0);
+    prismaMock.report.groupBy.mockResolvedValue([]);
+    prismaMock.company.findMany.mockResolvedValue([]);
   });
 
-  it("returns totalReports and mostReportedCompany when data exists", async () => {
-    reportCountMock.mockResolvedValue(123);
-
-    reportGroupByMock.mockResolvedValue([
-      { companyId: "c1", _count: { companyId: 7 } },
-    ]);
-
-    companyFindUniqueMock.mockResolvedValue({ name: "Acme" });
-
-    const { GET } = await import("@/app/api/reports/stats/route");
-
-    const res = await GET(makeReq("https://example.test/api/reports/stats"));
-    expect(res.status).toBe(200);
-
-    const body = (await res.json()) as unknown;
-    expect(body).toEqual({
-      totalReports: 123,
-      mostReportedCompany: { name: "Acme", reportCount: 7 },
-    });
-
-    expect(reportCountMock).toHaveBeenCalledWith({
-      where: { status: ReportStatus.ACTIVE },
-    });
-
-    expect(reportGroupByMock).toHaveBeenCalledTimes(1);
-    expect(companyFindUniqueMock).toHaveBeenCalledWith({
-      where: { id: "c1" },
-      select: { name: true },
-    });
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
-  it("returns mostReportedCompany = null when no weekly groups exist", async () => {
-    reportCountMock.mockResolvedValue(0);
-    reportGroupByMock.mockResolvedValue([]);
+  it("returns 200 with mostReportedCompany=null when there are no weekly groups (covers candidates.length===0)", async () => {
+    prismaMock.report.count.mockResolvedValue(0);
+    prismaMock.report.groupBy.mockResolvedValue([] as GroupByRow[]);
 
-    const { GET } = await import("@/app/api/reports/stats/route");
+    const GET = await importGet();
+    const res = await GET();
 
-    const res = await GET(makeReq("https://example.test/api/reports/stats"));
     expect(res.status).toBe(200);
 
-    const body = (await res.json()) as {
-      totalReports: number;
-      mostReportedCompany: unknown;
-    };
+    const body = await readJson(res);
     expect(body.totalReports).toBe(0);
     expect(body.mostReportedCompany).toBeNull();
 
-    expect(companyFindUniqueMock).not.toHaveBeenCalled();
+    expect(prismaMock.company.findMany).toHaveBeenCalledTimes(0);
+
+    // Also validates the createdAt window is computed (addDaysUtc executed)
+    const groupByArg = prismaMock.report.groupBy.mock.calls[0]?.[0] as {
+      where?: { createdAt?: { gte?: Date; lt?: Date } };
+    };
+    const gte = groupByArg.where?.createdAt?.gte;
+    const lt = groupByArg.where?.createdAt?.lt;
+
+    expect(gte instanceof Date).toBe(true);
+    expect(lt instanceof Date).toBe(true);
+
+    if (gte instanceof Date && lt instanceof Date) {
+      expect(gte.getTime()).toBe(Date.UTC(2025, 0, 6, 0, 0, 0));
+      expect(lt.getTime()).toBe(Date.UTC(2025, 0, 13, 0, 0, 0));
+    }
   });
 
-  it("returns mostReportedCompany = null when top company row is missing", async () => {
-    reportCountMock.mockResolvedValue(10);
-    reportGroupByMock.mockResolvedValue([
-      { companyId: "missing", _count: { companyId: 2 } },
+  it("picks deterministically by name asc (case-insensitive) when counts tie", async () => {
+    prismaMock.report.count.mockResolvedValue(99);
+
+    prismaMock.report.groupBy.mockResolvedValue([
+      { companyId: "b", _count: { companyId: 3 } },
+      { companyId: "a", _count: { companyId: 3 } },
+    ] as GroupByRow[]);
+
+    prismaMock.company.findMany.mockResolvedValue([
+      { id: "a", name: "Alpha" },
+      { id: "b", name: "beta" },
     ]);
-    companyFindUniqueMock.mockResolvedValue(null);
 
-    const { GET } = await import("@/app/api/reports/stats/route");
+    const GET = await importGet();
+    const res = await GET();
 
-    const res = await GET(makeReq("https://example.test/api/reports/stats"));
     expect(res.status).toBe(200);
 
-    const body = (await res.json()) as { mostReportedCompany: unknown };
-    expect(body.mostReportedCompany).toBeNull();
+    const body = await readJson(res);
+    expect(body.totalReports).toBe(99);
+    expect(body.mostReportedCompany).toEqual({ name: "Alpha", reportCount: 3 });
   });
 
-  it("returns 500 on unexpected error", async () => {
-    reportCountMock.mockRejectedValue(new Error("db down"));
+  it("picks deterministically by companyId asc when counts tie AND names tie", async () => {
+    prismaMock.report.count.mockResolvedValue(5);
 
-    const { GET } = await import("@/app/api/reports/stats/route");
+    prismaMock.report.groupBy.mockResolvedValue([
+      { companyId: "b", _count: { companyId: 2 } },
+      { companyId: "a", _count: { companyId: 2 } },
+    ] as GroupByRow[]);
 
-    const res = await GET(makeReq("https://example.test/api/reports/stats"));
+    prismaMock.company.findMany.mockResolvedValue([
+      { id: "a", name: "Acme" },
+      { id: "b", name: "Acme" },
+    ]);
+
+    const GET = await importGet();
+    const res = await GET();
+
+    expect(res.status).toBe(200);
+
+    const body = await readJson(res);
+    expect(body.mostReportedCompany).toEqual({ name: "Acme", reportCount: 2 });
+  });
+
+  it("logs a warning and returns mostReportedCompany=null when tied companies cannot be resolved to valid names (covers logWarn branch)", async () => {
+    prismaMock.report.count.mockResolvedValue(7);
+
+    prismaMock.report.groupBy.mockResolvedValue([
+      { companyId: "x", _count: { companyId: 4 } },
+      { companyId: "y", _count: { companyId: 4 } },
+    ] as GroupByRow[]);
+
+    // Missing / empty names => resolved becomes empty
+    prismaMock.company.findMany.mockResolvedValue([
+      { id: "x", name: "   " },
+      { id: "y", name: "" },
+    ]);
+
+    const GET = await importGet();
+    const res = await GET();
+
+    expect(res.status).toBe(200);
+
+    const body = await readJson(res);
+    expect(body.totalReports).toBe(7);
+    expect(body.mostReportedCompany).toBeNull();
+
+    expect(logWarnMock).toHaveBeenCalledTimes(1);
+
+    const [msg, meta] = logWarnMock.mock.calls[0] ?? [];
+    expect(String(msg)).toContain("No company records found for top groups");
+
+    expect(meta).toEqual(
+      expect.objectContaining({
+        companyIds: ["x", "y"],
+        maxCount: 4,
+      }),
+    );
+  });
+
+  it("returns 500 and logs error when prisma throws (covers catch)", async () => {
+    prismaMock.report.count.mockRejectedValue(new Error("db-down"));
+
+    const GET = await importGet();
+    const res = await GET();
+
     expect(res.status).toBe(500);
 
-    const body = (await res.json()) as { error?: string };
+    const body = await readJson(res);
     expect(body.error).toBe("Internal server error");
+
     expect(logErrorMock).toHaveBeenCalledTimes(1);
   });
 });
