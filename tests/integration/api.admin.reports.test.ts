@@ -27,6 +27,19 @@ vi.mock("@/lib/db", () => ({
 import type { NextRequest } from "next/server";
 import { POST } from "@/app/api/admin/reports/[id]/route";
 
+/**
+ * Creates a minimal NextRequest-like object that supports req.formData() for route handler testing.
+ *
+ * Notes:
+ * - Only the members accessed by the handler are implemented.
+ * - The returned FormData-like object only implements get(name).
+ * - nextUrl.pathname is derived from the provided url to mirror NextRequest behavior.
+ *
+ * @param fields - Form fields (string values) keyed by field name.
+ * @param url - Request URL containing the report id segment.
+ * @param method - HTTP method (defaults to POST).
+ * @returns NextRequest-like object for integration tests.
+ */
 function createFormRequest(
   fields: Record<string, string | null>,
   url = "https://example.test/api/admin/reports/report-123",
@@ -50,8 +63,19 @@ function createFormRequest(
   } as unknown as NextRequest;
 }
 
+/**
+ * The handler context shape for Next.js dynamic routes.
+ */
 type AdminReportsHandlerContext = Parameters<typeof POST>[1];
 
+/**
+ * Creates a minimal handler context with the dynamic report id param.
+ *
+ * The route handler expects `params` as a Promise resolving to `{ id }`.
+ *
+ * @param id - Report id for the dynamic route segment.
+ * @returns Handler context compatible with POST(req, ctx).
+ */
 function createContext(id: string): AdminReportsHandlerContext {
   return {
     params: Promise.resolve({ id }),
@@ -63,6 +87,10 @@ describe("POST /api/admin/reports/[id]", () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * Ensures the handler rejects missing/empty ids with a 400 response and
+   * does not touch Prisma.
+   */
   it("returns 400 when report id is missing or empty", async () => {
     const req = createFormRequest({ action: "flag" });
     const ctx = createContext("");
@@ -78,6 +106,13 @@ describe("POST /api/admin/reports/[id]", () => {
     expect(prismaReportDeleteMock).not.toHaveBeenCalled();
   });
 
+  /**
+   * Ensures "flag" performs a moderation update:
+   * - sets status=FLAGGED
+   * - persists optional flaggedReason
+   * - sets flaggedAt
+   * - redirects back to /admin
+   */
   it('applies the "flag" action with optional reason and redirects to /admin', async () => {
     prismaReportUpdateMock.mockResolvedValueOnce({ id: "report-1" });
 
@@ -105,6 +140,9 @@ describe("POST /api/admin/reports/[id]", () => {
     expect(updateArg.data.flaggedAt).toBeInstanceOf(Date);
   });
 
+  /**
+   * Ensures "restore" resets moderation metadata and makes the report active again.
+   */
   it('applies the "restore" action and clears moderation metadata', async () => {
     prismaReportUpdateMock.mockResolvedValueOnce({ id: "report-2" });
 
@@ -123,6 +161,11 @@ describe("POST /api/admin/reports/[id]", () => {
     expect(updateArg.data.deletedAt).toBeNull();
   });
 
+  /**
+   * Ensures "delete" is implemented as a soft delete:
+   * - sets status=DELETED
+   * - sets deletedAt
+   */
   it('applies the "delete" action as a soft delete', async () => {
     prismaReportUpdateMock.mockResolvedValueOnce({ id: "report-3" });
 
@@ -139,6 +182,9 @@ describe("POST /api/admin/reports/[id]", () => {
     expect(updateArg.data.deletedAt).toBeInstanceOf(Date);
   });
 
+  /**
+   * Ensures "hard-delete" performs an actual Prisma delete and does not call update.
+   */
   it('applies the "hard-delete" action via Prisma delete', async () => {
     prismaReportDeleteMock.mockResolvedValueOnce({ id: "report-4" });
 
@@ -157,6 +203,9 @@ describe("POST /api/admin/reports/[id]", () => {
     expect(prismaReportUpdateMock).not.toHaveBeenCalled();
   });
 
+  /**
+   * Ensures unknown moderation actions are rejected with a 400 response and no DB writes.
+   */
   it("returns 400 for an unknown moderation action", async () => {
     const req = createFormRequest({ action: "something-else" });
     const ctx = createContext("report-5");
@@ -172,6 +221,9 @@ describe("POST /api/admin/reports/[id]", () => {
     expect(prismaReportDeleteMock).not.toHaveBeenCalled();
   });
 
+  /**
+   * Ensures unexpected Prisma/database errors are mapped to a 500 response with a stable message.
+   */
   it("returns 500 when Prisma throws an unexpected error", async () => {
     prismaReportUpdateMock.mockRejectedValueOnce(new Error("db failure"));
 

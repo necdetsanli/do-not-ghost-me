@@ -39,6 +39,18 @@ import { POST } from "@/app/api/reports/route";
 import { ReportRateLimitError } from "@/lib/rateLimitError";
 import { CountryCode, JobLevel, PositionCategory, Stage } from "@prisma/client";
 
+/**
+ * Creates a minimal NextRequest-like object that supports req.json() for route handler testing.
+ *
+ * Notes:
+ * - Only the fields accessed by the handler are implemented.
+ * - nextUrl.pathname is derived from the provided url so the handler can branch on it if needed.
+ *
+ * @param body - JSON body returned by req.json().
+ * @param url - Request URL (defaults to reports endpoint).
+ * @param method - HTTP method (defaults to POST).
+ * @returns NextRequest-like object for unit/integration tests.
+ */
 function createJsonRequest(
   body: unknown,
   url = "https://example.test/api/reports",
@@ -61,6 +73,10 @@ describe("POST /api/reports", () => {
     getClientIpMock.mockReturnValue("203.0.113.42");
   });
 
+  /**
+   * Ensures the route rejects invalid payloads with a stable 400 response and
+   * does not attempt any persistence.
+   */
   it("returns 400 when payload fails validation", async () => {
     const req = createJsonRequest({ foo: "bar" });
 
@@ -74,6 +90,13 @@ describe("POST /api/reports", () => {
     expect(prismaReportCreateMock).not.toHaveBeenCalled();
   });
 
+  /**
+   * Ensures the happy path:
+   * - resolves/creates a company id
+   * - enforces rate limits
+   * - persists the report
+   * - returns a 200 response with id + createdAt
+   */
   it("creates a report and returns 200 on the happy path", async () => {
     findOrCreateCompanyForReportMock.mockResolvedValue({ id: "company-1" });
     enforceReportLimitForIpCompanyPositionMock.mockResolvedValue(undefined);
@@ -113,6 +136,11 @@ describe("POST /api/reports", () => {
     expect(prismaReportCreateMock).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * Ensures the API fails closed when the client IP cannot be determined:
+   * - returns 429 (rate-limit style) rather than allowing anonymous abuse
+   * - does not persist anything
+   */
   it("returns 429 when client IP is missing", async () => {
     getClientIpMock.mockReturnValue(null);
 
@@ -138,6 +166,11 @@ describe("POST /api/reports", () => {
     expect(prismaReportCreateMock).not.toHaveBeenCalled();
   });
 
+  /**
+   * Ensures bot submissions are silently dropped when honeypot is filled:
+   * - returns 200 with empty body (to avoid signaling detection)
+   * - does not call company creation, rate limiter, or DB persistence
+   */
   it("returns 204 and skips persistence when honeypot field is filled", async () => {
     const botBody = {
       companyName: "Bot Corp",
@@ -162,6 +195,10 @@ describe("POST /api/reports", () => {
     expect(prismaReportCreateMock).not.toHaveBeenCalled();
   });
 
+  /**
+   * Ensures rate limit errors thrown by the limiter are mapped to a 429 response
+   * and the message is propagated as a user-facing error string.
+   */
   it("maps rate-limit errors from the rate limiter to 429 responses", async () => {
     findOrCreateCompanyForReportMock.mockResolvedValue({ id: "company-rl" });
 
@@ -197,6 +234,11 @@ describe("POST /api/reports", () => {
     expect(prismaReportCreateMock).not.toHaveBeenCalled();
   });
 
+  /**
+   * Ensures unexpected exceptions are treated as internal errors:
+   * - returns 500 with a generic message
+   * - does not leak implementation details
+   */
   it("returns 500 on unexpected errors", async () => {
     findOrCreateCompanyForReportMock.mockRejectedValue(
       new Error("database offline"),
