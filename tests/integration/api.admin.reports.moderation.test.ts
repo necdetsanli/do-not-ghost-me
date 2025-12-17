@@ -1,0 +1,521 @@
+// tests/integration/api.admin.reports.moderation.test.ts
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { NextRequest } from "next/server";
+
+/**
+ * Environment snapshot type for safe restore.
+ */
+type EnvSnapshot = Record<string, string | undefined>;
+
+/**
+ * Takes a snapshot of process.env keys used in these tests.
+ *
+ * @returns Snapshot object.
+ */
+function snapshotEnv(): EnvSnapshot {
+  return {
+    NODE_ENV: process.env.NODE_ENV,
+    DATABASE_URL: process.env.DATABASE_URL,
+    RATE_LIMIT_IP_SALT: process.env.RATE_LIMIT_IP_SALT,
+    ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
+    ADMIN_SESSION_SECRET: process.env.ADMIN_SESSION_SECRET,
+    ADMIN_ALLOWED_HOST: process.env.ADMIN_ALLOWED_HOST,
+    ADMIN_CSRF_SECRET: process.env.ADMIN_CSRF_SECRET,
+  };
+}
+
+/**
+ * Restores process.env from a snapshot.
+ *
+ * @param snap - Environment snapshot.
+ * @returns void
+ */
+function restoreEnv(snap: EnvSnapshot): void {
+  process.env.NODE_ENV = snap.NODE_ENV;
+  process.env.DATABASE_URL = snap.DATABASE_URL;
+  process.env.RATE_LIMIT_IP_SALT = snap.RATE_LIMIT_IP_SALT;
+  process.env.ADMIN_PASSWORD = snap.ADMIN_PASSWORD;
+  process.env.ADMIN_SESSION_SECRET = snap.ADMIN_SESSION_SECRET;
+  process.env.ADMIN_ALLOWED_HOST = snap.ADMIN_ALLOWED_HOST;
+  process.env.ADMIN_CSRF_SECRET = snap.ADMIN_CSRF_SECRET;
+}
+
+/**
+ * Applies a minimal valid env for importing the app env schema.
+ *
+ * @param overrides - Partial env overrides for a test.
+ * @returns void
+ */
+function applyBaseEnv(overrides: Partial<Record<string, string>> = {}): void {
+  process.env.NODE_ENV = overrides.NODE_ENV ?? "test";
+  process.env.DATABASE_URL =
+    overrides.DATABASE_URL ?? "postgresql://user:pass@localhost:5432/testdb";
+  process.env.RATE_LIMIT_IP_SALT =
+    overrides.RATE_LIMIT_IP_SALT ??
+    "test-rate-limit-salt-32-bytes-minimum-000000";
+  process.env.ADMIN_PASSWORD =
+    overrides.ADMIN_PASSWORD ?? "test-admin-password";
+  process.env.ADMIN_SESSION_SECRET =
+    overrides.ADMIN_SESSION_SECRET ??
+    "test-admin-session-secret-32-bytes-minimum-0000000";
+  process.env.ADMIN_CSRF_SECRET =
+    overrides.ADMIN_CSRF_SECRET ??
+    "test-admin-csrf-secret-32-bytes-minimum-000000000";
+  process.env.ADMIN_ALLOWED_HOST = overrides.ADMIN_ALLOWED_HOST ?? "admin.test";
+}
+
+/**
+ * Encodes a form payload as application/x-www-form-urlencoded.
+ *
+ * @param form - Form fields.
+ * @returns URLSearchParams body.
+ */
+function encodeForm(form: Record<string, string>): URLSearchParams {
+  return new URLSearchParams(form);
+}
+
+/**
+ * Builds a NextRequest for POST /api/admin/reports/[id] with headers, cookies and form.
+ *
+ * @param absoluteUrl - Absolute URL string.
+ * @param headers - Headers to apply.
+ * @param cookie - Cookie header value or null.
+ * @param form - Form fields.
+ * @returns NextRequest instance.
+ */
+function buildAdminModerationRequest(
+  absoluteUrl: string,
+  headers: Record<string, string>,
+  cookie: string | null,
+  form: Record<string, string>,
+): NextRequest {
+  const mergedHeaders: Record<string, string> = {
+    "content-type": "application/x-www-form-urlencoded",
+    ...headers,
+  };
+
+  if (cookie !== null) {
+    mergedHeaders.cookie = cookie;
+  }
+
+  return new NextRequest(absoluteUrl, {
+    method: "POST",
+    headers: mergedHeaders,
+    body: encodeForm(form),
+  });
+}
+
+/**
+ * Imports adminAuth helpers after env is applied.
+ *
+ * @returns Admin auth helpers.
+ */
+async function importAdminAuthHelpers(): Promise<{
+  createAdminSessionToken: () => string;
+  ADMIN_SESSION_COOKIE_NAME: string;
+}> {
+  vi.resetModules();
+  const mod = await import("@/lib/adminAuth");
+  return {
+    createAdminSessionToken: mod.createAdminSessionToken as () => string,
+    ADMIN_SESSION_COOKIE_NAME: mod.ADMIN_SESSION_COOKIE_NAME as string,
+  };
+}
+
+/**
+ * Creates a prisma mock and installs it for "@/lib/db".
+ *
+ * @returns Prisma mock object.
+ */
+function installPrismaMock(): {
+  prisma: {
+    report: {
+      update: ReturnType<typeof vi.fn>;
+      delete: ReturnType<typeof vi.fn>;
+    };
+  };
+} {
+  const prisma = {
+    report: {
+      update: vi.fn(),
+      delete: vi.fn(),
+    },
+  };
+
+  vi.doMock("@/lib/db", () => {
+    return { prisma };
+  });
+
+  return { prisma };
+}
+
+/**
+ * Imports the moderation route handler with fresh modules and active mocks.
+ *
+ * @returns The imported POST handler.
+ */
+async function importModerationPost(): Promise<{
+  POST: (
+    req: NextRequest,
+    ctx: { params: Promise<{ id: string }> },
+  ) => Promise<Response>;
+}> {
+  vi.resetModules();
+  const mod = await import("@/app/api/admin/reports/[id]/route");
+  return {
+    POST: mod.POST as (
+      req: NextRequest,
+      ctx: { params: Promise<{ id: string }> },
+    ) => Promise<Response>,
+  };
+}
+
+/**
+ * Builds standard headers to satisfy requireAdminRequest:
+ * - Host must match ADMIN_ALLOWED_HOST,
+ * - Origin/Referer must match expected origin for non-safe methods.
+ *
+ * @param host - Host value (e.g. "admin.test").
+ * @returns Headers record.
+ */
+function buildAllowedHeaders(host: string): Record<string, string> {
+  return {
+    host,
+    origin: `https://${host}`,
+    referer: `https://${host}/admin`,
+  };
+}
+
+describe("POST /api/admin/reports/[id] moderation", () => {
+  let snap: EnvSnapshot;
+
+  beforeEach(() => {
+    snap = snapshotEnv();
+  });
+
+  afterEach(() => {
+    restoreEnv(snap);
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
+
+  it("returns 403 JSON when ADMIN_ALLOWED_HOST mismatches Host header", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "admin.test" });
+
+    installPrismaMock();
+    const { POST } = await importModerationPost();
+
+    const req = buildAdminModerationRequest(
+      "https://admin.test/api/admin/reports/r1",
+      {
+        host: "evil.test",
+      },
+      null,
+      { action: "flag" },
+    );
+
+    const res = await POST(req, { params: Promise.resolve({ id: "r1" }) });
+    expect(res.status).toBe(403);
+
+    const json = (await res.json()) as { error?: string };
+    expect(json.error).toBe("Admin access is not allowed from this host.");
+  });
+
+  it("returns 401 JSON when Origin/Referer mismatch for POST", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "admin.test" });
+
+    installPrismaMock();
+    const { POST } = await importModerationPost();
+
+    const req = buildAdminModerationRequest(
+      "https://admin.test/api/admin/reports/r1",
+      {
+        host: "admin.test",
+        origin: "https://evil.example",
+        referer: "https://evil.example/admin",
+      },
+      null,
+      { action: "flag" },
+    );
+
+    const res = await POST(req, { params: Promise.resolve({ id: "r1" }) });
+    expect(res.status).toBe(401);
+
+    const json = (await res.json()) as { error?: string };
+    expect(json.error).toBe("Admin access is not allowed from this origin.");
+  });
+
+  it("returns 401 JSON when session cookie is missing", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "admin.test" });
+
+    installPrismaMock();
+    const { POST } = await importModerationPost();
+
+    const headers = buildAllowedHeaders("admin.test");
+
+    const req = buildAdminModerationRequest(
+      "https://admin.test/api/admin/reports/r1",
+      headers,
+      null,
+      { action: "flag" },
+    );
+
+    const res = await POST(req, { params: Promise.resolve({ id: "r1" }) });
+    expect(res.status).toBe(401);
+
+    const json = (await res.json()) as { error?: string };
+    expect(json.error).toBe("Missing or invalid admin session.");
+  });
+
+  it("returns 400 JSON when params id is empty/invalid", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "admin.test" });
+
+    const { prisma } = installPrismaMock();
+    prisma.report.update.mockResolvedValue({});
+
+    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } =
+      await importAdminAuthHelpers();
+
+    const { POST } = await importModerationPost();
+
+    const headers = buildAllowedHeaders("admin.test");
+    const token = createAdminSessionToken();
+    const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+
+    const req = buildAdminModerationRequest(
+      "https://admin.test/api/admin/reports/ignored",
+      headers,
+      cookie,
+      { action: "flag" },
+    );
+
+    const res = await POST(req, { params: Promise.resolve({ id: "   " }) });
+    expect(res.status).toBe(400);
+
+    const json = (await res.json()) as { error?: string };
+    expect(json.error).toBe("Missing or invalid report id");
+  });
+
+  it("returns 400 JSON for unknown moderation action", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "admin.test" });
+
+    const { prisma } = installPrismaMock();
+    prisma.report.update.mockResolvedValue({});
+
+    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } =
+      await importAdminAuthHelpers();
+
+    const { POST } = await importModerationPost();
+
+    const headers = buildAllowedHeaders("admin.test");
+    const token = createAdminSessionToken();
+    const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+
+    const req = buildAdminModerationRequest(
+      "https://admin.test/api/admin/reports/r1",
+      headers,
+      cookie,
+      { action: "nope" },
+    );
+
+    const res = await POST(req, { params: Promise.resolve({ id: "r1" }) });
+    expect(res.status).toBe(400);
+
+    const json = (await res.json()) as { error?: string };
+    expect(json.error).toBe("Unknown moderation action: nope");
+  });
+
+  it("flags with reason normalized (trimmed and maxLen=255) and redirects 303", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "admin.test" });
+
+    const { prisma } = installPrismaMock();
+    prisma.report.update.mockResolvedValue({});
+
+    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } =
+      await importAdminAuthHelpers();
+
+    const { POST } = await importModerationPost();
+
+    const headers = buildAllowedHeaders("admin.test");
+    const token = createAdminSessionToken();
+    const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+
+    const longReason = `   ${"x".repeat(400)}   `;
+    const expectedReason = "x".repeat(255);
+
+    const req = buildAdminModerationRequest(
+      "https://admin.test/api/admin/reports/r1",
+      headers,
+      cookie,
+      { action: "flag", reason: longReason },
+    );
+
+    const res = await POST(req, { params: Promise.resolve({ id: "r1" }) });
+    expect(res.status).toBe(303);
+
+    const location = res.headers.get("location");
+    expect(location).toBe("https://admin.test/admin");
+
+    expect(prisma.report.update).toHaveBeenCalledTimes(1);
+    const call = prisma.report.update.mock.calls[0]?.[0] as
+      | {
+          where?: { id?: string };
+          data?: {
+            status?: string;
+            flaggedReason?: string | null;
+            flaggedAt?: Date;
+          };
+        }
+      | undefined;
+
+    expect(call?.where?.id).toBe("r1");
+    expect(call?.data?.status).toBe("FLAGGED");
+    expect(call?.data?.flaggedReason).toBe(expectedReason);
+    expect(call?.data?.flaggedAt instanceof Date).toBe(true);
+  });
+
+  it("restore clears flagged/deleted metadata and redirects 303", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "admin.test" });
+
+    const { prisma } = installPrismaMock();
+    prisma.report.update.mockResolvedValue({});
+
+    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } =
+      await importAdminAuthHelpers();
+
+    const { POST } = await importModerationPost();
+
+    const headers = buildAllowedHeaders("admin.test");
+    const token = createAdminSessionToken();
+    const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+
+    const req = buildAdminModerationRequest(
+      "https://admin.test/api/admin/reports/r2",
+      headers,
+      cookie,
+      { action: "restore" },
+    );
+
+    const res = await POST(req, { params: Promise.resolve({ id: "r2" }) });
+    expect(res.status).toBe(303);
+
+    expect(prisma.report.update).toHaveBeenCalledTimes(1);
+    const call = prisma.report.update.mock.calls[0]?.[0] as
+      | {
+          where?: { id?: string };
+          data?: {
+            status?: string;
+            flaggedAt?: null;
+            flaggedReason?: null;
+            deletedAt?: null;
+          };
+        }
+      | undefined;
+
+    expect(call?.where?.id).toBe("r2");
+    expect(call?.data?.status).toBe("ACTIVE");
+    expect(call?.data?.flaggedAt).toBeNull();
+    expect(call?.data?.flaggedReason).toBeNull();
+    expect(call?.data?.deletedAt).toBeNull();
+  });
+
+  it("soft delete sets deletedAt and status DELETED and redirects 303", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "admin.test" });
+
+    const { prisma } = installPrismaMock();
+    prisma.report.update.mockResolvedValue({});
+
+    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } =
+      await importAdminAuthHelpers();
+
+    const { POST } = await importModerationPost();
+
+    const headers = buildAllowedHeaders("admin.test");
+    const token = createAdminSessionToken();
+    const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+
+    const req = buildAdminModerationRequest(
+      "https://admin.test/api/admin/reports/r3",
+      headers,
+      cookie,
+      { action: "delete" },
+    );
+
+    const res = await POST(req, { params: Promise.resolve({ id: "r3" }) });
+    expect(res.status).toBe(303);
+
+    expect(prisma.report.update).toHaveBeenCalledTimes(1);
+    const call = prisma.report.update.mock.calls[0]?.[0] as
+      | {
+          where?: { id?: string };
+          data?: { status?: string; deletedAt?: Date };
+        }
+      | undefined;
+
+    expect(call?.where?.id).toBe("r3");
+    expect(call?.data?.status).toBe("DELETED");
+    expect(call?.data?.deletedAt instanceof Date).toBe(true);
+  });
+
+  it("hard delete calls prisma.report.delete and redirects 303", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "admin.test" });
+
+    const { prisma } = installPrismaMock();
+    prisma.report.delete.mockResolvedValue({});
+
+    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } =
+      await importAdminAuthHelpers();
+
+    const { POST } = await importModerationPost();
+
+    const headers = buildAllowedHeaders("admin.test");
+    const token = createAdminSessionToken();
+    const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+
+    const req = buildAdminModerationRequest(
+      "https://admin.test/api/admin/reports/r4",
+      headers,
+      cookie,
+      { action: "hard-delete" },
+    );
+
+    const res = await POST(req, { params: Promise.resolve({ id: "r4" }) });
+    expect(res.status).toBe(303);
+
+    expect(prisma.report.delete).toHaveBeenCalledTimes(1);
+    const call = prisma.report.delete.mock.calls[0]?.[0] as
+      | { where?: { id?: string } }
+      | undefined;
+
+    expect(call?.where?.id).toBe("r4");
+  });
+
+  it("returns 500 JSON when Prisma throws an unexpected error", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "admin.test" });
+
+    const { prisma } = installPrismaMock();
+    prisma.report.update.mockRejectedValue(new Error("db failure"));
+
+    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } =
+      await importAdminAuthHelpers();
+
+    const { POST } = await importModerationPost();
+
+    const headers = buildAllowedHeaders("admin.test");
+    const token = createAdminSessionToken();
+    const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+
+    const req = buildAdminModerationRequest(
+      "https://admin.test/api/admin/reports/r5",
+      headers,
+      cookie,
+      { action: "flag", reason: "test" },
+    );
+
+    const res = await POST(req, { params: Promise.resolve({ id: "r5" }) });
+    expect(res.status).toBe(500);
+
+    const json = (await res.json()) as { error?: string };
+    expect(json.error).toBe("Failed to apply moderation action");
+  });
+});
