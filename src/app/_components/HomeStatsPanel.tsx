@@ -13,14 +13,16 @@ import { useReportsStats } from "@/app/_hooks/useReportsStats";
  *
  * Responsibilities:
  * - Render stats UI.
- * - Delegate all fetching/polling behavior to `useReportsStats` (SRP).
+ * - Delegate fetching behavior to `useReportsStats` (SRP).
+ *
+ * NOTE:
+ * - No polling is performed.
+ * - Stats refresh only after a successful human report submission event.
  *
  * @returns The stats panel element.
  */
 export function HomeStatsPanel(): JSX.Element {
-  const { stats, status, isRefreshing, liveError } = useReportsStats({
-    pollIntervalMs: 20_000,
-  });
+  const { stats, status, isRefreshing, liveError } = useReportsStats();
 
   const totalReportsLabel: string =
     stats !== null
@@ -47,7 +49,7 @@ export function HomeStatsPanel(): JSX.Element {
     status === "error"
       ? "Most reported company (unavailable)"
       : liveError === true
-        ? "Most reported this week (offline)"
+        ? "Most reported this week (refresh failed)"
         : "Most reported this week";
 
   return (
@@ -57,16 +59,9 @@ export function HomeStatsPanel(): JSX.Element {
       aria-busy={status === "loading"}
     >
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-tertiary">
-          <span className="inline-flex items-center gap-2" aria-live="polite">
-            <span
-              className="inline-block h-2 w-2 rounded-full animate-pulse bg-foreground/70"
-              aria-hidden="true"
-            />
-            <span>Live</span>
-            {isRefreshing === true ? <span>Updating…</span> : null}
-            {liveError === true ? <span>Offline</span> : null}
-          </span>
+        <div className="text-xs text-tertiary" aria-live="polite">
+          {isRefreshing === true ? "Updating…" : "Auto-updates after you submit"}
+          {liveError === true ? " · Refresh failed" : null}
         </div>
       </div>
 

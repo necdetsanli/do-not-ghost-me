@@ -1,7 +1,7 @@
 // src/app/_hooks/useReportsStats.ts
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Load state for the stats resource.
@@ -39,17 +39,6 @@ export type ReportsStatsApiResponse = {
 };
 
 /**
- * Hook configuration options.
- */
-type UseReportsStatsArgs = {
-  /**
-   * Poll interval in milliseconds for background refresh.
-   * The interval is clamped to a safe minimum to protect the server.
-   */
-  pollIntervalMs?: number;
-};
-
-/**
  * Hook result contract.
  */
 type UseReportsStatsResult = {
@@ -64,12 +53,12 @@ type UseReportsStatsResult = {
   status: StatsStatus;
 
   /**
-   * True while a background refresh is in-flight.
+   * True while an event-triggered refresh is in-flight.
    */
   isRefreshing: boolean;
 
   /**
-   * True when a background refresh fails after an initial successful load.
+   * True when a refresh fails after an initial successful load.
    */
   liveError: boolean;
 
@@ -81,24 +70,20 @@ type UseReportsStatsResult = {
   refreshNow: () => Promise<void>;
 };
 
-const DEFAULT_POLL_INTERVAL_MS: number = 20_000;
-const MIN_POLL_INTERVAL_MS: number = 5_000;
+/** Custom DOM event name dispatched after a successful report submission. */
+const REPORT_SUBMITTED_EVENT_NAME: string = "dngm:report-submitted";
 
 /**
- * Clamps the poll interval to a conservative minimum to avoid aggressive polling.
- *
- * @param value - Proposed interval in milliseconds.
- * @returns A safe polling interval.
+ * Minimum time between automatic refreshes triggered by focus/visibility/pageshow
+ * to avoid spamming the stats endpoint during rapid navigations.
  */
-function clampPollIntervalMs(value: number): number {
-  if (Number.isFinite(value) !== true) {
-    return DEFAULT_POLL_INTERVAL_MS;
-  }
-  if (value < MIN_POLL_INTERVAL_MS) {
-    return MIN_POLL_INTERVAL_MS;
-  }
-  return value;
-}
+const AUTO_REFRESH_THROTTLE_MS: number = 2_000;
+
+/**
+ * Module-level cache of the last known stats to avoid showing "0 / No data yet"
+ * during client-side navigations before the first fetch completes.
+ */
+let cachedStats: ReportsStatsApiResponse | null = null;
 
 /**
  * Runtime validator for the stats API response.
@@ -177,124 +162,127 @@ function statsEqual(
 }
 
 /**
- * Polls /api/reports/stats and keeps the latest stats in state.
+ * Loads /api/reports/stats and keeps the latest stats in state.
  *
  * Behavior:
  * - Performs an initial fetch on mount.
- * - Polls every N milliseconds while the tab is visible.
- * - Stops polling when the tab is hidden.
- * - Revalidates on window focus.
- * - Supports an optional immediate refresh via the "dngm:report-submitted" event.
+ * - Refreshes on:
+ *   - successful report submission event
+ *   - window focus / document visibility change / pageshow (back-forward cache)
+ * - Does NOT poll on an interval.
  *
- * @param args - Hook configuration.
  * @returns Stats state and controls for the caller UI.
  */
-export function useReportsStats(
-  args?: UseReportsStatsArgs,
-): UseReportsStatsResult {
-  const pollIntervalMs: number = useMemo(() => {
-    const raw = args?.pollIntervalMs;
-    if (typeof raw !== "number") {
-      return DEFAULT_POLL_INTERVAL_MS;
-    }
-    return clampPollIntervalMs(raw);
-  }, [args?.pollIntervalMs]);
-
-  const [stats, setStats] = useState<ReportsStatsApiResponse | null>(null);
-  const [status, setStatus] = useState<StatsStatus>("idle");
+export function useReportsStats(): UseReportsStatsResult {
+  const [stats, setStats] = useState<ReportsStatsApiResponse | null>(
+    () => cachedStats,
+  );
+  const [status, setStatus] = useState<StatsStatus>(() =>
+    cachedStats !== null ? "success" : "loading",
+  );
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [liveError, setLiveError] = useState<boolean>(false);
 
-  const intervalRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const inFlightRef = useRef<boolean>(false);
+  const hasEverLoadedRef = useRef<boolean>(cachedStats !== null);
+  const lastAutoRefreshAtMsRef = useRef<number>(0);
 
   /**
-   * Clears the active poll timer if present.
+   * Builds a cache-busted stats URL to reduce the chance of stale intermediaries
+   * returning an outdated response after client-side navigations.
+   *
+   * @returns Absolute URL string for /api/reports/stats.
    */
-  const clearTimer = useCallback((): void => {
-    const id = intervalRef.current;
-    if (id !== null) {
-      window.clearInterval(id);
-      intervalRef.current = null;
-    }
+  const buildStatsUrl = useCallback((): string => {
+    const url = new URL("/api/reports/stats", window.location.origin);
+    url.searchParams.set("_ts", String(Date.now()));
+    return url.toString();
   }, []);
 
   /**
-   * Fetches stats once. When called during initial load it sets `status=loading`,
-   * otherwise it toggles `isRefreshing`.
+   * Fetches stats once.
    *
    * @param isInitial - True if this fetch is the initial load.
    * @returns A promise that resolves when the fetch attempt completes.
    */
-  const fetchOnce = useCallback(async (isInitial: boolean): Promise<void> => {
-    if (inFlightRef.current === true) {
-      return;
-    }
-
-    inFlightRef.current = true;
-
-    if (isInitial === true) {
-      setStatus("loading");
-    } else {
-      setIsRefreshing(true);
-    }
-
-    if (abortRef.current !== null) {
-      abortRef.current.abort();
-    }
-
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    try {
-      const res = await fetch("/api/reports/stats", {
-        method: "GET",
-        headers: {
-          accept: "application/json",
-        },
-        signal: controller.signal,
-      });
-
-      if (res.ok !== true) {
-        throw new Error(`stats-http-${res.status}`);
+  const fetchOnce = useCallback(
+    async (isInitial: boolean): Promise<void> => {
+      if (inFlightRef.current === true) {
+        return;
       }
 
-      const raw: unknown = await res.json();
+      inFlightRef.current = true;
 
-      if (isValidReportsStatsResponse(raw) !== true) {
-        throw new Error("stats-shape-invalid");
+      if (isInitial === true && hasEverLoadedRef.current === false) {
+        setStatus("loading");
+      } else {
+        setIsRefreshing(true);
       }
 
-      setLiveError(false);
-
-      setStats((prev) => {
-        if (prev === null) {
-          return raw;
-        }
-        if (statsEqual(prev, raw) === true) {
-          return prev;
-        }
-        return raw;
-      });
-
-      setStatus("success");
-    } catch (err: unknown) {
-      const aborted: boolean =
-        err instanceof DOMException && err.name === "AbortError";
-
-      if (aborted !== true) {
-        if (isInitial === true) {
-          setStatus("error");
-        } else {
-          setLiveError(true);
-        }
+      if (abortRef.current !== null) {
+        abortRef.current.abort();
       }
-    } finally {
-      setIsRefreshing(false);
-      inFlightRef.current = false;
-    }
-  }, []);
+
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      try {
+        const res = await fetch(buildStatsUrl(), {
+          method: "GET",
+          headers: {
+            accept: "application/json",
+            "cache-control": "no-store",
+          },
+          signal: controller.signal,
+          cache: "no-store",
+        });
+
+        if (res.ok !== true) {
+          throw new Error(`stats-http-${res.status}`);
+        }
+
+        const rawUnknown: unknown = await res.json();
+
+        if (isValidReportsStatsResponse(rawUnknown) !== true) {
+          throw new Error("stats-shape-invalid");
+        }
+
+        const nextStats: ReportsStatsApiResponse = rawUnknown;
+
+        cachedStats = nextStats;
+        hasEverLoadedRef.current = true;
+
+        setLiveError(false);
+        setStats((prev) => {
+          if (prev === null) {
+            return nextStats;
+          }
+          if (statsEqual(prev, nextStats) === true) {
+            return prev;
+          }
+          return nextStats;
+        });
+
+        setStatus("success");
+      } catch (err: unknown) {
+        const aborted: boolean =
+          err instanceof DOMException && err.name === "AbortError";
+
+        if (aborted !== true) {
+          if (hasEverLoadedRef.current === false) {
+            setStatus("error");
+          } else {
+            setLiveError(true);
+          }
+        }
+      } finally {
+        setIsRefreshing(false);
+        inFlightRef.current = false;
+      }
+    },
+    [buildStatsUrl],
+  );
 
   /**
    * Triggers an immediate background refresh.
@@ -305,47 +293,7 @@ export function useReportsStats(
     await fetchOnce(false);
   }, [fetchOnce]);
 
-  /**
-   * Starts polling if the document is visible. If already running, restarts it.
-   */
-  const startTimer = useCallback((): void => {
-    if (document.hidden === true) {
-      return;
-    }
-
-    clearTimer();
-
-    const id: number = window.setInterval(() => {
-      if (document.hidden === true) {
-        return;
-      }
-      void fetchOnce(false);
-    }, pollIntervalMs);
-
-    intervalRef.current = id;
-  }, [clearTimer, fetchOnce, pollIntervalMs]);
-
   useEffect(() => {
-    /**
-     * Handles visibility changes to stop polling when hidden and revalidate on show.
-     */
-    const onVisibilityChange = (): void => {
-      if (document.hidden === true) {
-        clearTimer();
-        return;
-      }
-
-      void fetchOnce(false);
-      startTimer();
-    };
-
-    /**
-     * Revalidates on window focus for a snappier "live" feeling.
-     */
-    const onFocus = (): void => {
-      void fetchOnce(false);
-    };
-
     /**
      * Refresh trigger dispatched after successful report submission.
      */
@@ -353,32 +301,58 @@ export function useReportsStats(
       void fetchOnce(false);
     };
 
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("focus", onFocus);
+    /**
+     * Refresh on tab focus / visibility / bfcache restore so the home stats
+     * are up-to-date even after client-side navigations.
+     */
+    const onAutoRefreshSignal = (): void => {
+      const nowMs: number = Date.now();
+      const deltaMs: number = nowMs - lastAutoRefreshAtMsRef.current;
+
+      if (deltaMs < AUTO_REFRESH_THROTTLE_MS) {
+        return;
+      }
+
+      lastAutoRefreshAtMsRef.current = nowMs;
+      void fetchOnce(false);
+    };
+
+    /**
+     * Refresh only when the document becomes visible.
+     */
+    const onVisibilityChange = (): void => {
+      if (document.visibilityState === "visible") {
+        onAutoRefreshSignal();
+      }
+    };
+
     window.addEventListener(
-      "dngm:report-submitted",
+      REPORT_SUBMITTED_EVENT_NAME,
       onReportSubmitted as EventListener,
     );
 
+    window.addEventListener("focus", onAutoRefreshSignal);
+    window.addEventListener("pageshow", onAutoRefreshSignal);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
     void fetchOnce(true);
-    startTimer();
 
     return () => {
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      window.removeEventListener("focus", onFocus);
       window.removeEventListener(
-        "dngm:report-submitted",
+        REPORT_SUBMITTED_EVENT_NAME,
         onReportSubmitted as EventListener,
       );
 
-      clearTimer();
+      window.removeEventListener("focus", onAutoRefreshSignal);
+      window.removeEventListener("pageshow", onAutoRefreshSignal);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
 
       if (abortRef.current !== null) {
         abortRef.current.abort();
         abortRef.current = null;
       }
     };
-  }, [clearTimer, fetchOnce, startTimer]);
+  }, [fetchOnce]);
 
   return { stats, status, isRefreshing, liveError, refreshNow };
 }
