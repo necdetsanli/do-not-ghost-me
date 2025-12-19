@@ -7,7 +7,7 @@ const BASE_URL = "https://www.donotghostme.com";
  * Revalidate sitemap periodically so crawlers get stable signals
  * without "lastModified" changing on every request.
  */
-export const revalidate = 60 * 60; // 1 hour
+export const revalidate = 3600; // 1 hour
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
