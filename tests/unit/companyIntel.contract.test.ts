@@ -1,3 +1,4 @@
+// tests/unit/companyIntel.contract.test.ts
 import { describe, expect, it } from "vitest";
 import { companyIntelRequestSchema } from "@/lib/contracts/companyIntel";
 

@@ -1,4 +1,5 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
+// tests/unit/publicRateLimit.test.ts
+import { describe, expect, it, beforeEach } from "vitest";
 import net from "node:net";
 import {
   enforcePublicIpRateLimit,
@@ -12,14 +13,14 @@ describe("publicRateLimit", () => {
   });
 
   it("throws when IP is empty or invalid", () => {
-    expect(() =>
-      enforcePublicIpRateLimit({ ip: "   ", scope: "test" }),
-    ).toThrow(PublicRateLimitError);
+    expect(() => enforcePublicIpRateLimit({ ip: "   ", scope: "test" })).toThrow(
+      PublicRateLimitError,
+    );
 
     expect(net.isIP("not-an-ip")).toBe(0);
-    expect(() =>
-      enforcePublicIpRateLimit({ ip: "not-an-ip", scope: "test" }),
-    ).toThrow("Client IP invalid");
+    expect(() => enforcePublicIpRateLimit({ ip: "not-an-ip", scope: "test" })).toThrow(
+      "Client IP invalid",
+    );
   });
 
   it("enforces limit and sweeps old entries when over capacity", () => {

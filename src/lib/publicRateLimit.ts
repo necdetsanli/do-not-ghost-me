@@ -1,3 +1,4 @@
+// src/lib/publicRateLimit.ts
 import net from "node:net";
 import { hashIp } from "@/lib/rateLimit";
 
@@ -61,11 +62,7 @@ export function resetPublicRateLimitStore(): void {
  * Returns the current rate limit state for a hashed IP key,
  * resetting the window when expired.
  */
-function getState(
-  key: string,
-  now: number,
-  windowMs: number,
-): RateLimitState {
+function getState(key: string, now: number, windowMs: number): RateLimitState {
   const store = getStore();
   const existing: RateLimitState | undefined = store.get(key);
 
@@ -110,9 +107,10 @@ function sweepStore(now: number, windowMs: number, maxSize: number): void {
 
   const entries: Array<[string, RateLimitState]> = Array.from(store.entries());
 
-  entries.sort(
-    (a, b) => a[1].windowStartedAt - b[1].windowStartedAt || a[0].localeCompare(b[0]),
-  );
+  entries.sort((a, b) => {
+    const timeDiff = a[1].windowStartedAt - b[1].windowStartedAt;
+    return timeDiff !== 0 ? timeDiff : a[0].localeCompare(b[0]);
+  });
 
   for (const [key] of entries) {
     if (store.size <= maxSize) {

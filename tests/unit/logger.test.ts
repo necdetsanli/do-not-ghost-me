@@ -18,6 +18,7 @@ const { fsMock } = vi.hoisted(() => ({
 
 vi.mock("node:fs", () => ({
   default: fsMock,
+  ...fsMock,
 }));
 
 /**
@@ -51,7 +52,9 @@ function makeStream(): StreamMock {
     write: vi.fn(),
     on: vi.fn(),
   };
+
   stream.on.mockImplementation(() => stream);
+
   return stream;
 }
 
@@ -63,12 +66,12 @@ function makeStream(): StreamMock {
  *
  * @returns A promise resolving to the imported logger module.
  */
-async function loadLogger() {
+async function loadLogger(): Promise<typeof import("@/lib/logger")> {
   vi.resetModules();
   return import("@/lib/logger");
 }
 
-const originalEnv = { ...process.env };
+const originalEnv: Record<string, string | undefined> = { ...process.env };
 
 /**
  * Unit tests for lib/logger.
@@ -79,13 +82,16 @@ const originalEnv = { ...process.env };
  * - file logging behavior (server-only, opt-in, robust against failures)
  */
 describe("lib/logger", () => {
+  let consoleLogSpy!: ReturnType<typeof vi.spyOn>;
+  let consoleErrorSpy!: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     fsMock.existsSync.mockReset();
     fsMock.mkdirSync.mockReset();
     fsMock.createWriteStream.mockReset();
 
-    vi.spyOn(console, "log").mockImplementation(() => undefined);
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     setEnv({
       APP_LOG_LEVEL: undefined,
@@ -108,12 +114,7 @@ describe("lib/logger", () => {
     }
 
     // Clean up browser-like global to keep tests isolated.
-    if (
-      Object.prototype.hasOwnProperty.call(
-        globalThis as unknown as object,
-        "window",
-      )
-    ) {
+    if (Object.prototype.hasOwnProperty.call(globalThis as unknown as object, "window")) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (globalThis as any).window;
     }
@@ -129,7 +130,7 @@ describe("lib/logger", () => {
     const { logDebug } = await loadLogger();
     logDebug("hello");
 
-    expect(console.log).toHaveBeenCalledTimes(1);
+    expect(consoleLogSpy).toHaveBeenCalledTimes(1);
   });
 
   /**
@@ -142,7 +143,7 @@ describe("lib/logger", () => {
     const { logDebug } = await loadLogger();
     logDebug("hello");
 
-    expect(console.log).toHaveBeenCalledTimes(0);
+    expect(consoleLogSpy).toHaveBeenCalledTimes(0);
   });
 
   /**
@@ -157,8 +158,8 @@ describe("lib/logger", () => {
     logInfo("info");
     logWarn("warn");
 
-    expect(console.log).toHaveBeenCalledTimes(0);
-    expect(console.error).toHaveBeenCalledTimes(1);
+    expect(consoleLogSpy).toHaveBeenCalledTimes(0);
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
   });
 
   /**
@@ -173,10 +174,9 @@ describe("lib/logger", () => {
 
     logInfo("hello", { a: 1 });
 
-    expect(console.log).toHaveBeenCalledTimes(1);
+    expect(consoleLogSpy).toHaveBeenCalledTimes(1);
 
-    const line = (console.log as unknown as { mock: { calls: unknown[][] } })
-      .mock.calls[0]?.[0];
+    const line = consoleLogSpy.mock.calls[0]?.[0];
     expect(String(line)).toContain("[2025-01-01T00:00:00.000Z]");
     expect(String(line)).toContain("hello");
     expect(String(line)).toContain('"a":1');
@@ -197,8 +197,8 @@ describe("lib/logger", () => {
 
     expect(() => logInfo("hello", ctx)).not.toThrow();
 
-    expect(console.error).toHaveBeenCalled();
-    expect(console.log).toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    expect(consoleLogSpy).toHaveBeenCalled();
   });
 
   /**
@@ -272,6 +272,6 @@ describe("lib/logger", () => {
     const { logInfo } = await loadLogger();
 
     expect(() => logInfo("hello")).not.toThrow();
-    expect(console.error).toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalled();
   });
 });

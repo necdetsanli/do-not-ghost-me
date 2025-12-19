@@ -1,31 +1,27 @@
 // tests/unit/reports.stats.route.test.ts
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { prismaMock, logErrorMock, logWarnMock, getUtcWeekStartMock } =
-  vi.hoisted(() => ({
-    prismaMock: {
-      report: {
-        count: vi.fn(),
-        groupBy: vi.fn(),
-      },
-      company: {
-        findMany: vi.fn(),
-      },
+const { prismaMock, logErrorMock, logWarnMock, getUtcWeekStartMock } = vi.hoisted(() => ({
+  prismaMock: {
+    report: {
+      count: vi.fn(),
+      groupBy: vi.fn(),
     },
-    logErrorMock: vi.fn(),
-    logWarnMock: vi.fn(),
-    getUtcWeekStartMock: vi.fn(),
-  }));
+    company: {
+      findMany: vi.fn(),
+    },
+  },
+  logErrorMock: vi.fn(),
+  logWarnMock: vi.fn(),
+  getUtcWeekStartMock: vi.fn(),
+}));
 
 vi.mock("next/server", () => ({
   NextResponse: {
-    json: (
-      body: unknown,
-      init?: { status?: number; headers?: HeadersInit },
-    ) => {
+    json: (body: unknown, init?: { status?: number; headers?: HeadersInit }) => {
       return new Response(JSON.stringify(body), {
         status: init?.status ?? 200,
-        headers: init?.headers,
+        ...(init?.headers !== undefined ? { headers: init.headers } : {}),
       });
     },
   },
@@ -75,9 +71,7 @@ describe("GET /api/reports/stats", () => {
     vi.clearAllMocks();
 
     // Deterministic week window
-    getUtcWeekStartMock.mockReturnValue(
-      new Date(Date.UTC(2025, 0, 6, 0, 0, 0)),
-    );
+    getUtcWeekStartMock.mockReturnValue(new Date(Date.UTC(2025, 0, 6, 0, 0, 0)));
 
     prismaMock.report.count.mockResolvedValue(0);
     prismaMock.report.groupBy.mockResolvedValue([]);

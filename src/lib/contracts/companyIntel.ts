@@ -1,24 +1,18 @@
+// src/lib/contracts/companyIntel.ts
 import net from "node:net";
 import { z } from "zod";
 
 /**
  * Allowed sources for company intelligence lookups coming from the browser extension.
  */
-const COMPANY_INTEL_SOURCES = [
-  "linkedin",
-  "glassdoor",
-  "indeed",
-  "workable",
-  "domain",
-] as const;
+const COMPANY_INTEL_SOURCES = ["linkedin", "glassdoor", "indeed", "workable", "domain"] as const;
 
 /**
  * Zod schema for the source query parameter.
  * Normalizes casing to lower-case before validation.
  */
 const normalizedSourceSchema = z.preprocess(
-  (value: unknown) =>
-    typeof value === "string" ? value.trim().toLowerCase() : value,
+  (value: unknown) => (typeof value === "string" ? value.trim().toLowerCase() : value),
   z.enum(COMPANY_INTEL_SOURCES),
 );
 
@@ -135,12 +129,7 @@ export const companyIntelRequestSchema = z
         key: domainKeySchema,
       }),
       z.object({
-        source: z.enum([
-          "linkedin",
-          "glassdoor",
-          "indeed",
-          "workable",
-        ]),
+        source: z.enum(["linkedin", "glassdoor", "indeed", "workable"]),
         key: nonDomainKeySchema,
       }),
     ]),

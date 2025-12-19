@@ -3,7 +3,7 @@
 import "../setup/test-dom";
 import type { JSX } from "react";
 import { act } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 
 const { dispatchSpy } = vi.hoisted(() => ({
@@ -26,11 +26,7 @@ vi.mock("@/components/Alert", () => ({
   Alert: (props: { type: string; message: string; onClose: () => void }) => (
     <div data-testid={`alert-${props.type}`}>
       <span>{props.message}</span>
-      <button
-        type="button"
-        data-testid={`alert-${props.type}-close`}
-        onClick={props.onClose}
-      >
+      <button type="button" data-testid={`alert-${props.type}-close`} onClick={props.onClose}>
         close
       </button>
     </div>
@@ -191,10 +187,7 @@ const REPORT_SUBMITTED_EVENT_NAME: string = "dngm:report-submitted";
  * @returns void
  */
 function setNativeInputValue(el: HTMLInputElement, value: string): void {
-  const descriptor = Object.getOwnPropertyDescriptor(
-    window.HTMLInputElement.prototype,
-    "value",
-  );
+  const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value");
   const setter = descriptor?.set;
   if (typeof setter === "function") {
     setter.call(el, value);
@@ -211,10 +204,7 @@ function setNativeInputValue(el: HTMLInputElement, value: string): void {
  * @returns void
  */
 function setNativeSelectValue(el: HTMLSelectElement, value: string): void {
-  const descriptor = Object.getOwnPropertyDescriptor(
-    window.HTMLSelectElement.prototype,
-    "value",
-  );
+  const descriptor = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value");
   const setter = descriptor?.set;
   if (typeof setter === "function") {
     setter.call(el, value);
@@ -288,33 +278,20 @@ type HumanFormValues = {
  * @param values - Field overrides.
  * @returns void
  */
-function fillHumanForm(
-  container: HTMLDivElement,
-  values: HumanFormValues,
-): void {
-  const companyInput = container.querySelector(
-    'input[name="companyName"]',
-  ) as HTMLInputElement;
+function fillHumanForm(container: HTMLDivElement, values: HumanFormValues): void {
+  const companyInput = container.querySelector('input[name="companyName"]') as HTMLInputElement;
 
   const positionDetailInput = container.querySelector(
     'input[name="positionDetail"]',
   ) as HTMLInputElement;
 
-  const countryInput = container.querySelector(
-    'input[name="country"]',
-  ) as HTMLInputElement;
+  const countryInput = container.querySelector('input[name="country"]') as HTMLInputElement;
 
-  const honeypotInput = container.querySelector(
-    'input[name="hp"]',
-  ) as HTMLInputElement;
+  const honeypotInput = container.querySelector('input[name="hp"]') as HTMLInputElement;
 
-  const stageSelect = container.querySelector(
-    'select[name="stage"]',
-  ) as HTMLSelectElement;
+  const stageSelect = container.querySelector('select[name="stage"]') as HTMLSelectElement;
 
-  const jobLevelSelect = container.querySelector(
-    'select[name="jobLevel"]',
-  ) as HTMLSelectElement;
+  const jobLevelSelect = container.querySelector('select[name="jobLevel"]') as HTMLSelectElement;
 
   const categorySelect = container.querySelector(
     'select[name="positionCategory"]',
@@ -344,9 +321,11 @@ function fillHumanForm(
 describe("ReportForm", () => {
   let container: HTMLDivElement | null = null;
   let root: Root | null = null;
-  let dispatchEventSpy: ReturnType<
-    typeof vi.spyOn<typeof window, "dispatchEvent">
-  > | null = null;
+  let dispatchEventSpy: MockInstance<(event: Event) => boolean> | null = null;
+  dispatchEventSpy = vi.spyOn(window, "dispatchEvent").mockImplementation((evt: Event): boolean => {
+    dispatchSpy(evt);
+    return true;
+  });
 
   /**
    * Renders the ReportForm into the test container.
@@ -366,14 +345,10 @@ describe("ReportForm", () => {
    * @returns Promise resolved after submit + flush.
    */
   async function submitForm(): Promise<void> {
-    const form = (container as HTMLDivElement).querySelector(
-      "form",
-    ) as HTMLFormElement;
+    const form = (container as HTMLDivElement).querySelector("form") as HTMLFormElement;
 
     await act(async () => {
-      form.dispatchEvent(
-        new Event("submit", { bubbles: true, cancelable: true }),
-      );
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
       await flushOnce();
     });
   }
@@ -385,9 +360,7 @@ describe("ReportForm", () => {
    * @returns The alert element or null.
    */
   function getAlert(type: "success" | "error"): HTMLDivElement | null {
-    return (container as HTMLDivElement).querySelector(
-      `[data-testid="alert-${type}"]`,
-    );
+    return (container as HTMLDivElement).querySelector(`[data-testid="alert-${type}"]`);
   }
 
   beforeEach(() => {
@@ -397,12 +370,10 @@ describe("ReportForm", () => {
     vi.restoreAllMocks();
     dispatchSpy.mockReset();
 
-    dispatchEventSpy = vi
-      .spyOn(window, "dispatchEvent")
-      .mockImplementation((evt: Event) => {
-        dispatchSpy(evt);
-        return true;
-      });
+    dispatchEventSpy = vi.spyOn(window, "dispatchEvent").mockImplementation((evt: Event) => {
+      dispatchSpy(evt);
+      return true;
+    });
   });
 
   afterEach(() => {
@@ -418,6 +389,7 @@ describe("ReportForm", () => {
 
     root = null;
     container = null;
+    dispatchEventSpy?.mockRestore();
     dispatchEventSpy = null;
 
     vi.restoreAllMocks();
@@ -524,9 +496,7 @@ describe("ReportForm", () => {
 
     const alert = getAlert("error");
     expect(alert).toBeTruthy();
-    expect(alert?.textContent ?? "").toContain(
-      "Please select a country from the list.",
-    );
+    expect(alert?.textContent ?? "").toContain("Please select a country from the list.");
   });
 
   it("shows first field error when API returns non-OK with details.fieldErrors", async () => {
@@ -692,9 +662,7 @@ describe("ReportForm", () => {
 
     const alert = getAlert("error");
     expect(alert).toBeTruthy();
-    expect(alert?.textContent ?? "").toContain(
-      "Network error while submitting the report.",
-    );
+    expect(alert?.textContent ?? "").toContain("Network error while submitting the report.");
 
     expect(consoleSpy).toHaveBeenCalledTimes(1);
     consoleSpy.mockRestore();
@@ -780,11 +748,7 @@ describe("ReportForm", () => {
     vi.spyOn(Date, "now").mockImplementation(() => nowMs);
 
     let resolveFetch:
-      | ((value: {
-          ok: boolean;
-          status: number;
-          json: () => Promise<unknown>;
-        }) => void)
+      | ((value: { ok: boolean; status: number; json: () => Promise<unknown> }) => void)
       | null = null;
 
     const fetchMock = vi.fn().mockImplementation(
@@ -801,17 +765,11 @@ describe("ReportForm", () => {
       root.render(<ReportForm />);
     });
 
-    const companyInput = container?.querySelector(
-      'input[name="companyName"]',
-    ) as HTMLInputElement;
+    const companyInput = container?.querySelector('input[name="companyName"]') as HTMLInputElement;
 
-    const stageSelect = container?.querySelector(
-      'select[name="stage"]',
-    ) as HTMLSelectElement;
+    const stageSelect = container?.querySelector('select[name="stage"]') as HTMLSelectElement;
 
-    const jobLevelSelect = container?.querySelector(
-      'select[name="jobLevel"]',
-    ) as HTMLSelectElement;
+    const jobLevelSelect = container?.querySelector('select[name="jobLevel"]') as HTMLSelectElement;
 
     const categorySelect = container?.querySelector(
       'select[name="positionCategory"]',
@@ -821,13 +779,9 @@ describe("ReportForm", () => {
       'input[name="positionDetail"]',
     ) as HTMLInputElement;
 
-    const countryInput = container?.querySelector(
-      'input[name="country"]',
-    ) as HTMLInputElement;
+    const countryInput = container?.querySelector('input[name="country"]') as HTMLInputElement;
 
-    const honeypotInput = container?.querySelector(
-      'input[name="hp"]',
-    ) as HTMLInputElement;
+    const honeypotInput = container?.querySelector('input[name="hp"]') as HTMLInputElement;
 
     await act(async () => {
       fireInput(companyInput, "Pending Corp");
@@ -847,9 +801,7 @@ describe("ReportForm", () => {
     const form = container?.querySelector("form") as HTMLFormElement;
 
     await act(async () => {
-      form.dispatchEvent(
-        new Event("submit", { bubbles: true, cancelable: true }),
-      );
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);

@@ -2,10 +2,48 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 
+type EnvKey =
+  | "NODE_ENV"
+  | "DATABASE_URL"
+  | "RATE_LIMIT_IP_SALT"
+  | "ADMIN_PASSWORD"
+  | "ADMIN_SESSION_SECRET"
+  | "ADMIN_ALLOWED_HOST"
+  | "ADMIN_CSRF_SECRET";
+
 /**
  * Environment snapshot type for safe restore.
  */
-type EnvSnapshot = Record<string, string | undefined>;
+type EnvSnapshot = Record<EnvKey, string | undefined>;
+
+type EnvOverrides = Partial<Record<EnvKey, string>>;
+
+/**
+ * Reads a process.env variable via index signature (avoids readonly typing issues).
+ *
+ * @param key - Environment variable key.
+ * @returns Environment variable value (if set).
+ */
+function getEnvVar(key: EnvKey): string | undefined {
+  const env = process.env as unknown as Record<string, string | undefined>;
+  return env[key];
+}
+
+/**
+ * Sets or deletes a process.env variable via index signature (avoids readonly typing issues).
+ *
+ * @param key - Environment variable key.
+ * @param value - Value to set, or undefined to delete.
+ * @returns void
+ */
+function setEnvVar(key: EnvKey, value: string | undefined): void {
+  const env = process.env as unknown as Record<string, string | undefined>;
+  if (value === undefined) {
+    delete env[key];
+    return;
+  }
+  env[key] = value;
+}
 
 /**
  * Takes a snapshot of process.env keys used in these tests.
@@ -14,13 +52,13 @@ type EnvSnapshot = Record<string, string | undefined>;
  */
 function snapshotEnv(): EnvSnapshot {
   return {
-    NODE_ENV: process.env.NODE_ENV,
-    DATABASE_URL: process.env.DATABASE_URL,
-    RATE_LIMIT_IP_SALT: process.env.RATE_LIMIT_IP_SALT,
-    ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
-    ADMIN_SESSION_SECRET: process.env.ADMIN_SESSION_SECRET,
-    ADMIN_ALLOWED_HOST: process.env.ADMIN_ALLOWED_HOST,
-    ADMIN_CSRF_SECRET: process.env.ADMIN_CSRF_SECRET,
+    NODE_ENV: getEnvVar("NODE_ENV"),
+    DATABASE_URL: getEnvVar("DATABASE_URL"),
+    RATE_LIMIT_IP_SALT: getEnvVar("RATE_LIMIT_IP_SALT"),
+    ADMIN_PASSWORD: getEnvVar("ADMIN_PASSWORD"),
+    ADMIN_SESSION_SECRET: getEnvVar("ADMIN_SESSION_SECRET"),
+    ADMIN_ALLOWED_HOST: getEnvVar("ADMIN_ALLOWED_HOST"),
+    ADMIN_CSRF_SECRET: getEnvVar("ADMIN_CSRF_SECRET"),
   };
 }
 
@@ -31,13 +69,13 @@ function snapshotEnv(): EnvSnapshot {
  * @returns void
  */
 function restoreEnv(snap: EnvSnapshot): void {
-  process.env.NODE_ENV = snap.NODE_ENV;
-  process.env.DATABASE_URL = snap.DATABASE_URL;
-  process.env.RATE_LIMIT_IP_SALT = snap.RATE_LIMIT_IP_SALT;
-  process.env.ADMIN_PASSWORD = snap.ADMIN_PASSWORD;
-  process.env.ADMIN_SESSION_SECRET = snap.ADMIN_SESSION_SECRET;
-  process.env.ADMIN_ALLOWED_HOST = snap.ADMIN_ALLOWED_HOST;
-  process.env.ADMIN_CSRF_SECRET = snap.ADMIN_CSRF_SECRET;
+  setEnvVar("NODE_ENV", snap.NODE_ENV);
+  setEnvVar("DATABASE_URL", snap.DATABASE_URL);
+  setEnvVar("RATE_LIMIT_IP_SALT", snap.RATE_LIMIT_IP_SALT);
+  setEnvVar("ADMIN_PASSWORD", snap.ADMIN_PASSWORD);
+  setEnvVar("ADMIN_SESSION_SECRET", snap.ADMIN_SESSION_SECRET);
+  setEnvVar("ADMIN_ALLOWED_HOST", snap.ADMIN_ALLOWED_HOST);
+  setEnvVar("ADMIN_CSRF_SECRET", snap.ADMIN_CSRF_SECRET);
 }
 
 /**
@@ -46,22 +84,26 @@ function restoreEnv(snap: EnvSnapshot): void {
  * @param overrides - Partial env overrides for a test.
  * @returns void
  */
-function applyBaseEnv(overrides: Partial<Record<string, string>> = {}): void {
-  process.env.NODE_ENV = overrides.NODE_ENV ?? "test";
-  process.env.DATABASE_URL =
-    overrides.DATABASE_URL ?? "postgresql://user:pass@localhost:5432/testdb";
-  process.env.RATE_LIMIT_IP_SALT =
-    overrides.RATE_LIMIT_IP_SALT ??
-    "test-rate-limit-salt-32-bytes-minimum-000000";
-  process.env.ADMIN_PASSWORD =
-    overrides.ADMIN_PASSWORD ?? "test-admin-password";
-  process.env.ADMIN_SESSION_SECRET =
-    overrides.ADMIN_SESSION_SECRET ??
-    "test-admin-session-secret-32-bytes-minimum-0000000";
-  process.env.ADMIN_CSRF_SECRET =
-    overrides.ADMIN_CSRF_SECRET ??
-    "test-admin-csrf-secret-32-bytes-minimum-000000000";
-  process.env.ADMIN_ALLOWED_HOST = overrides.ADMIN_ALLOWED_HOST ?? "admin.test";
+function applyBaseEnv(overrides: EnvOverrides = {}): void {
+  setEnvVar("NODE_ENV", overrides.NODE_ENV ?? "test");
+  setEnvVar(
+    "DATABASE_URL",
+    overrides.DATABASE_URL ?? "postgresql://user:pass@localhost:5432/testdb",
+  );
+  setEnvVar(
+    "RATE_LIMIT_IP_SALT",
+    overrides.RATE_LIMIT_IP_SALT ?? "test-rate-limit-salt-32-bytes-minimum-000000",
+  );
+  setEnvVar("ADMIN_PASSWORD", overrides.ADMIN_PASSWORD ?? "test-admin-password");
+  setEnvVar(
+    "ADMIN_SESSION_SECRET",
+    overrides.ADMIN_SESSION_SECRET ?? "test-admin-session-secret-32-bytes-minimum-0000000",
+  );
+  setEnvVar(
+    "ADMIN_CSRF_SECRET",
+    overrides.ADMIN_CSRF_SECRET ?? "test-admin-csrf-secret-32-bytes-minimum-000000000",
+  );
+  setEnvVar("ADMIN_ALLOWED_HOST", overrides.ADMIN_ALLOWED_HOST ?? "admin.test");
 }
 
 /**
@@ -155,10 +197,7 @@ function installPrismaMock(): {
  * @returns The imported POST handler.
  */
 async function importModerationPost(): Promise<{
-  POST: (
-    req: NextRequest,
-    ctx: { params: Promise<{ id: string }> },
-  ) => Promise<Response>;
+  POST: (req: NextRequest, ctx: { params: Promise<{ id: string }> }) => Promise<Response>;
 }> {
   vi.resetModules();
   const mod = await import("@/app/api/admin/reports/[id]/route");
@@ -273,8 +312,7 @@ describe("POST /api/admin/reports/[id] moderation", () => {
     const { prisma } = installPrismaMock();
     prisma.report.update.mockResolvedValue({});
 
-    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } =
-      await importAdminAuthHelpers();
+    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
 
     const { POST } = await importModerationPost();
 
@@ -302,8 +340,7 @@ describe("POST /api/admin/reports/[id] moderation", () => {
     const { prisma } = installPrismaMock();
     prisma.report.update.mockResolvedValue({});
 
-    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } =
-      await importAdminAuthHelpers();
+    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
 
     const { POST } = await importModerationPost();
 
@@ -331,8 +368,7 @@ describe("POST /api/admin/reports/[id] moderation", () => {
     const { prisma } = installPrismaMock();
     prisma.report.update.mockResolvedValue({});
 
-    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } =
-      await importAdminAuthHelpers();
+    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
 
     const { POST } = await importModerationPost();
 
@@ -380,8 +416,7 @@ describe("POST /api/admin/reports/[id] moderation", () => {
     const { prisma } = installPrismaMock();
     prisma.report.update.mockResolvedValue({});
 
-    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } =
-      await importAdminAuthHelpers();
+    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
 
     const { POST } = await importModerationPost();
 
@@ -425,8 +460,7 @@ describe("POST /api/admin/reports/[id] moderation", () => {
     const { prisma } = installPrismaMock();
     prisma.report.update.mockResolvedValue({});
 
-    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } =
-      await importAdminAuthHelpers();
+    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
 
     const { POST } = await importModerationPost();
 
@@ -463,8 +497,7 @@ describe("POST /api/admin/reports/[id] moderation", () => {
     const { prisma } = installPrismaMock();
     prisma.report.delete.mockResolvedValue({});
 
-    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } =
-      await importAdminAuthHelpers();
+    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
 
     const { POST } = await importModerationPost();
 
@@ -483,9 +516,7 @@ describe("POST /api/admin/reports/[id] moderation", () => {
     expect(res.status).toBe(303);
 
     expect(prisma.report.delete).toHaveBeenCalledTimes(1);
-    const call = prisma.report.delete.mock.calls[0]?.[0] as
-      | { where?: { id?: string } }
-      | undefined;
+    const call = prisma.report.delete.mock.calls[0]?.[0] as { where?: { id?: string } } | undefined;
 
     expect(call?.where?.id).toBe("r4");
   });
@@ -496,8 +527,7 @@ describe("POST /api/admin/reports/[id] moderation", () => {
     const { prisma } = installPrismaMock();
     prisma.report.update.mockRejectedValue(new Error("db failure"));
 
-    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } =
-      await importAdminAuthHelpers();
+    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
 
     const { POST } = await importModerationPost();
 

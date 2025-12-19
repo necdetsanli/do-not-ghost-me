@@ -42,17 +42,16 @@ type CookieOptions = {
   maxAge: number;
 };
 
-const { envMock, adminSessionCookieOptionsMock, logInfoMock, logWarnMock } =
-  vi.hoisted(() => {
-    const env: MockEnv = {};
+const { envMock, adminSessionCookieOptionsMock, logInfoMock, logWarnMock } = vi.hoisted(() => {
+  const env: MockEnv = {};
 
-    return {
-      envMock: env,
-      adminSessionCookieOptionsMock: vi.fn<[], CookieOptions>(),
-      logInfoMock: vi.fn(),
-      logWarnMock: vi.fn(),
-    };
-  });
+  return {
+    envMock: env,
+    adminSessionCookieOptionsMock: vi.fn<() => CookieOptions>(),
+    logInfoMock: vi.fn(),
+    logWarnMock: vi.fn(),
+  };
+});
 
 vi.mock("@/env", () => ({
   env: envMock,
@@ -232,8 +231,7 @@ describe("POST /api/admin/logout", () => {
 
   it("allows any host when ADMIN_ALLOWED_HOST is null (defensive branch)", async () => {
     // This covers the runtime defensive branch: allowedHost === null.
-    (envMock as unknown as { ADMIN_ALLOWED_HOST: null }).ADMIN_ALLOWED_HOST =
-      null;
+    (envMock as unknown as { ADMIN_ALLOWED_HOST: null }).ADMIN_ALLOWED_HOST = null;
 
     const req = makeLogoutRequest({
       url: "http://example.test/api/admin/logout",

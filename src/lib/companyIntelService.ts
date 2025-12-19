@@ -1,11 +1,9 @@
+// src/lib/companyIntelService.ts
 import { ReportStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { normalizeCompanyName } from "@/lib/normalization";
 import { logWarn } from "@/lib/logger";
-import type {
-  CompanyIntelRequest,
-  ConfidenceLevel,
-} from "@/lib/contracts/companyIntel";
+import type { CompanyIntelRequest, ConfidenceLevel } from "@/lib/contracts/companyIntel";
 
 const NINETY_DAYS_IN_MS = 90 * 24 * 60 * 60 * 1000;
 
@@ -34,9 +32,7 @@ export type CompanyIntelSuccess = {
 /**
  * Intel result discriminated union.
  */
-export type CompanyIntelResult =
-  | CompanyIntelSuccess
-  | { status: "insufficient_data" };
+export type CompanyIntelResult = CompanyIntelSuccess | { status: "insufficient_data" };
 
 /**
  * Extracts a registrable-ish label from a normalized host string.
@@ -70,7 +66,7 @@ function deriveDomainLabel(host: string): string | null {
     return thirdLast;
   }
 
-  return secondLast || null;
+  return secondLast !== "" ? secondLast : null;
 }
 
 /**
@@ -79,9 +75,7 @@ function deriveDomainLabel(host: string): string | null {
  * @param request - Validated company intel request.
  * @returns Normalized key string or null when no usable key can be derived.
  */
-export function deriveNormalizedCompanyKey(
-  request: CompanyIntelRequest,
-): string | null {
+export function deriveNormalizedCompanyKey(request: CompanyIntelRequest): string | null {
   if (request.source === "domain") {
     const label: string | null = deriveDomainLabel(request.key);
 
@@ -133,6 +127,7 @@ export async function fetchCompanyIntel(
   request: CompanyIntelRequest,
   options?: {
     kAnonymityThreshold?: number;
+    enforceKAnonymity?: boolean;
     now?: Date;
   },
 ): Promise<CompanyIntelResult> {
@@ -144,8 +139,8 @@ export async function fetchCompanyIntel(
 
   const now: Date = options?.now ?? new Date();
   const ninetyDaysAgo: Date = new Date(now.getTime() - NINETY_DAYS_IN_MS);
-  const kAnonymity: number =
-    options?.kAnonymityThreshold ?? DEFAULT_COMPANY_INTEL_K_ANONYMITY;
+  const kAnonymity: number = options?.kAnonymityThreshold ?? DEFAULT_COMPANY_INTEL_K_ANONYMITY;
+  const enforceK: boolean = options?.enforceKAnonymity === true;
 
   const grouped = await prisma.report.groupBy({
     by: ["companyId"],
@@ -156,12 +151,12 @@ export async function fetchCompanyIntel(
       },
     },
     _count: {
-      _all: true,
+      id: true,
     },
     orderBy: [
       {
         _count: {
-          _all: "desc",
+          id: "desc",
         },
       },
       {
@@ -175,10 +170,15 @@ export async function fetchCompanyIntel(
     return { status: "insufficient_data" };
   }
 
-  const [top] = grouped;
-  const reportCountTotal: number = top._count._all ?? 0;
+  const top = grouped[0];
 
-  if (reportCountTotal < kAnonymity) {
+  if (top === undefined) {
+    return { status: "insufficient_data" };
+  }
+
+  const reportCountTotal: number = top._count.id;
+
+  if (reportCountTotal < kAnonymity && enforceK === true) {
     return { status: "insufficient_data" };
   }
 
@@ -213,17 +213,12 @@ export async function fetchCompanyIntel(
   }
 
   const trimmedName: string = company.name.trim();
-  const displayName: string | undefined =
-    trimmedName.length > 0 ? trimmedName : undefined;
+  const displayName: string | undefined = trimmedName.length > 0 ? trimmedName : undefined;
 
-  const confidence: ConfidenceLevel = deriveConfidence(
-    reportCountTotal,
-    reportCount90d,
-  );
+  const confidence: ConfidenceLevel = deriveConfidence(reportCountTotal, reportCount90d);
 
-  return {
+  const base: CompanyIntelSuccess = {
     companyId,
-    displayName,
     signals: {
       reportCountTotal,
       reportCount90d,
@@ -232,4 +227,6 @@ export async function fetchCompanyIntel(
     },
     updatedAt: now,
   };
+
+  return displayName !== undefined ? { ...base, displayName } : base;
 }

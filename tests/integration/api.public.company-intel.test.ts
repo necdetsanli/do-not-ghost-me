@@ -1,3 +1,4 @@
+// tests/integration/api.public.company-intel.test.ts
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -62,9 +63,7 @@ describe("GET /api/public/company-intel", () => {
   });
 
   it("returns 400 when validation fails", async () => {
-    const req = createRequest(
-      "https://example.test/api/public/company-intel?source=linkedin",
-    );
+    const req = createRequest("https://example.test/api/public/company-intel?source=linkedin");
 
     const res = await GET(req);
     expect(res.status).toBe(400);
