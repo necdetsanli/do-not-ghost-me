@@ -2,8 +2,8 @@
 
 <p align="center">
   <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="src/app/favicon-dark.png" />
-  <img alt="necdetsanli profile card" src="src/app/favicon-light.png" />
+  <source media="(prefers-color-scheme: dark)" srcset="public/favicon-dark.png" />
+  <img alt="necdetsanli profile card" src="public/favicon-light.png" />
 </picture>
 </p>
 
