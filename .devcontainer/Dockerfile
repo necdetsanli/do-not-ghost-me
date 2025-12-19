@@ -7,7 +7,7 @@ FROM mcr.microsoft.com/devcontainers/javascript-node:24
 USER root
 
 # Use a specific npm version inside the dev container to match the project configuration.
-RUN npm install -g npm@11.6.4
+RUN npm install -g npm@11.7.0
 
 # Install PostgreSQL server and CLI tools for local development.
 RUN apt-get update && \
