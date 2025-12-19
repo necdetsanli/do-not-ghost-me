@@ -24,6 +24,14 @@ This project follows **Semantic Versioning** (`MAJOR.MINOR.PATCH`).
 - Public API endpoint for the browser extension under `/api/public/company-intel` (read-only):
   - Adds a small, rate-limited surface for fetching company intelligence.
 
+- SEO and social sharing metadata improvements:
+  - Added site-wide `metadataBase`, canonical URLs, and improved robots directives.
+  - Added Google Search Console verification via Next.js `metadata.verification`.
+  - Added Open Graph + Twitter Card metadata and generated share images routes.
+
+- Theme-aware favicon assets:
+  - Added light/dark PNG favicons and an updated `.ico` for small sizes.
+
 ### Changed
 
 - Runtime/tooling consistency updates:

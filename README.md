@@ -1,5 +1,30 @@
 # Do Not Ghost Me
 
+<p align="center">
+  <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="src/app/favicon-dark.png" />
+  <img alt="necdetsanli profile card" src="src/app/favicon-light.png" />
+</picture>
+</p>
+
+<p align="center">
+  <img alt="GitHub package.json version" src="https://img.shields.io/github/package-json/v/necdetsanli/do-not-ghost-me">
+  <a href="https://www.donotghostme.com">
+  <img alt="GitHub deployments" src="https://img.shields.io/github/deployments/necdetsanli/do-not-ghost-me/production">
+  </a>
+  <a href="LICENSE">
+    <img alt="License: AGPL-3.0-or-later" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg">
+  </a> 
+  <a href="https://github.com/necdetsanli/do-not-ghost-me/pulls">
+    <img alt="PRs Welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg">
+  </a>
+  <a href="https://github.com/necdetsanli/do-not-ghost-me/issues">
+    <img alt="GitHub Issues or Pull Requests" src="https://img.shields.io/github/issues/necdetsanli/do-not-ghost-me">
+  </a>
+  <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/necdetsanli/do-not-ghost-me?style=social">
+  <img alt="GitHub forks" src="https://img.shields.io/github/forks/necdetsanli/do-not-ghost-me">
+</p>
+
 A privacy-aware way to track and surface ghosting in hiring processes.
 
 This project collects structured reports about ghosting during hiring processes (e.g. after an interview or take-home task) and aggregates them into statistics by company, country, stage, seniority, and position category. The goal is to make ghosting visible as a _pattern_ rather than a collection of isolated stories.
