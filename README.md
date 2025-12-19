@@ -50,6 +50,14 @@ From the UI perspective:
 - `/admin` — **Moderation dashboard** (protected):
   - List of latest reports with status
   - Actions to flag, soft-delete or hard-delete reports
+- `/api/health` — **Public healthcheck**:
+  - Returns `{ ok: true }` style JSON for “process up”
+  - Does **not** check the database
+  - Rate-limited per IP
+- `/api/public/company-intel` — **Public API (read-only)**:
+  - Used by the browser extension
+  - Rate-limited per IP
+  - Supports **k-anonymity**: optionally returns `{ "status": "insufficient_data" }` for companies with fewer than `K` ACTIVE reports (configurable via env).
 
 ---
 
@@ -76,14 +84,22 @@ Security and robustness:
   - Signed, HttpOnly cookie stored as a short-lived admin session token
   - Host allow-list (`ADMIN_ALLOWED_HOST`) to avoid accidental exposure
 - **Rate limiting**
-  - Per-IP and per-company limits, implemented in `src/lib/rateLimit.ts`
-  - IPs are **never stored in raw form** — only salted hashes
+  - Report submission limits are implemented in `src/lib/rateLimit.ts` (DB-backed, strict under concurrency).
+  - Public read-only endpoints use an in-memory per-IP limiter in `src/lib/publicRateLimit.ts`.
+  - IPs are **never stored in raw form** — only salted hashes.
+- **Public endpoints**
+  - `/api/health` is intentionally **public** for uptime checks.
+  - It returns **process up** only (no DB checks).
+  - It is protected with a per-IP **in-memory** rate limit (`src/lib/publicRateLimit.ts`).
 - **Validation**
   - Zod-based schema for report payloads
   - Honeypot field to silently drop basic bot submissions
 - **Logging**
   - Centralized `logInfo`, `logWarn`, `logError` helpers
   - Structured logs that avoid leaking sensitive data
+- **K-anonymity for extension data**
+  - The public company intel endpoint can enforce a minimum sample size (`K`) before returning aggregated results.
+  - This is controlled via `COMPANY_INTEL_ENFORCE_K_ANONYMITY` and `COMPANY_INTEL_K_ANONYMITY`.
 
 ---
 
@@ -109,8 +125,8 @@ For Option B (Docker Compose):
 
 For Option C (Host):
 
-- Node.js >= 22
-- npm >= 11.6.4
+- Node.js 24.x
+- npm >= 11.7.0
 - PostgreSQL
 
 ### Option A – VS Code Dev Container (recommended)
@@ -139,6 +155,9 @@ npm ci
 npm run prisma:generate
 ```
 
+> If you see an `npm ci` error about `package.json` and `package-lock.json` being out of sync,
+> run `npm install` once to regenerate the lockfile, commit it, then use `npm ci` again.
+
 #### 4. Configure environment variables
 
 Copy the example file and edit as needed:
@@ -155,6 +174,11 @@ At minimum you should set:
 - `ADMIN_CSRF_SECRET`
 - `ADMIN_ALLOWED_HOST`
 - `RATE_LIMIT_IP_SALT`
+
+Optional (public API / browser extension):
+
+- `COMPANY_INTEL_ENFORCE_K_ANONYMITY` (true/false)
+- `COMPANY_INTEL_K_ANONYMITY` (number, default: 5)
 
 > Never point `DATABASE_URL` at a production database while developing locally.
 
@@ -193,6 +217,7 @@ Then visit:
 - `http://localhost:3000/companies` – Company ranking and filters
 - `http://localhost:3000/about` – Project overview
 - `http://localhost:3000/admin/login` – Admin login (local)
+- `http://localhost:3000/api/health` – Public healthcheck (process up)
 
 #### 8. Admin dashboard (local)
 
@@ -252,7 +277,7 @@ docker compose down -v
 If you prefer not to use the dev container or Docker Compose:
 
 1. **Install prerequisites**
-   - Node.js >= 22
+   - Node.js 24.x
    - npm >= 11.6.4
    - PostgreSQL
 

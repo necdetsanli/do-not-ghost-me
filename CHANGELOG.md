@@ -12,6 +12,36 @@ This project follows **Semantic Versioning** (`MAJOR.MINOR.PATCH`).
 
 ---
 
+## [1.3.0] - 2025-12-19
+
+### Added
+
+- Public `/api/health` endpoint for uptime monitoring:
+  - Returns a lightweight **“process up”** JSON response.
+  - **No DB checks** (intentionally).
+  - Protected with a per-IP in-memory rate limit to reduce abuse/DoS.
+
+- Public API endpoint for the browser extension under `/api/public/company-intel` (read-only):
+  - Adds a small, rate-limited surface for fetching company intelligence.
+
+### Changed
+
+- Runtime/tooling consistency updates:
+  - Enforced Node.js **24.x** in `package.json` engines (`>=24.0.0`).
+  - Updated `packageManager` / npm version baseline.
+
+- Dependency updates (framework + tooling), including:
+  - Next.js (and companions), React, Prisma client/tooling, Tailwind, Zod, Vitest, ESLint.
+
+- Moved build/docs tooling to dev-only scope:
+  - `typedoc`, `typedoc-plugin-markdown`, and `rimraf` are now `devDependencies`.
+
+### Security
+
+- Public endpoints that are safe to keep open (like `/api/health`) are now explicitly rate-limited by IP without storing raw IPs.
+
+---
+
 ## [1.2.0] - 2025-12-17
 
 ### Fixed
