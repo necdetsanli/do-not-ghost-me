@@ -10,17 +10,13 @@
 <p align="center">
   <img alt="GitHub package.json version" src="https://img.shields.io/github/package-json/v/necdetsanli/do-not-ghost-me">
   <a href="https://www.donotghostme.com">
-  <img alt="GitHub deployments" src="https://img.shields.io/github/deployments/necdetsanli/do-not-ghost-me/production">
-  </a>
+  <img alt="GitHub deployments" src="https://img.shields.io/github/deployments/necdetsanli/do-not-ghost-me/production"></a>
   <a href="LICENSE">
-    <img alt="License: AGPL-3.0-or-later" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg">
-  </a> 
+    <img alt="License: AGPL-3.0-or-later" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg"></a> 
   <a href="https://github.com/necdetsanli/do-not-ghost-me/pulls">
-    <img alt="PRs Welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg">
-  </a>
+    <img alt="PRs Welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg"></a>
   <a href="https://github.com/necdetsanli/do-not-ghost-me/issues">
-    <img alt="GitHub Issues or Pull Requests" src="https://img.shields.io/github/issues/necdetsanli/do-not-ghost-me">
-  </a>
+    <img alt="GitHub Issues or Pull Requests" src="https://img.shields.io/github/issues/necdetsanli/do-not-ghost-me"></a>
   <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/necdetsanli/do-not-ghost-me?style=social">
   <img alt="GitHub forks" src="https://img.shields.io/github/forks/necdetsanli/do-not-ghost-me">
 </p>
