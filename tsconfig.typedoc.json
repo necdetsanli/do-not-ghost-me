@@ -1,9 +1,11 @@
 {
   "extends": "./tsconfig.json",
   "include": ["src"],
-  "exclude": ["tests", "**/*.test.*", "**/*.spec.*", "**/e2e/**"],
+  "exclude": ["tests", "**/*.test.*", "**/*.spec.*", "**/e2e/**", ".next", "dist"],
   "compilerOptions": {
+    "noEmit": true,
     "noUnusedLocals": false,
-    "noUnusedParameters": false
+    "noUnusedParameters": false,
+    "skipLibCheck": true
   }
 }

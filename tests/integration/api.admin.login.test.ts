@@ -1,66 +1,42 @@
+// tests/integration/api.admin.login.test.ts
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 /**
- * Environment snapshot type for safe restore.
- */
-type EnvSnapshot = Record<string, string | undefined>;
-
-/**
- * Takes a snapshot of process.env keys used in these tests.
- *
- * @returns Snapshot object.
- */
-function snapshotEnv(): EnvSnapshot {
-  return {
-    NODE_ENV: process.env.NODE_ENV,
-    DATABASE_URL: process.env.DATABASE_URL,
-    RATE_LIMIT_IP_SALT: process.env.RATE_LIMIT_IP_SALT,
-    ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
-    ADMIN_SESSION_SECRET: process.env.ADMIN_SESSION_SECRET,
-    ADMIN_ALLOWED_HOST: process.env.ADMIN_ALLOWED_HOST,
-    ADMIN_CSRF_SECRET: process.env.ADMIN_CSRF_SECRET,
-  };
-}
-
-/**
- * Restores process.env from a snapshot.
- *
- * @param snap - Environment snapshot.
- * @returns void
- */
-function restoreEnv(snap: EnvSnapshot): void {
-  process.env.NODE_ENV = snap.NODE_ENV;
-  process.env.DATABASE_URL = snap.DATABASE_URL;
-  process.env.RATE_LIMIT_IP_SALT = snap.RATE_LIMIT_IP_SALT;
-  process.env.ADMIN_PASSWORD = snap.ADMIN_PASSWORD;
-  process.env.ADMIN_SESSION_SECRET = snap.ADMIN_SESSION_SECRET;
-  process.env.ADMIN_ALLOWED_HOST = snap.ADMIN_ALLOWED_HOST;
-  process.env.ADMIN_CSRF_SECRET = snap.ADMIN_CSRF_SECRET;
-}
-
-/**
  * Applies a minimal valid env for importing the app env schema.
+ *
+ * Uses vi.stubEnv to avoid direct process.env assignments (read-only typing).
  *
  * @param overrides - Partial env overrides for a test.
  * @returns void
  */
 function applyBaseEnv(overrides: Partial<Record<string, string>> = {}): void {
-  process.env.NODE_ENV = overrides.NODE_ENV ?? "test";
-  process.env.DATABASE_URL =
-    overrides.DATABASE_URL ?? "postgresql://user:pass@localhost:5432/testdb";
-  process.env.RATE_LIMIT_IP_SALT =
-    overrides.RATE_LIMIT_IP_SALT ??
-    "test-rate-limit-salt-32-bytes-minimum-000000";
-  process.env.ADMIN_PASSWORD =
-    overrides.ADMIN_PASSWORD ?? "test-admin-password";
-  process.env.ADMIN_SESSION_SECRET =
-    overrides.ADMIN_SESSION_SECRET ??
-    "test-admin-session-secret-32-bytes-minimum-0000000";
-  process.env.ADMIN_CSRF_SECRET =
-    overrides.ADMIN_CSRF_SECRET ??
-    "test-admin-csrf-secret-32-bytes-minimum-000000000";
-  process.env.ADMIN_ALLOWED_HOST = overrides.ADMIN_ALLOWED_HOST;
+  vi.stubEnv("NODE_ENV", overrides.NODE_ENV ?? "test");
+
+  vi.stubEnv(
+    "DATABASE_URL",
+    overrides.DATABASE_URL ?? "postgresql://user:pass@localhost:5432/testdb",
+  );
+
+  vi.stubEnv(
+    "RATE_LIMIT_IP_SALT",
+    overrides.RATE_LIMIT_IP_SALT ?? "test-rate-limit-salt-32-bytes-minimum-000000",
+  );
+
+  vi.stubEnv("ADMIN_PASSWORD", overrides.ADMIN_PASSWORD ?? "test-admin-password");
+
+  vi.stubEnv(
+    "ADMIN_SESSION_SECRET",
+    overrides.ADMIN_SESSION_SECRET ?? "test-admin-session-secret-32-bytes-minimum-0000000",
+  );
+
+  vi.stubEnv(
+    "ADMIN_CSRF_SECRET",
+    overrides.ADMIN_CSRF_SECRET ?? "test-admin-csrf-secret-32-bytes-minimum-000000000",
+  );
+
+  // If you want "unset", keep it as an empty string so the app can treat it as disabled.
+  vi.stubEnv("ADMIN_ALLOWED_HOST", overrides.ADMIN_ALLOWED_HOST ?? "");
 }
 
 /**
@@ -138,24 +114,32 @@ async function expectErrorRedirect(res: Response): Promise<void> {
  */
 function getSetCookie(res: Response): string | null {
   const raw = res.headers.get("set-cookie");
+
   if (typeof raw !== "string" || raw.trim().length === 0) {
     return null;
   }
+
   return raw;
 }
 
 describe("POST /api/admin/login", () => {
-  let snap: EnvSnapshot;
-
   beforeEach(() => {
-    snap = snapshotEnv();
+    // Ensure a known base env exists for each test unless overridden.
+    applyBaseEnv();
+
     delete (globalThis as unknown as { __adminLoginRateLimitStore?: unknown })
       .__adminLoginRateLimitStore;
   });
 
   afterEach(() => {
-    restoreEnv(snap);
+    // Restore env stubs back to original values.
+    vi.unstubAllEnvs();
+
+    // Restore spies/mocks.
     vi.restoreAllMocks();
+
+    // Ensure module-level caches/mocks do not leak across tests.
+    vi.resetModules();
   });
 
   it("returns 403 JSON when ADMIN_ALLOWED_HOST is set and Host header mismatches", async () => {
@@ -332,6 +316,7 @@ describe("POST /api/admin/login", () => {
     expect(typeof json.error).toBe("string");
     expect(json.error as string).toMatch(/too many admin login attempts/i);
   });
+
   it("returns 403 JSON when Origin header is not a valid URL", async () => {
     applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
 
@@ -396,7 +381,6 @@ describe("POST /api/admin/login", () => {
     });
     const afterLockRes = await POST(afterLockReq);
 
-    // Not 429 anymore; proceeds and fails password -> redirect.
     await expectErrorRedirect(afterLockRes);
 
     vi.useRealTimers();

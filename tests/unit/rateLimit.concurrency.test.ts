@@ -7,7 +7,7 @@ import { PositionCategory } from "@prisma/client";
  */
 type Deferred<T> = {
   promise: Promise<T>;
-  resolve: (value: T) => void;
+  resolve: (...args: T extends void ? [] : [T]) => void;
   reject: (reason: unknown) => void;
   isSettled: boolean;
 };
@@ -18,26 +18,34 @@ type Deferred<T> = {
  * @returns Deferred object.
  */
 function createDeferred<T>(): Deferred<T> {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
+  let resolveInner!: (value: T | PromiseLike<T>) => void;
+  let rejectInner!: (reason?: unknown) => void;
+
+  const promise = new Promise<T>((res, rej) => {
+    resolveInner = res;
+    rejectInner = rej;
+  });
 
   const deferred: Deferred<T> = {
-    promise: Promise.resolve(undefined as unknown as T),
-    resolve: () => undefined as unknown as void,
-    reject: () => undefined as unknown as void,
+    promise,
     isSettled: false,
-  };
 
-  deferred.promise = new Promise<T>((res, rej) => {
-    deferred.resolve = (value: T) => {
+    resolve: (...args) => {
       deferred.isSettled = true;
-      res(value);
-    };
-    deferred.reject = (reason: unknown) => {
+
+      if (args.length === 0) {
+        resolveInner(undefined as unknown as T);
+        return;
+      }
+
+      resolveInner(args[0]);
+    },
+
+    reject: (reason: unknown) => {
       deferred.isSettled = true;
-      rej(reason);
-    };
-  });
+      rejectInner(reason);
+    },
+  };
 
   return deferred;
 }
@@ -46,31 +54,26 @@ type DailyRow = { id: string; ipHash: string; day: string; count: number };
 type CompanyRow = { ipHash: string; companyId: string; positionKey: string };
 type PrismaErrorWithCode = Error & { code?: string };
 
-const { dayKey, dailyGateRef, dailyRowRef, companyRowsRef, txRef } = vi.hoisted(
-  () => {
-    return {
-      dayKey: "2025-01-01",
-      dailyGateRef: { current: createDeferred<void>() },
-      dailyRowRef: { current: null as DailyRow | null },
-      companyRowsRef: { current: [] as CompanyRow[] },
-      txRef: {
-        current: null as null | {
-          $executeRaw: (
-            strings: TemplateStringsArray,
-            ...values: unknown[]
-          ) => Promise<number>;
-          reportIpDailyLimit: {
-            upsert: (args: unknown) => Promise<{ id: string; count: number }>;
-          };
-          reportIpCompanyLimit: {
-            count: (args: unknown) => Promise<number>;
-            create: (args: unknown) => Promise<CompanyRow>;
-          };
-        },
+const { dayKey, dailyGateRef, dailyRowRef, companyRowsRef, txRef } = vi.hoisted(() => {
+  return {
+    dayKey: "2025-01-01",
+    dailyGateRef: { current: createDeferred<void>() },
+    dailyRowRef: { current: null as DailyRow | null },
+    companyRowsRef: { current: [] as CompanyRow[] },
+    txRef: {
+      current: null as null | {
+        $executeRaw: (strings: TemplateStringsArray, ...values: unknown[]) => Promise<number>;
+        reportIpDailyLimit: {
+          upsert: (args: unknown) => Promise<{ id: string; count: number }>;
+        };
+        reportIpCompanyLimit: {
+          count: (args: unknown) => Promise<number>;
+          create: (args: unknown) => Promise<CompanyRow>;
+        };
       },
-    };
-  },
-);
+    },
+  };
+});
 
 vi.mock("@/lib/logger", () => ({
   logWarn: vi.fn(),
@@ -173,16 +176,11 @@ function resetMockState(): void {
         const positionKey = String(a.data?.positionKey ?? "");
 
         const exists = companyRowsRef.current.some(
-          (r) =>
-            r.ipHash === ipHash &&
-            r.companyId === companyId &&
-            r.positionKey === positionKey,
+          (r) => r.ipHash === ipHash && r.companyId === companyId && r.positionKey === positionKey,
         );
 
         if (exists) {
-          const err: PrismaErrorWithCode = new Error(
-            "Unique constraint failed",
-          );
+          const err: PrismaErrorWithCode = new Error("Unique constraint failed");
           err.code = "P2002";
           throw err;
         }
@@ -209,8 +207,7 @@ describe.sequential("rateLimit concurrency behavior", () => {
   });
 
   it("handles concurrent daily limit row creation without throwing when under max", async () => {
-    const { enforceReportLimitForIpCompanyPosition } =
-      await import("@/lib/rateLimit");
+    const { enforceReportLimitForIpCompanyPosition } = await import("@/lib/rateLimit");
 
     const argsA = {
       ip: "203.0.113.10",
@@ -240,8 +237,7 @@ describe.sequential("rateLimit concurrency behavior", () => {
   });
 
   it("enforces duplicate position under concurrency (one succeeds, one rejects)", async () => {
-    const { enforceReportLimitForIpCompanyPosition } =
-      await import("@/lib/rateLimit");
+    const { enforceReportLimitForIpCompanyPosition } = await import("@/lib/rateLimit");
 
     const args = {
       ip: "203.0.113.11",

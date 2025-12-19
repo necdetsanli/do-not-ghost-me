@@ -6,7 +6,7 @@
 
 > **getUtcWeekStart**(`date`): `Date`
 
-Defined in: [src/lib/dates.ts:52](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/dates.ts#L52)
+Defined in: [src/lib/dates.ts:52](https://github.com/necdetsanli/do-not-ghost-me/blob/ca67b795423a5510bee17afefd943f2be855d7a2/src/lib/dates.ts#L52)
 
 Returns the start of the current week in UTC (Monday 00:00:00.000).
 

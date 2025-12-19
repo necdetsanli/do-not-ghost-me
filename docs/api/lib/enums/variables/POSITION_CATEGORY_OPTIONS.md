@@ -6,7 +6,7 @@
 
 > `const` **POSITION\_CATEGORY\_OPTIONS**: readonly `PositionCategory`[]
 
-Defined in: [src/lib/enums.ts:46](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/enums.ts#L46)
+Defined in: [src/lib/enums.ts:46](https://github.com/necdetsanli/do-not-ghost-me/blob/ca67b795423a5510bee17afefd943f2be855d7a2/src/lib/enums.ts#L46)
 
 ---------------------------------------------------------------------------
 Base enum value arrays

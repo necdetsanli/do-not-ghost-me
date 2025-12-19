@@ -4,9 +4,9 @@
 
 # Function: parseFilters()
 
-> **parseFilters**(`searchParams?`): [`ResolvedFilters`](../../../types/type-aliases/ResolvedFilters.md)
+> **parseFilters**(`searchParams?`): `ResolvedFilters`
 
-Defined in: [src/app/companies/\_lib/filters.ts:26](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/app/companies/_lib/filters.ts#L26)
+Defined in: [src/app/companies/\_lib/filters.ts:26](https://github.com/necdetsanli/do-not-ghost-me/blob/ca67b795423a5510bee17afefd943f2be855d7a2/src/app/companies/_lib/filters.ts#L26)
 
 Parse and sanitise raw search parameters from the URL.
 
@@ -17,14 +17,14 @@ into a strongly typed ResolvedFilters object used by the data layer.
 
 ### searchParams?
 
-[`SearchParams`](../../../types/type-aliases/SearchParams.md)
+`SearchParams`
 
 Raw URL search parameters as provided by Next.js
                       (all values are strings or undefined).
 
 ## Returns
 
-[`ResolvedFilters`](../../../types/type-aliases/ResolvedFilters.md)
+`ResolvedFilters`
 
 A ResolvedFilters object with:
          - page clamped to [1, MAX_PAGE],

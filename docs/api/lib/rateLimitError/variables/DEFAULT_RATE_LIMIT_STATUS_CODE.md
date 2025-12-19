@@ -6,7 +6,7 @@
 
 > `const` **DEFAULT\_RATE\_LIMIT\_STATUS\_CODE**: `429` = `429`
 
-Defined in: [src/lib/rateLimitError.ts:21](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/rateLimitError.ts#L21)
+Defined in: [src/lib/rateLimitError.ts:21](https://github.com/necdetsanli/do-not-ghost-me/blob/ca67b795423a5510bee17afefd943f2be855d7a2/src/lib/rateLimitError.ts#L21)
 
 Default HTTP status code for rate-limit responses.
 

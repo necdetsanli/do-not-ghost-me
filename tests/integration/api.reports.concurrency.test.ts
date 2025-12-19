@@ -3,100 +3,18 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { PositionCategory } from "@prisma/client";
 
-type EnvSnapshot = Record<string, string | undefined>;
+type EnvKey =
+  | "NODE_ENV"
+  | "DATABASE_URL"
+  | "RATE_LIMIT_IP_SALT"
+  | "RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP"
+  | "RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY"
+  | "ADMIN_PASSWORD"
+  | "ADMIN_SESSION_SECRET"
+  | "ADMIN_ALLOWED_HOST"
+  | "ADMIN_CSRF_SECRET";
 
-function snapshotEnv(): EnvSnapshot {
-  return {
-    NODE_ENV: process.env.NODE_ENV,
-    DATABASE_URL: process.env.DATABASE_URL,
-    RATE_LIMIT_IP_SALT: process.env.RATE_LIMIT_IP_SALT,
-    RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP:
-      process.env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP,
-    RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY:
-      process.env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY,
-    ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
-    ADMIN_SESSION_SECRET: process.env.ADMIN_SESSION_SECRET,
-    ADMIN_ALLOWED_HOST: process.env.ADMIN_ALLOWED_HOST,
-    ADMIN_CSRF_SECRET: process.env.ADMIN_CSRF_SECRET,
-  };
-}
-
-function restoreEnv(snap: EnvSnapshot): void {
-  const setOrDelete = (key: keyof EnvSnapshot): void => {
-    const value = snap[key];
-
-    if (value === undefined) {
-      delete process.env[key];
-      return;
-    }
-
-    process.env[key] = value;
-  };
-
-  setOrDelete("NODE_ENV");
-  setOrDelete("DATABASE_URL");
-  setOrDelete("RATE_LIMIT_IP_SALT");
-  setOrDelete("RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP");
-  setOrDelete("RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY");
-  setOrDelete("ADMIN_PASSWORD");
-  setOrDelete("ADMIN_SESSION_SECRET");
-  setOrDelete("ADMIN_ALLOWED_HOST");
-  setOrDelete("ADMIN_CSRF_SECRET");
-}
-
-function applyBaseEnv(): void {
-  process.env.NODE_ENV = "test";
-  process.env.DATABASE_URL = "postgresql://user:pass@localhost:5432/testdb";
-  process.env.RATE_LIMIT_IP_SALT =
-    "test-rate-limit-salt-32-bytes-minimum-000000";
-  process.env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP = "3";
-  process.env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY = "10";
-
-  // Keep admin vars consistent with env invariants.
-  process.env.ADMIN_PASSWORD = "test-admin-password";
-  process.env.ADMIN_SESSION_SECRET =
-    "test-admin-session-secret-32-bytes-minimum-0000000";
-  process.env.ADMIN_CSRF_SECRET =
-    "test-admin-csrf-secret-32-bytes-minimum-000000000";
-
-  // IMPORTANT: Do not set undefined. Use a valid host or delete.
-  process.env.ADMIN_ALLOWED_HOST = "example.test";
-}
-
-/**
- * Deferred promise helper for deterministic concurrency orchestration.
- */
-type Deferred<T> = {
-  promise: Promise<T>;
-  resolve: (value: T) => void;
-  reject: (reason: unknown) => void;
-  isSettled: boolean;
-};
-
-function createDeferred<T>(): Deferred<T> {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-
-  const deferred: Deferred<T> = {
-    promise: Promise.resolve(undefined as unknown as T),
-    resolve: () => undefined as unknown as void,
-    reject: () => undefined as unknown as void,
-    isSettled: false,
-  };
-
-  deferred.promise = new Promise<T>((res, rej) => {
-    deferred.resolve = (value: T) => {
-      deferred.isSettled = true;
-      res(value);
-    };
-    deferred.reject = (reason: unknown) => {
-      deferred.isSettled = true;
-      rej(reason);
-    };
-  });
-
-  return deferred;
-}
+type EnvSnapshot = Record<EnvKey, string | undefined>;
 
 type DailyRow = {
   id: string;
@@ -118,58 +36,243 @@ type ReportRow = {
 
 type PrismaErrorWithCode = Error & { code?: string };
 
-const {
-  stateRef,
-  dailyGateRef,
-  companyGateRef,
-  reportIdCounterRef,
-  lockTailRef,
-} = vi.hoisted(() => {
-  return {
-    stateRef: {
-      current: {
-        dailyCommitted: new Map<string, DailyRow>(),
-        dailyPending: new Map<
-          string,
-          { row: DailyRow; done: Deferred<void> }
-        >(),
-        companyCommitted: new Map<string, CompanyLimitRow>(),
-        companyPending: new Map<
-          string,
-          { row: CompanyLimitRow; done: Deferred<void> }
-        >(),
-        createdReports: [] as ReportRow[],
-      },
-    },
-    dailyGateRef: { current: createDeferred<void>() },
-    companyGateRef: { current: createDeferred<void>() },
-    reportIdCounterRef: { current: 0 },
-    lockTailRef: { current: new Map<string, Promise<void>>() },
-  };
-});
+type ReportIpDailyLimitUpsertArgs = {
+  where: { uniq_ip_day: { ipHash: string; day: string } };
+  create: { ipHash: string; day: string; count: number };
+  update: { count: { increment: number } };
+  select: { id: true; count: true };
+};
 
+type ReportIpCompanyLimitCountArgs = {
+  where: { ipHash: string; companyId: string };
+};
+
+type ReportIpCompanyLimitCreateArgs = {
+  data: { ipHash: string; companyId: string; positionKey: string };
+};
+
+type TxClient = {
+  $executeRaw: (
+    strings: TemplateStringsArray,
+    ipHash: string,
+    companyId: string,
+  ) => Promise<number>;
+  reportIpDailyLimit: {
+    upsert: (args: ReportIpDailyLimitUpsertArgs) => Promise<{ id: string; count: number }>;
+  };
+  reportIpCompanyLimit: {
+    count: (args: ReportIpCompanyLimitCountArgs) => Promise<number>;
+    create: (args: ReportIpCompanyLimitCreateArgs) => Promise<CompanyLimitRow>;
+  };
+};
+
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason: unknown) => void;
+  isSettled: boolean;
+};
+
+/**
+ * Reads a process.env variable via index signature (avoids readonly typing issues).
+ *
+ * @param key - Environment variable key.
+ * @returns Environment variable value (if set).
+ */
+function getEnvVar(key: EnvKey): string | undefined {
+  const env = process.env as unknown as Record<string, string | undefined>;
+  return env[key];
+}
+
+/**
+ * Sets or deletes a process.env variable via index signature (avoids readonly typing issues).
+ *
+ * @param key - Environment variable key.
+ * @param value - Value to set, or undefined to delete.
+ * @returns void
+ */
+function setEnvVar(key: EnvKey, value: string | undefined): void {
+  const env = process.env as unknown as Record<string, string | undefined>;
+  if (value === undefined) {
+    delete env[key];
+    return;
+  }
+  env[key] = value;
+}
+
+/**
+ * Captures the environment variables used by these tests.
+ *
+ * @returns Environment snapshot.
+ */
+function snapshotEnv(): EnvSnapshot {
+  return {
+    NODE_ENV: getEnvVar("NODE_ENV"),
+    DATABASE_URL: getEnvVar("DATABASE_URL"),
+    RATE_LIMIT_IP_SALT: getEnvVar("RATE_LIMIT_IP_SALT"),
+    RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP: getEnvVar(
+      "RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP",
+    ),
+    RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY: getEnvVar("RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY"),
+    ADMIN_PASSWORD: getEnvVar("ADMIN_PASSWORD"),
+    ADMIN_SESSION_SECRET: getEnvVar("ADMIN_SESSION_SECRET"),
+    ADMIN_ALLOWED_HOST: getEnvVar("ADMIN_ALLOWED_HOST"),
+    ADMIN_CSRF_SECRET: getEnvVar("ADMIN_CSRF_SECRET"),
+  };
+}
+
+/**
+ * Restores process.env from a snapshot.
+ *
+ * @param snap - Snapshot to restore.
+ * @returns void
+ */
+function restoreEnv(snap: EnvSnapshot): void {
+  setEnvVar("NODE_ENV", snap.NODE_ENV);
+  setEnvVar("DATABASE_URL", snap.DATABASE_URL);
+  setEnvVar("RATE_LIMIT_IP_SALT", snap.RATE_LIMIT_IP_SALT);
+  setEnvVar(
+    "RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP",
+    snap.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP,
+  );
+  setEnvVar("RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY", snap.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY);
+  setEnvVar("ADMIN_PASSWORD", snap.ADMIN_PASSWORD);
+  setEnvVar("ADMIN_SESSION_SECRET", snap.ADMIN_SESSION_SECRET);
+  setEnvVar("ADMIN_ALLOWED_HOST", snap.ADMIN_ALLOWED_HOST);
+  setEnvVar("ADMIN_CSRF_SECRET", snap.ADMIN_CSRF_SECRET);
+}
+
+/**
+ * Applies a minimal valid env required by the reports route.
+ *
+ * @returns void
+ */
+function applyBaseEnv(): void {
+  setEnvVar("NODE_ENV", "test");
+  setEnvVar("DATABASE_URL", "postgresql://user:pass@localhost:5432/testdb");
+  setEnvVar("RATE_LIMIT_IP_SALT", "test-rate-limit-salt-32-bytes-minimum-000000");
+  setEnvVar("RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP", "3");
+  setEnvVar("RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY", "10");
+
+  // Keep admin vars consistent with env invariants.
+  setEnvVar("ADMIN_PASSWORD", "test-admin-password");
+  setEnvVar("ADMIN_SESSION_SECRET", "test-admin-session-secret-32-bytes-minimum-0000000");
+  setEnvVar("ADMIN_CSRF_SECRET", "test-admin-csrf-secret-32-bytes-minimum-000000000");
+
+  // IMPORTANT: Do not set undefined. Use a valid host or delete.
+  setEnvVar("ADMIN_ALLOWED_HOST", "example.test");
+}
+
+/**
+ * Creates a deferred promise for deterministic concurrency orchestration.
+ *
+ * @returns Deferred wrapper.
+ */
+function createDeferred<T>(): Deferred<T> {
+  let resolveFn: ((value: T) => void) | null = null;
+  let rejectFn: ((reason: unknown) => void) | null = null;
+
+  const deferred: Deferred<T> = {
+    promise: Promise.resolve(undefined as unknown as T),
+    resolve: () => undefined,
+    reject: () => undefined,
+    isSettled: false,
+  };
+
+  deferred.promise = new Promise<T>((resolve, reject) => {
+    resolveFn = resolve;
+    rejectFn = reject;
+  });
+
+  deferred.resolve = (value: T) => {
+    if (deferred.isSettled === true) {
+      return;
+    }
+    deferred.isSettled = true;
+
+    if (resolveFn === null) {
+      throw new Error("Deferred resolve not initialized.");
+    }
+    resolveFn(value);
+  };
+
+  deferred.reject = (reason: unknown) => {
+    if (deferred.isSettled === true) {
+      return;
+    }
+    deferred.isSettled = true;
+
+    if (rejectFn === null) {
+      throw new Error("Deferred reject not initialized.");
+    }
+    rejectFn(reason);
+  };
+
+  return deferred;
+}
+
+const { stateRef, dailyGateRef, companyGateRef, reportIdCounterRef, lockTailRef } = vi.hoisted(
+  () => {
+    return {
+      stateRef: {
+        current: {
+          dailyCommitted: new Map<string, DailyRow>(),
+          dailyPending: new Map<string, { row: DailyRow; done: Deferred<void> }>(),
+          companyCommitted: new Map<string, CompanyLimitRow>(),
+          companyPending: new Map<string, { row: CompanyLimitRow; done: Deferred<void> }>(),
+          createdReports: [] as ReportRow[],
+        },
+      },
+      dailyGateRef: { current: createDeferred<void>() },
+      companyGateRef: { current: createDeferred<void>() },
+      reportIdCounterRef: { current: 0 },
+      lockTailRef: { current: new Map<string, Promise<void>>() },
+    };
+  },
+);
+
+/**
+ * Builds the daily unique key for (ipHash, day).
+ *
+ * @param ipHash - IP hash.
+ * @param day - UTC day key.
+ * @returns Map key.
+ */
 function dailyKey(ipHash: string, day: string): string {
   return `${ipHash}::${day}`;
 }
 
-function companyKey(
-  ipHash: string,
-  companyId: string,
-  positionKey: string,
-): string {
+/**
+ * Builds the unique key for (ipHash, companyId, positionKey).
+ *
+ * @param ipHash - IP hash.
+ * @param companyId - Company id.
+ * @param positionKey - Position key.
+ * @returns Map key.
+ */
+function companyKey(ipHash: string, companyId: string, positionKey: string): string {
   return `${ipHash}::${companyId}::${positionKey}`;
 }
 
+/**
+ * Builds a per-company lock key.
+ *
+ * @param ipHash - IP hash.
+ * @param companyId - Company id.
+ * @returns Lock key.
+ */
 function companyLockKey(ipHash: string, companyId: string): string {
   return `${ipHash}::${companyId}`;
 }
 
+/**
+ * Resets all in-memory mock DB state and gates.
+ *
+ * @returns void
+ */
 function resetMockState(): void {
   stateRef.current.dailyCommitted = new Map<string, DailyRow>();
-  stateRef.current.dailyPending = new Map<
-    string,
-    { row: DailyRow; done: Deferred<void> }
-  >();
+  stateRef.current.dailyPending = new Map<string, { row: DailyRow; done: Deferred<void> }>();
   stateRef.current.companyCommitted = new Map<string, CompanyLimitRow>();
   stateRef.current.companyPending = new Map<
     string,
@@ -227,7 +330,7 @@ vi.mock("@/lib/dates", async (importOriginal) => {
 
 vi.mock("@/lib/db", () => {
   const prisma = {
-    $transaction: async (fn: (tx: any) => Promise<void>) => {
+    $transaction: async (fn: (tx: TxClient) => Promise<void>): Promise<void> => {
       /**
        * Transaction-local staged writes (commit on success, discard on failure).
        */
@@ -237,16 +340,13 @@ vi.mock("@/lib/db", () => {
       const ownedPendingCompanyKeys: string[] = [];
       const lockReleases: Array<() => void> = [];
 
-      const acquireCompanyLock = async (
-        ipHash: string,
-        companyId: string,
-      ): Promise<void> => {
+      const acquireCompanyLock = async (ipHash: string, companyId: string): Promise<void> => {
         const key = companyLockKey(ipHash, companyId);
         const tail = lockTailRef.current.get(key) ?? Promise.resolve();
 
-        let release!: () => void;
+        let releaseFn: (() => void) | null = null;
         const next = new Promise<void>((res) => {
-          release = res;
+          releaseFn = res;
         });
 
         lockTailRef.current.set(
@@ -257,35 +357,26 @@ vi.mock("@/lib/db", () => {
         await tail;
 
         lockReleases.push(() => {
-          release();
+          if (releaseFn !== null) {
+            releaseFn();
+          }
         });
       };
 
-      const tx = {
+      const tx: TxClient = {
         /**
          * Simulate pg_advisory_xact_lock(hashtext(ipHash), hashtext(companyId)).
          * Called as a tagged template: (strings, ipHash, companyId).
          */
-        $executeRaw: async (
-          _strings: TemplateStringsArray,
-          ipHash: string,
-          companyId: string,
-        ) => {
+        $executeRaw: async (_strings: TemplateStringsArray, ipHash: string, companyId: string) => {
           await acquireCompanyLock(String(ipHash), String(companyId));
           return 0;
         },
 
         reportIpDailyLimit: {
-          upsert: async (args: unknown) => {
-            const a = args as {
-              where?: { uniq_ip_day?: { ipHash?: string; day?: string } };
-              create?: { ipHash?: string; day?: string; count?: number };
-              update?: { count?: { increment?: number } };
-              select?: { id?: boolean; count?: boolean };
-            };
-
-            const ipHash = String(a.where?.uniq_ip_day?.ipHash ?? "");
-            const day = String(a.where?.uniq_ip_day?.day ?? "");
+          upsert: async (args: ReportIpDailyLimitUpsertArgs) => {
+            const ipHash = String(args.where.uniq_ip_day.ipHash);
+            const day = String(args.where.uniq_ip_day.day);
             const key = dailyKey(ipHash, day);
 
             const staged = stagedDaily.get(key);
@@ -295,11 +386,8 @@ vi.mock("@/lib/db", () => {
 
             const committed = stateRef.current.dailyCommitted.get(key);
             if (committed !== undefined) {
-              const inc = Number(a.update?.count?.increment ?? 1);
-              const next: DailyRow = {
-                ...committed,
-                count: committed.count + inc,
-              };
+              const inc = Number(args.update.count.increment);
+              const next: DailyRow = { ...committed, count: committed.count + inc };
               stagedDaily.set(key, next);
               return { id: next.id, count: next.count };
             }
@@ -312,13 +400,14 @@ vi.mock("@/lib/db", () => {
               const committedAfter = stateRef.current.dailyCommitted.get(key);
               if (committedAfter === undefined) {
                 // Other tx rolled back; treat as insert.
-                const count = Number(a.create?.count ?? 1);
+                const count = Number(args.create.count);
                 const row: DailyRow = {
                   id: `daily-${key}`,
                   ipHash,
                   day,
                   count,
                 };
+
                 stateRef.current.dailyPending.set(key, {
                   row,
                   done: createDeferred<void>(),
@@ -331,7 +420,7 @@ vi.mock("@/lib/db", () => {
                 return { id: row.id, count: row.count };
               }
 
-              const inc = Number(a.update?.count?.increment ?? 1);
+              const inc = Number(args.update.count.increment);
               const next: DailyRow = {
                 ...committedAfter,
                 count: committedAfter.count + inc,
@@ -341,8 +430,9 @@ vi.mock("@/lib/db", () => {
             }
 
             // First insert for this key in the whole system: create pending and wait the gate.
-            const count = Number(a.create?.count ?? 1);
+            const count = Number(args.create.count);
             const row: DailyRow = { id: `daily-${key}`, ipHash, day, count };
+
             stateRef.current.dailyPending.set(key, {
               row,
               done: createDeferred<void>(),
@@ -357,12 +447,9 @@ vi.mock("@/lib/db", () => {
         },
 
         reportIpCompanyLimit: {
-          count: async (args: unknown) => {
-            const a = args as {
-              where?: { ipHash?: string; companyId?: string };
-            };
-            const ipHash = String(a.where?.ipHash ?? "");
-            const companyId = String(a.where?.companyId ?? "");
+          count: async (args: ReportIpCompanyLimitCountArgs) => {
+            const ipHash = String(args.where.ipHash);
+            const companyId = String(args.where.companyId);
 
             let total = 0;
 
@@ -381,25 +468,15 @@ vi.mock("@/lib/db", () => {
             return total;
           },
 
-          create: async (args: unknown) => {
-            const a = args as {
-              data?: {
-                ipHash?: string;
-                companyId?: string;
-                positionKey?: string;
-              };
-            };
-
-            const ipHash = String(a.data?.ipHash ?? "");
-            const companyId = String(a.data?.companyId ?? "");
-            const positionKey = String(a.data?.positionKey ?? "");
+          create: async (args: ReportIpCompanyLimitCreateArgs) => {
+            const ipHash = String(args.data.ipHash);
+            const companyId = String(args.data.companyId);
+            const positionKey = String(args.data.positionKey);
             const key = companyKey(ipHash, companyId, positionKey);
 
             const committed = stateRef.current.companyCommitted.get(key);
             if (committed !== undefined) {
-              const err: PrismaErrorWithCode = new Error(
-                "Unique constraint failed",
-              );
+              const err: PrismaErrorWithCode = new Error("Unique constraint failed");
               err.code = "P2002";
               throw err;
             }
@@ -409,9 +486,7 @@ vi.mock("@/lib/db", () => {
               await pending.done.promise;
               const committedAfter = stateRef.current.companyCommitted.get(key);
               if (committedAfter !== undefined) {
-                const err: PrismaErrorWithCode = new Error(
-                  "Unique constraint failed",
-                );
+                const err: PrismaErrorWithCode = new Error("Unique constraint failed");
                 err.code = "P2002";
                 throw err;
               }
@@ -419,6 +494,7 @@ vi.mock("@/lib/db", () => {
 
             // Create pending, wait the gate, then stage for commit.
             const row: CompanyLimitRow = { ipHash, companyId, positionKey };
+
             stateRef.current.companyPending.set(key, {
               row,
               done: createDeferred<void>(),
@@ -457,8 +533,7 @@ vi.mock("@/lib/db", () => {
             p.done.resolve();
           }
           if (ok !== true) {
-            // rollback: ensure we did not accidentally commit
-            // (stagedDaily is not applied when ok=false)
+            // rollback: stagedDaily is not applied when ok=false
           }
         }
 
@@ -477,7 +552,7 @@ vi.mock("@/lib/db", () => {
     },
 
     report: {
-      create: async () => {
+      create: async (): Promise<ReportRow> => {
         reportIdCounterRef.current += 1;
         const row: ReportRow = {
           id: `r-${reportIdCounterRef.current}`,
@@ -493,11 +568,15 @@ vi.mock("@/lib/db", () => {
   return { prisma };
 });
 
-function buildReportsPostRequest(
-  url: string,
-  ip: string,
-  body: unknown,
-): NextRequest {
+/**
+ * Builds a NextRequest for POST /api/reports with JSON body and forwarded IP.
+ *
+ * @param url - Absolute URL.
+ * @param ip - Client IP for x-forwarded-for.
+ * @param body - JSON request body.
+ * @returns NextRequest instance.
+ */
+function buildReportsPostRequest(url: string, ip: string, body: unknown): NextRequest {
   return new NextRequest(url, {
     method: "POST",
     headers: {
@@ -508,6 +587,11 @@ function buildReportsPostRequest(
   });
 }
 
+/**
+ * Imports the reports route handler with a fresh module graph after env changes.
+ *
+ * @returns The imported POST handler.
+ */
 async function importReportsPost(): Promise<{
   POST: (req: NextRequest) => Promise<Response>;
 }> {
@@ -625,23 +709,15 @@ describe.sequential("POST /api/reports concurrency", () => {
 
     const results = await Promise.allSettled([p1, p2]);
 
-    const statuses: number[] = [];
-    for (const r of results) {
-      if (r.status === "fulfilled") {
-        statuses.push(r.value.status);
-      } else {
-        statuses.push(0);
-      }
-    }
-
+    const statuses: number[] = results.map((r) => (r.status === "fulfilled" ? r.value.status : 0));
     statuses.sort((a, b) => a - b);
-    expect(statuses).toEqual([200, 429]);
 
+    expect(statuses).toEqual([200, 429]);
     expect(stateRef.current.createdReports.length).toBe(1);
   });
 
   it("daily limit boundary under concurrency: one 200 and one 429, daily count remains 1 (rollback)", async () => {
-    process.env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY = "1";
+    setEnvVar("RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY", "1");
 
     const { POST } = await importReportsPost();
 
@@ -680,9 +756,7 @@ describe.sequential("POST /api/reports concurrency", () => {
 
     const results = await Promise.allSettled([p1, p2]);
 
-    const statuses: number[] = results.map((r) =>
-      r.status === "fulfilled" ? r.value.status : 0,
-    );
+    const statuses: number[] = results.map((r) => (r.status === "fulfilled" ? r.value.status : 0));
     statuses.sort((a, b) => a - b);
 
     expect(statuses).toEqual([200, 429]);
@@ -695,8 +769,8 @@ describe.sequential("POST /api/reports concurrency", () => {
   });
 
   it("per-company limit boundary under concurrency: one 200 and one 429, daily count remains 1 (rollback)", async () => {
-    process.env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP = "1";
-    process.env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY = "10";
+    setEnvVar("RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP", "1");
+    setEnvVar("RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY", "10");
 
     const { POST } = await importReportsPost();
 
@@ -738,9 +812,7 @@ describe.sequential("POST /api/reports concurrency", () => {
 
     const results = await Promise.allSettled([p1, p2]);
 
-    const statuses: number[] = results.map((r) =>
-      r.status === "fulfilled" ? r.value.status : 0,
-    );
+    const statuses: number[] = results.map((r) => (r.status === "fulfilled" ? r.value.status : 0));
     statuses.sort((a, b) => a - b);
 
     expect(statuses).toEqual([200, 429]);
@@ -753,8 +825,8 @@ describe.sequential("POST /api/reports concurrency", () => {
   });
 
   it("duplicate position rejects without incrementing daily count (rollback)", async () => {
-    process.env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY = "10";
-    process.env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP = "5";
+    setEnvVar("RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY", "10");
+    setEnvVar("RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP", "5");
 
     const { POST } = await importReportsPost();
 
@@ -792,9 +864,8 @@ describe.sequential("POST /api/reports concurrency", () => {
     companyGateRef.current.resolve();
 
     const results = await Promise.allSettled([p1, p2]);
-    const statuses: number[] = results.map((r) =>
-      r.status === "fulfilled" ? r.value.status : 0,
-    );
+
+    const statuses: number[] = results.map((r) => (r.status === "fulfilled" ? r.value.status : 0));
     statuses.sort((a, b) => a - b);
 
     expect(statuses).toEqual([200, 429]);
