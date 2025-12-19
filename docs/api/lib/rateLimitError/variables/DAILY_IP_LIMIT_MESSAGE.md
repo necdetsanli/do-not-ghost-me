@@ -6,6 +6,6 @@
 
 > `const` **DAILY\_IP\_LIMIT\_MESSAGE**: `"You have reached the daily report limit."` = `"You have reached the daily report limit."`
 
-Defined in: [src/lib/rateLimitError.ts:32](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/rateLimitError.ts#L32)
+Defined in: [src/lib/rateLimitError.ts:32](https://github.com/necdetsanli/do-not-ghost-me/blob/ca67b795423a5510bee17afefd943f2be855d7a2/src/lib/rateLimitError.ts#L32)
 
 Shared message for daily IP limit violations.

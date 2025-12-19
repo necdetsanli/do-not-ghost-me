@@ -6,7 +6,7 @@
 
 > `const` **prisma**: `PrismaClient`
 
-Defined in: [src/lib/db.ts:46](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/db.ts#L46)
+Defined in: [src/lib/db.ts:46](https://github.com/necdetsanli/do-not-ghost-me/blob/ca67b795423a5510bee17afefd943f2be855d7a2/src/lib/db.ts#L46)
 
 Shared PrismaClient singleton for the application.
 

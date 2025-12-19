@@ -6,7 +6,7 @@
 
 > **buildPageUrl**(`base`, `page`, `filters`): `string`
 
-Defined in: [src/app/companies/\_lib/url.ts:21](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/app/companies/_lib/url.ts#L21)
+Defined in: [src/app/companies/\_lib/url.ts:21](https://github.com/necdetsanli/do-not-ghost-me/blob/ca67b795423a5510bee17afefd943f2be855d7a2/src/app/companies/_lib/url.ts#L21)
 
 Build a URL for a given page, preserving existing filter query parameters.
 
@@ -30,7 +30,7 @@ Base pathname for the route (for example, "/companies").
 
 ### filters
 
-[`ResolvedFilters`](../../../types/type-aliases/ResolvedFilters.md)
+`ResolvedFilters`
 
 Current resolved filters whose values should be encoded into the query string.
 

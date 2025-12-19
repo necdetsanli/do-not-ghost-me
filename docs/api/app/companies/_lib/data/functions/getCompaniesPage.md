@@ -4,9 +4,9 @@
 
 # Function: getCompaniesPage()
 
-> **getCompaniesPage**(`filters`): `Promise`\<\{ `items`: [`CompanyRow`](../../../types/type-aliases/CompanyRow.md)[]; `totalCompanies`: `number`; `totalPages`: `number`; \}\>
+> **getCompaniesPage**(`filters`): `Promise`\<\{ `items`: `CompanyRow`[]; `totalCompanies`: `number`; `totalPages`: `number`; \}\>
 
-Defined in: [src/app/companies/\_lib/data.ts:61](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/app/companies/_lib/data.ts#L61)
+Defined in: [src/app/companies/\_lib/data.ts:61](https://github.com/necdetsanli/do-not-ghost-me/blob/ca67b795423a5510bee17afefd943f2be855d7a2/src/app/companies/_lib/data.ts#L61)
 
 Fetch one page of "companies" and basic pagination metadata.
 
@@ -22,7 +22,7 @@ This avoids unstable tie ordering that can cause rows to "jump" between pages.
 
 ### filters
 
-[`ResolvedFilters`](../../../types/type-aliases/ResolvedFilters.md)
+`ResolvedFilters`
 
 Resolved and validated filters (page, search, country,
                  positionCategory, seniority, stage) used to restrict the
@@ -30,7 +30,7 @@ Resolved and validated filters (page, search, country,
 
 ## Returns
 
-`Promise`\<\{ `items`: [`CompanyRow`](../../../types/type-aliases/CompanyRow.md)[]; `totalCompanies`: `number`; `totalPages`: `number`; \}\>
+`Promise`\<\{ `items`: `CompanyRow`[]; `totalCompanies`: `number`; `totalPages`: `number`; \}\>
 
 A promise that resolves to an object containing:
          - items: current page rows with company id, name, country and

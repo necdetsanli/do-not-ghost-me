@@ -4,7 +4,7 @@
 
 # Class: ReportRateLimitError
 
-Defined in: [src/lib/rateLimitError.ts:54](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/rateLimitError.ts#L54)
+Defined in: [src/lib/rateLimitError.ts:54](https://github.com/necdetsanli/do-not-ghost-me/blob/ca67b795423a5510bee17afefd943f2be855d7a2/src/lib/rateLimitError.ts#L54)
 
 Domain-specific error for report-related rate limits.
 
@@ -22,7 +22,7 @@ response (or similar) without accidentally hiding real failures.
 
 > **new ReportRateLimitError**(`message`, `reason`, `statusCode`): `ReportRateLimitError`
 
-Defined in: [src/lib/rateLimitError.ts:72](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/rateLimitError.ts#L72)
+Defined in: [src/lib/rateLimitError.ts:72](https://github.com/necdetsanli/do-not-ghost-me/blob/ca67b795423a5510bee17afefd943f2be855d7a2/src/lib/rateLimitError.ts#L72)
 
 Creates a new ReportRateLimitError.
 
@@ -60,7 +60,7 @@ HTTP status code to associate with the error (defaults to 429).
 
 > `readonly` **reason**: [`RateLimitReason`](../type-aliases/RateLimitReason.md)
 
-Defined in: [src/lib/rateLimitError.ts:58](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/rateLimitError.ts#L58)
+Defined in: [src/lib/rateLimitError.ts:58](https://github.com/necdetsanli/do-not-ghost-me/blob/ca67b795423a5510bee17afefd943f2be855d7a2/src/lib/rateLimitError.ts#L58)
 
 Machine-readable reason describing why the rate limit was triggered.
 
@@ -70,6 +70,6 @@ Machine-readable reason describing why the rate limit was triggered.
 
 > `readonly` **statusCode**: `number`
 
-Defined in: [src/lib/rateLimitError.ts:63](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/lib/rateLimitError.ts#L63)
+Defined in: [src/lib/rateLimitError.ts:63](https://github.com/necdetsanli/do-not-ghost-me/blob/ca67b795423a5510bee17afefd943f2be855d7a2/src/lib/rateLimitError.ts#L63)
 
 HTTP status code associated with this rate-limit error.

@@ -3,28 +3,39 @@
 
   "tsconfig": "tsconfig.typedoc.json",
 
-  "entryPoints": ["src"],
+  "entryPoints": [
+    "src/env.ts",
+    "src/lib",
+    "src/app/api",
+    "src/app/admin/_lib",
+    "src/app/companies/_lib",
+    "src/app/companies/types.ts"
+  ],
+  
+  "entryPointStrategy": "expand",
+
+  "out": "docs/api",
+  "cleanOutputDir": true,
+
+  "plugin": ["typedoc-plugin-markdown"],
+  "theme": "markdown",
+
+  "readme": "none",
+  "hideBreadcrumbs": true,
 
   "exclude": [
     "**/tests/**",
     "**/*.test.*",
     "**/*.spec.*",
-    "**/e2e/**"
+    "**/e2e/**",
+    "**/.next/**",
+    "**/dist/**"
   ],
-
-  "out": "docs/api",
-
-  "plugin": ["typedoc-plugin-markdown"],
-
-  "theme": "markdown",
-  "hideBreadcrumbs": true,
 
   "excludeExternals": true,
   "excludePrivate": true,
   "excludeProtected": true,
   "excludeInternal": true,
 
-  "commentStyle": "all",
-
-  "entryPointStrategy": "expand"
+  "commentStyle": "all"
 }

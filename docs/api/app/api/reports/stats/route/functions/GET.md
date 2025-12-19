@@ -6,7 +6,7 @@
 
 > **GET**(): `Promise`\<`NextResponse`\<`unknown`\>\>
 
-Defined in: [src/app/api/reports/stats/route.ts:144](https://github.com/necdetsanli/do-not-ghost-me/blob/2cf27d71497adc408791f4c93d855ac9fd7a3c78/src/app/api/reports/stats/route.ts#L144)
+Defined in: [src/app/api/reports/stats/route.ts:144](https://github.com/necdetsanli/do-not-ghost-me/blob/ca67b795423a5510bee17afefd943f2be855d7a2/src/app/api/reports/stats/route.ts#L144)
 
 Returns aggregated statistics about reports:
 - total number of ACTIVE reports across all time
