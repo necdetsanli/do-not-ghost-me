@@ -2,14 +2,81 @@
 import { z } from "zod";
 
 /**
+ * Parse an integer-like environment value safely.
+ *
+ * - Accepts number or string.
+ * - Treats empty strings as "unset" (so defaults can apply).
+ */
+function intFromEnv(args: {
+  varName: string;
+  min: number;
+  max: number;
+  defaultValue: number;
+}): z.ZodType<number> {
+  return z.preprocess(
+    (value: unknown) => {
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (trimmed.length === 0) {
+          return undefined;
+        }
+        return Number(trimmed);
+      }
+      return value;
+    },
+    z
+      .number({
+        message: `${args.varName} must be a number`,
+      })
+      .int(`${args.varName} must be an integer`)
+      .min(args.min, {
+        message: `${args.varName} must be >= ${String(args.min)}`,
+      })
+      .max(args.max, {
+        message: `${args.varName} must be <= ${String(args.max)}`,
+      })
+      .default(args.defaultValue),
+  );
+}
+
+/**
+ * Parse a boolean-like environment value safely.
+ *
+ * Accepts:
+ * - true/false boolean
+ * - "true"/"false" strings (case-insensitive, trimmed)
+ */
+function boolFromEnv(args: { varName: string; defaultValue: boolean }): z.ZodType<boolean> {
+  return z.preprocess(
+    (value: unknown) => {
+      if (typeof value === "string") {
+        const trimmed = value.trim().toLowerCase();
+        if (trimmed.length === 0) {
+          return undefined;
+        }
+        if (trimmed === "true") {
+          return true;
+        }
+        if (trimmed === "false") {
+          return false;
+        }
+      }
+      return value;
+    },
+    z
+      .boolean({
+        message: `${args.varName} must be "true" or "false"`,
+      })
+      .default(args.defaultValue),
+  );
+}
+
+/**
  * Base schema describing all server-side environment variables.
- * This schema is extended with cross-field invariants for admin-related
- * configuration using a custom refinement function.
+ * This schema is extended with cross-field invariants using superRefine.
  */
 const baseServerEnvSchema = z.object({
-  NODE_ENV: z
-    .enum(["development", "test", "production"])
-    .default("development"),
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 
   DATABASE_URL: z.string().min(1, {
     message: "DATABASE_URL is required for Prisma and database access",
@@ -19,29 +86,34 @@ const baseServerEnvSchema = z.object({
     message: "RATE_LIMIT_IP_SALT must be at least 32 characters long",
   }),
 
-  RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP: z.coerce
-    .number()
-    .int()
-    .min(1, {
-      message: "RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP must be >= 1",
-    })
-    .max(5, {
-      // Keep this relatively low to avoid abuse in production.
-      message:
-        "RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP must be <= 5 for safety",
-    })
-    .default(3),
+  RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP: intFromEnv({
+    varName: "RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP",
+    min: 1,
+    max: 5,
+    defaultValue: 3,
+  }),
 
-  RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY: z.coerce
-    .number()
-    .int()
-    .min(1, {
-      message: "RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY must be >= 1",
-    })
-    .max(20, {
-      message: "RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY must be <= 20 for safety",
-    })
-    .default(10),
+  RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY: intFromEnv({
+    varName: "RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY",
+    min: 1,
+    max: 20,
+    defaultValue: 10,
+  }),
+
+  /**
+   * Public API: Company intel (browser extension)
+   */
+  COMPANY_INTEL_ENFORCE_K_ANONYMITY: boolFromEnv({
+    varName: "COMPANY_INTEL_ENFORCE_K_ANONYMITY",
+    defaultValue: false,
+  }),
+
+  COMPANY_INTEL_K_ANONYMITY: intFromEnv({
+    varName: "COMPANY_INTEL_K_ANONYMITY",
+    min: 2,
+    max: 50,
+    defaultValue: 5,
+  }),
 
   /**
    * Optional password for the admin dashboard.
@@ -57,7 +129,7 @@ const baseServerEnvSchema = z.object({
 
   /**
    * Optional host restriction for the admin dashboard.
-   * Example: "localhost:3000" or "donotghostme.com".
+   * Example: "localhost:3000" or "www.donotghostme.com".
    * When set, admin requests from other hosts are rejected.
    */
   ADMIN_ALLOWED_HOST: z.string().optional(),
@@ -70,32 +142,20 @@ const baseServerEnvSchema = z.object({
 });
 
 /**
- * Apply cross-field invariants for admin-related environment variables.
- *
- * Invariants:
- * - ADMIN_PASSWORD and ADMIN_SESSION_SECRET must either both be set or both be omitted.
- * - When admin is enabled (password + session secret), ADMIN_CSRF_SECRET must also be set.
- * - In production, RATE_LIMIT_IP_SALT must not be left as the example placeholder.
- *
- * @param value - Parsed environment object before invariants are enforced.
- * @param ctx - Zod refinement context used to register custom validation issues.
- * @returns void
+ * Cross-field invariants for environment variables.
  */
-function applyAdminEnvInvariants(
+function applyEnvInvariants(
   value: z.infer<typeof baseServerEnvSchema>,
   ctx: z.RefinementCtx,
 ): void {
   const hasAdminPassword: boolean =
     typeof value.ADMIN_PASSWORD === "string" && value.ADMIN_PASSWORD.length > 0;
   const hasAdminSessionSecret: boolean =
-    typeof value.ADMIN_SESSION_SECRET === "string" &&
-    value.ADMIN_SESSION_SECRET.length > 0;
+    typeof value.ADMIN_SESSION_SECRET === "string" && value.ADMIN_SESSION_SECRET.length > 0;
   const hasAdminCsrfSecret: boolean =
-    typeof value.ADMIN_CSRF_SECRET === "string" &&
-    value.ADMIN_CSRF_SECRET.length > 0;
+    typeof value.ADMIN_CSRF_SECRET === "string" && value.ADMIN_CSRF_SECRET.length > 0;
 
-  // 1) For security, ADMIN_PASSWORD and ADMIN_SESSION_SECRET must either both be set
-  //    or both be omitted. A half-configured admin setup is not allowed.
+  // Admin config must be all-or-nothing.
   if (hasAdminPassword !== hasAdminSessionSecret) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -105,11 +165,7 @@ function applyAdminEnvInvariants(
     });
   }
 
-  // 2) If admin is configured at all (password + session secret),
-  //    require a CSRF secret as well. This avoids enabling admin
-  //    with CSRF protection accidentally disabled.
-  const isAdminEnabled: boolean =
-    hasAdminPassword === true && hasAdminSessionSecret === true;
+  const isAdminEnabled: boolean = hasAdminPassword === true && hasAdminSessionSecret === true;
 
   if (isAdminEnabled === true && hasAdminCsrfSecret === false) {
     ctx.addIssue({
@@ -120,8 +176,7 @@ function applyAdminEnvInvariants(
     });
   }
 
-  // 3) Extra guard for production: prevent shipping with the example
-  //    placeholder salt from .env.example (or anything that looks like it).
+  // Guard: do not ship placeholder salts in production.
   const isProduction: boolean = value.NODE_ENV === "production";
   const saltLooksLikePlaceholder: boolean =
     value.RATE_LIMIT_IP_SALT.toLowerCase().includes("replace-with") === true;
@@ -134,24 +189,22 @@ function applyAdminEnvInvariants(
       path: ["RATE_LIMIT_IP_SALT"],
     });
   }
+
+  // Company intel invariants: if enforced, K must be sensible (already min/max validated)
+  const enforceK: boolean = value.COMPANY_INTEL_ENFORCE_K_ANONYMITY === true;
+  if (enforceK === true && value.COMPANY_INTEL_K_ANONYMITY < 2) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "COMPANY_INTEL_K_ANONYMITY must be >= 2 when enforcement is on.",
+      path: ["COMPANY_INTEL_K_ANONYMITY"],
+    });
+  }
 }
 
-/**
- * Schema describing all server-side environment variables with
- * cross-variable invariants applied. This is the single source of truth
- * for configuration and keeps environment access centralized and type-safe.
- */
-const serverEnvSchema = baseServerEnvSchema.superRefine(
-  applyAdminEnvInvariants,
-);
+const serverEnvSchema = baseServerEnvSchema.superRefine(applyEnvInvariants);
 
 /**
  * Read and validate process.env once at module load time.
- * Failing fast here prevents hard-to-debug runtime errors later and avoids
- * starting the application with an insecure or inconsistent configuration.
- *
- * @returns The validated environment configuration object.
- * @throws {Error} When one or more environment variables are invalid or inconsistent.
  */
 function parseServerEnv(): z.infer<typeof serverEnvSchema> {
   const parsed = serverEnvSchema.safeParse({
@@ -160,8 +213,9 @@ function parseServerEnv(): z.infer<typeof serverEnvSchema> {
     RATE_LIMIT_IP_SALT: process.env.RATE_LIMIT_IP_SALT,
     RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP:
       process.env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP,
-    RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY:
-      process.env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY,
+    RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY: process.env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY,
+    COMPANY_INTEL_ENFORCE_K_ANONYMITY: process.env.COMPANY_INTEL_ENFORCE_K_ANONYMITY,
+    COMPANY_INTEL_K_ANONYMITY: process.env.COMPANY_INTEL_K_ANONYMITY,
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
     ADMIN_SESSION_SECRET: process.env.ADMIN_SESSION_SECRET,
     ADMIN_ALLOWED_HOST: process.env.ADMIN_ALLOWED_HOST,
@@ -169,11 +223,9 @@ function parseServerEnv(): z.infer<typeof serverEnvSchema> {
   });
 
   if (parsed.success === false) {
-    // We intentionally log and crash early so misconfiguration is obvious.
-    console.error(
-      "[env] Invalid environment variables:",
-      parsed.error.format(),
-    );
+    const err = parsed.error as z.ZodError;
+    // Fail fast: misconfiguration should be obvious and non-silent.
+    console.error("[env] Invalid environment variables:", err.format());
     throw new Error("Invalid environment configuration. See error log above.");
   }
 
@@ -182,8 +234,6 @@ function parseServerEnv(): z.infer<typeof serverEnvSchema> {
 
 /**
  * Validated, read-only environment object.
- * Import this instead of reading process.env directly to keep configuration
- * access centralized and type-safe across the application.
  */
 export const env = Object.freeze(parseServerEnv());
 export type Env = typeof env;
