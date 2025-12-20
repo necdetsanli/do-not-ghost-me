@@ -23,5 +23,5 @@ type AdminLayoutProps = {
 };
 
 export default function AdminLayout({ children }: AdminLayoutProps): JSX.Element {
-  return <>{children}</>;
+  return <main>{children}</main>;
 }
