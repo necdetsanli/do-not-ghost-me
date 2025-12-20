@@ -6,6 +6,10 @@ on:
   push:
     branches: ["main"]
 
+concurrency:
+  group: snyk-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -20,14 +24,20 @@ jobs:
       actions: read
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v6
+      - name: Setup Node (from .nvmrc)
+        uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version-file: ".nvmrc"
           cache: npm
 
-      - run: npm ci
+      - name: Upgrade npm (engine requirement)
+        run: npm i -g npm@11.7.0
+
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
 
       - name: Set up Snyk CLI
         uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
@@ -55,14 +65,20 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v6
+      - name: Setup Node (from .nvmrc)
+        uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version-file: ".nvmrc"
           cache: npm
 
-      - run: npm ci
+      - name: Upgrade npm (engine requirement)
+        run: npm i -g npm@11.7.0
+
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
 
       - name: Set up Snyk CLI (optional)
         uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
@@ -82,14 +98,20 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v6
+      - name: Setup Node (from .nvmrc)
+        uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version-file: ".nvmrc"
           cache: npm
 
-      - run: npm ci
+      - name: Upgrade npm (engine requirement)
+        run: npm i -g npm@11.7.0
+
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
 
       - name: Set up Snyk CLI
         uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
