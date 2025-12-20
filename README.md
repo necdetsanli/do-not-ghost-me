@@ -10,7 +10,8 @@
 <p align="center">
   <img alt="GitHub package.json version" src="https://img.shields.io/github/package-json/v/necdetsanli/do-not-ghost-me">
   <a href="https://www.donotghostme.com">
-  <img alt="GitHub deployments" src="https://img.shields.io/github/deployments/necdetsanli/do-not-ghost-me/production"></a>
+    <img alt="GitHub deployments" src="https://img.shields.io/github/deployments/necdetsanli/do-not-ghost-me/production"></a>
+  <img alt="Codecov" src="https://img.shields.io/codecov/c/github/necdetsanli/do-not-ghost-me">
   <a href="LICENSE">
     <img alt="License: AGPL-3.0-or-later" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg"></a> 
   <a href="https://github.com/necdetsanli/do-not-ghost-me/pulls">
