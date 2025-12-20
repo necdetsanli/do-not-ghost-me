@@ -1,0 +1,100 @@
+name: Snyk Security
+
+on:
+  pull_request:
+    branches: ["main", "staging"]
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  snyk_main_required:
+    name: Snyk (required on main PRs)
+    if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Set up Snyk CLI
+        uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      # SAST (Code) -> GitHub Code Scanning
+      - name: Snyk Code (SARIF)
+        run: snyk code test --sarif > snyk-code.sarif
+
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: snyk-code.sarif
+
+      # SCA (Open Source)
+      - name: Snyk Open Source (test)
+        run: snyk test --all-projects
+
+  snyk_staging_optional:
+    name: Snyk (optional on staging PRs)
+    if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'staging'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Set up Snyk CLI (optional)
+        uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        continue-on-error: true
+
+      - name: Snyk Open Source (test) (optional)
+        run: snyk test --all-projects
+        continue-on-error: true
+
+  snyk_main_monitor:
+    name: Snyk (monitor on main push)
+    if: github.event_name == 'push' && github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Set up Snyk CLI
+        uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Snyk Open Source (monitor)
+        run: snyk monitor --all-projects
