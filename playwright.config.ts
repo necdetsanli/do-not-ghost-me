@@ -1,3 +1,5 @@
+// playwright.config.ts
+import { randomBytes } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
 
 const DEFAULT_PORT = 3000;
@@ -9,13 +11,68 @@ const baseUrlObj = new URL(BASE_URL);
 const PORT: number = Number(baseUrlObj.port || String(DEFAULT_PORT));
 const ADMIN_ALLOWED_HOST: string = baseUrlObj.host;
 
-const DEFAULT_ADMIN_PASSWORD = "test-admin-password";
-const DEFAULT_ADMIN_SESSION_SECRET = "test-admin-session-secret-0123456789abcdef0123456789abcdef";
-const DEFAULT_ADMIN_CSRF_SECRET = "test-admin-csrf-secret-0123456789abcdef0123456789abcdef";
-
 const IS_COVERAGE: boolean = process.env.PW_COLLECT_V8_COVERAGE === "1";
 const WEB_SERVER_COMMAND: string =
   IS_COVERAGE === true ? "npm run build && npm run start" : "npm run dev";
+
+/**
+ * Generates a cryptographically strong random hex string.
+ *
+ * @param {number} bytes - Number of random bytes to generate.
+ * @returns {string} Hex-encoded string.
+ */
+function randomHex(bytes: number): string {
+  return randomBytes(bytes).toString("hex");
+}
+
+/**
+ * Resolves admin auth environment variables for E2E runs.
+ *
+ * In CI, these should be provided explicitly via workflow env/secrets.
+ * For local dev/test, we generate per-process values to avoid hardcoded secrets.
+ *
+ * Notes:
+ * - Values generated here are stable only for the lifetime of the current process.
+ * - We also populate `process.env` so Playwright tests can read the same values.
+ *
+ * @returns {{ adminPassword: string, adminSessionSecret: string, adminCsrfSecret: string }}
+ * An object containing the resolved admin auth env values.
+ */
+function resolveAdminE2eAuthEnv(): {
+  adminPassword: string;
+  adminSessionSecret: string;
+  adminCsrfSecret: string;
+} {
+  const rawPassword: string =
+    typeof process.env.ADMIN_PASSWORD === "string" ? process.env.ADMIN_PASSWORD.trim() : "";
+  const rawSessionSecret: string =
+    typeof process.env.ADMIN_SESSION_SECRET === "string"
+      ? process.env.ADMIN_SESSION_SECRET.trim()
+      : "";
+  const rawCsrfSecret: string =
+    typeof process.env.ADMIN_CSRF_SECRET === "string" ? process.env.ADMIN_CSRF_SECRET.trim() : "";
+
+  const adminPassword: string = rawPassword.length > 0 ? rawPassword : randomHex(16);
+  const adminSessionSecret: string =
+    rawSessionSecret.length >= 32 ? rawSessionSecret : randomHex(32);
+  const adminCsrfSecret: string = rawCsrfSecret.length >= 32 ? rawCsrfSecret : randomHex(32);
+
+  if (rawPassword.length === 0) {
+    process.env.ADMIN_PASSWORD = adminPassword;
+  }
+
+  if (rawSessionSecret.length < 32) {
+    process.env.ADMIN_SESSION_SECRET = adminSessionSecret;
+  }
+
+  if (rawCsrfSecret.length < 32) {
+    process.env.ADMIN_CSRF_SECRET = adminCsrfSecret;
+  }
+
+  return { adminPassword, adminSessionSecret, adminCsrfSecret };
+}
+
+const { adminPassword, adminSessionSecret, adminCsrfSecret } = resolveAdminE2eAuthEnv();
 
 /**
  * Converts NodeJS.ProcessEnv into a Record<string, string> compatible with
@@ -44,118 +101,40 @@ function buildWebServerEnv(
   return merged;
 }
 
-/**
- * Playwright end-to-end test configuration.
- *
- * Responsibilities:
- * - Run E2E specs from tests/e2e.
- * - Start a Next.js dev server for local/dev runs.
- * - Use a Chromium desktop profile by default.
- */
 export default defineConfig({
-  /**
-   * Root directory for end-to-end tests.
-   */
   testDir: "./tests/e2e",
-
-  /**
-   * Global timeout per test (including hooks) in milliseconds.
-   */
   timeout: 60_000,
 
   expect: {
-    /**
-     * Timeout for Playwright's `expect` assertions.
-     */
     timeout: 5_000,
   },
 
-  /**
-   * Avoid accidentally committing `test.only` in CI.
-   */
   forbidOnly: process.env.CI === "true",
-
-  /**
-   * Retry policy:
-   * - CI: retry flaky tests a couple of times.
-   * - Local: fail fast (no retries).
-   */
   retries: process.env.CI === "true" ? 2 : 0,
-
-  /**
-   * Parallelism settings.
-   */
   fullyParallel: true,
-
-  /**
-   * Reporter selection:
-   * - CI: GitHub-friendly output.
-   * - Local: human-friendly list output.
-   */
   reporter: process.env.CI === "true" ? "github" : "list",
 
   use: {
-    /**
-     * Base URL for `page.goto` calls.
-     */
     baseURL: BASE_URL,
-
-    /**
-     * Run in headless mode by default for determinism and performance.
-     */
     headless: true,
-
-    /**
-     * Capture traces on the first retry only.
-     */
     trace: "on-first-retry",
-
-    /**
-     * Capture screenshots only when a test fails.
-     */
     screenshot: "only-on-failure",
-
-    /**
-     * Record video only for failing tests to help debugging.
-     */
     video: "retain-on-failure",
   },
 
   webServer: {
-    /**
-     * Starts the Next.js server before E2E tests.
-     *
-     * - Normal runs: dev server (fast feedback)
-     * - Coverage runs: production build + start (stable assets + sourcemaps)
-     */
     command: WEB_SERVER_COMMAND,
-
-    /**
-     * Ensures Playwright waits for the exact URL (and host) used by tests.
-     */
     url: BASE_URL,
-
-    /**
-     * Reuse an existing server in local runs for faster feedback.
-     * Never reuse for coverage runs (we want deterministic build/start).
-     */
     reuseExistingServer: process.env.CI !== "true" && IS_COVERAGE === false,
-
-    /**
-     * Server startup timeout in milliseconds.
-     */
     timeout: 60_000,
 
-    /**
-     * Injects deterministic env values for E2E so host/origin checks work reliably.
-     */
     env: buildWebServerEnv(process.env, {
       PORT: String(PORT),
 
       ADMIN_ALLOWED_HOST,
-      ADMIN_PASSWORD: process.env.ADMIN_PASSWORD ?? DEFAULT_ADMIN_PASSWORD,
-      ADMIN_SESSION_SECRET: process.env.ADMIN_SESSION_SECRET ?? DEFAULT_ADMIN_SESSION_SECRET,
-      ADMIN_CSRF_SECRET: process.env.ADMIN_CSRF_SECRET ?? DEFAULT_ADMIN_CSRF_SECRET,
+      ADMIN_PASSWORD: adminPassword,
+      ADMIN_SESSION_SECRET: adminSessionSecret,
+      ADMIN_CSRF_SECRET: adminCsrfSecret,
     }),
   },
 

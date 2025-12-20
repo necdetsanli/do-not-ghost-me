@@ -1,6 +1,7 @@
 // src/lib/csrf.ts
 import crypto from "node:crypto";
 import { env } from "@/env";
+import { randomBytes } from "node:crypto";
 
 /**
  * Time-to-live for CSRF tokens in milliseconds.
@@ -40,32 +41,39 @@ type CsrfPayload = {
   s: string;
 };
 
+// Dev/test-only fallback secret. Generated once per process to avoid hardcoding secrets.
+let devOnlyCsrfSecret: string | null = null;
+
 /**
  * Resolve the CSRF secret used to sign tokens.
  *
  * Precedence:
- * - If `ADMIN_CSRF_SECRET` is configured (via env.ts), use that.
- * - In production, this must be set; otherwise an error is thrown.
- * - In development / test, fall back to a fixed dev-only secret.
+ * - If `ADMIN_CSRF_SECRET` is configured (via env.ts), use that (trimmed).
+ * - In production, the secret must be set and meet the minimum length; otherwise an error is thrown.
+ * - In development / test, fall back to a cryptographically strong random secret generated once per process.
  *
- * @returns The secret string used to sign and verify CSRF tokens.
+ * Notes:
+ * - The dev/test fallback is intentionally not stable across process restarts.
+ * - For stable dev sessions, set `ADMIN_CSRF_SECRET` in your local `.env`.
  *
- * @throws {Error} When running in production without a configured ADMIN_CSRF_SECRET.
+ * @returns {string} The secret string used to sign and verify CSRF tokens.
+ * @throws {Error} When running in production without a configured `ADMIN_CSRF_SECRET`.
  */
 function getCsrfSecret(): string {
   const configuredRaw: string | undefined = env.ADMIN_CSRF_SECRET;
   const configured: string = configuredRaw !== undefined ? configuredRaw.trim() : "";
 
-  if (configured.length > 0) {
+  if (configured.length >= 32) {
     return configured;
   }
 
   if (env.NODE_ENV === "production") {
-    throw new Error("ADMIN_CSRF_SECRET must be set in production.");
+    throw new Error("ADMIN_CSRF_SECRET must be set in production (min 32 chars).");
   }
 
-  // Safe enough for local dev and tests; NEVER use in production.
-  return "dev-only-admin-csrf-secret";
+  devOnlyCsrfSecret ??= randomBytes(32).toString("hex");
+
+  return devOnlyCsrfSecret;
 }
 
 /**

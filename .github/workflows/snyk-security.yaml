@@ -1,0 +1,154 @@
+name: Snyk Security
+
+on:
+  pull_request:
+    branches: ["main", "staging"]
+  push:
+    branches: ["main"]
+
+concurrency:
+  group: snyk-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  snyk_main_required:
+    name: Snyk (required on main PRs)
+    if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node (from .nvmrc)
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - name: Upgrade npm (engine requirement)
+        run: npm i -g npm@11.7.0
+
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Set up Snyk CLI
+        uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      # SAST (Code) -> GitHub Code Scanning
+      - name: Snyk Code (SARIF)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        id: snyk_code
+        if: env.SNYK_TOKEN != ''
+        run: |
+          set +e
+          snyk code test -d --sarif-file-output=snyk-code.sarif
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          set -e
+
+      - name: Upload SARIF to GitHub Code Scanning
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        if: always() && env.SNYK_TOKEN != '' && hashFiles('snyk-code.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: snyk-code.sarif
+
+      - name: Fail if Snyk Code did not pass
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          if: env.SNYK_TOKEN != '' && steps.snyk_code.outputs.exit_code == '2'
+          run: exit 1
+
+      - name: Debug Snyk Code exit code
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        if: env.SNYK_TOKEN != ''
+        run: echo "Snyk Code exit_code=${{ steps.snyk_code.outputs.exit_code }}"
+
+      # SCA (Open Source)
+      - name: Snyk Open Source (test)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk test --all-projects
+
+  snyk_staging_optional:
+    name: Snyk (optional on staging PRs)
+    if: github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'staging'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node (from .nvmrc)
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - name: Upgrade npm (engine requirement)
+        run: npm i -g npm@11.7.0
+
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Set up Snyk CLI (optional)
+        uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        continue-on-error: true
+
+      - name: Snyk Open Source (test) (optional)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk test --all-projects
+        continue-on-error: true
+
+  snyk_main_monitor:
+    name: Snyk (monitor on main push)
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+    if: github.event_name == 'push' && github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node (from .nvmrc)
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - name: Upgrade npm (engine requirement)
+        run: npm i -g npm@11.7.0
+
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Set up Snyk CLI
+        uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Snyk Open Source (monitor)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk monitor --all-projects
