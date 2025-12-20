@@ -74,6 +74,7 @@ function buildCspHeaderValue() {
 }
 
 const isProd = process.env.NODE_ENV === "production";
+const isE2ECoverage = process.env.PW_COLLECT_V8_COVERAGE === "1";
 
 const securityHeaders = (() => {
   /** @type {{ key: string; value: string }[]} */
@@ -132,6 +133,10 @@ const nextConfig = {
   // Do not leak "X-Powered-By: Next.js" in responses for a slightly smaller
   // fingerprint surface in production.
   poweredByHeader: false,
+
+  // Enable production browser sourcemaps only when running E2E coverage.
+  // Rationale: sourcemaps in production can expose source code.
+  productionBrowserSourceMaps: isE2ECoverage === true,
 
   // Allow Playwright (127.0.0.1) to talk to the dev server without warnings.
   // This is only honored by the development server.

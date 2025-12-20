@@ -1,25 +1,63 @@
 import { test as base, expect } from "@playwright/test";
-import { promises as fs } from "node:fs";
+import fs from "node:fs/promises";
+import path from "node:path";
+import crypto from "node:crypto";
 
-/**
- * Extended Playwright test with automatic JS/CSS coverage capture (Chromium only).
- *
- * Usage:
- *   import { test, expect } from "@/tests/e2e/fixtures";
- */
-export const test = base;
+type Fixtures = {
+  /**
+   * Collects V8 JS coverage from Chromium and persists after each test.
+   */
+  collectV8Coverage: void;
+};
 
-test.beforeEach(async ({ page }) => {
-  await page.coverage.startJSCoverage({ resetOnNavigation: false, reportAnonymousScripts: true });
-  await page.coverage.startCSSCoverage({ resetOnNavigation: false });
+function isCoverageEnabled(): boolean {
+  return process.env.PW_COLLECT_V8_COVERAGE === "1";
+}
+
+function resolveCoverageOutDir(): string {
+  const fromEnv = process.env.PW_COVERAGE_DIR;
+
+  if (typeof fromEnv === "string" && fromEnv.trim().length > 0) {
+    return fromEnv.trim();
+  }
+
+  return "coverage/e2e/raw";
+}
+
+function sanitizeFileName(input: string): string {
+  return input
+    .replace(/[^a-z0-9]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+}
+
+const test = base.extend<Fixtures>({
+  collectV8Coverage: [
+    async ({ page, browserName }, use, testInfo) => {
+      const shouldCollect = isCoverageEnabled() === true && browserName === "chromium";
+
+      if (shouldCollect === true) {
+        await page.coverage.startJSCoverage({ resetOnNavigation: false });
+      }
+
+      await use();
+
+      if (shouldCollect === false) {
+        return;
+      }
+
+      const v8 = await page.coverage.stopJSCoverage();
+
+      const outDir = resolveCoverageOutDir();
+      await fs.mkdir(outDir, { recursive: true });
+
+      const title = sanitizeFileName(testInfo.titlePath.join(" "));
+      const outPath = path.join(outDir, `${title}-${crypto.randomUUID()}.json`);
+
+      await fs.writeFile(outPath, JSON.stringify(v8), "utf8");
+    },
+    { auto: true },
+  ],
 });
 
-test.afterEach(async ({ page }, testInfo) => {
-  const js = await page.coverage.stopJSCoverage();
-  const css = await page.coverage.stopCSSCoverage();
-
-  const outPath = testInfo.outputPath("v8-coverage.json");
-  await fs.writeFile(outPath, JSON.stringify({ js, css }, null, 2), "utf8");
-});
-
-export { expect };
+export { test, expect };

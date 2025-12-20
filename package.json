@@ -26,7 +26,7 @@
     "test:e2e": "playwright test",
     "test:e2e:coverage:to-nyc": "node scripts/coverage/playwright-to-nyc.mjs",
     "test:e2e:coverage:report": "nyc report --reporter=lcov --reporter=text --report-dir=coverage/e2e",
-    "test:e2e:coverage": "npm run test:e2e && npm run test:e2e:coverage:to-nyc && npm run test:e2e:coverage:report",
+    "test:e2e:coverage": "PW_COLLECT_V8_COVERAGE=1 PW_COVERAGE_DIR=coverage/e2e/raw npm run test:e2e && npm run test:e2e:coverage:to-nyc && npm run test:e2e:coverage:report",
     "coverage:merge": "lcov-result-merger \"coverage/**/lcov.info\" \"coverage/lcov.info\"",
     "coverage:all": "npm run test:coverage && npm run test:e2e:coverage && npm run coverage:merge",
     "verify": "npm run lint && npm run check && npm run test && npm run test:e2e",
