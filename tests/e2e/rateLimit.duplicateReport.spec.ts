@@ -1,5 +1,6 @@
 // tests/e2e/rateLimit.duplicateReport.spec.ts
-import { test, expect, type Locator, type Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 /**
  * Generates a valid test-net IPv4 address.
@@ -18,10 +19,7 @@ function generateTestIpAddress(): string {
  * @param optionLabel - Visible label of the option.
  * @returns Promise resolved after the option is selected.
  */
-async function selectRadixOptionByLabel(
-  trigger: Locator,
-  optionLabel: string,
-): Promise<void> {
+async function selectRadixOptionByLabel(trigger: Locator, optionLabel: string): Promise<void> {
   await expect(trigger).toBeVisible();
   await trigger.scrollIntoViewIfNeeded();
   await trigger.click();
@@ -117,9 +115,7 @@ async function submitReport(
 }
 
 test.describe("rate limiting: duplicate reports", () => {
-  test("submitting the same report twice shows a duplicate message", async ({
-    page,
-  }) => {
+  test("submitting the same report twice shows a duplicate message", async ({ page }) => {
     const ip = generateTestIpAddress();
     await page.context().setExtraHTTPHeaders({ "x-forwarded-for": ip });
 
@@ -131,9 +127,7 @@ test.describe("rate limiting: duplicate reports", () => {
 
     await submitReport(page, companyName, positionDetail);
 
-    const secondFeedback = page.getByText(
-      /already submitted a report|daily report limit/i,
-    );
+    const secondFeedback = page.getByText(/already submitted a report|daily report limit/i);
     await expect(secondFeedback).toBeVisible();
   });
 });

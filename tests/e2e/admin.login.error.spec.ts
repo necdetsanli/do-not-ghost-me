@@ -1,5 +1,6 @@
 // tests/e2e/admin.login.error.spec.ts
-import { test, expect, type Locator, type Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 /**
  * Returns an admin password for E2E tests.
@@ -41,9 +42,7 @@ function getAdminLoginForm(page: Page): Locator {
 }
 
 test.describe("admin login error handling", () => {
-  test("wrong password redirects back with error and shows alert", async ({
-    page,
-  }) => {
+  test("wrong password redirects back with error and shows alert", async ({ page }) => {
     await setDeterministicClientIp(page);
 
     await page.goto("/admin/login");
@@ -82,8 +81,6 @@ test.describe("admin login error handling", () => {
       form.getByRole("button", { name: /^Sign in$/i }).click(),
     ]);
 
-    await expect(
-      page.getByRole("heading", { name: /^Admin\s+–\s+Reports$/i }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Admin\s+–\s+Reports$/i })).toBeVisible();
   });
 });

@@ -1,5 +1,5 @@
 // tests/e2e/security.inlineStyles.spec.ts
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 /**
  * Basic safety check:

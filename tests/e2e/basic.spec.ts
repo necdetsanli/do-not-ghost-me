@@ -1,10 +1,6 @@
 // tests/e2e/basic.spec.ts
-import {
-  test,
-  expect,
-  type APIRequestContext,
-  type Locator,
-} from "@playwright/test";
+import type { APIRequestContext, Locator } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { CountryCode, JobLevel, PositionCategory, Stage } from "@prisma/client";
 
 type SeedReportArgs = {
@@ -19,10 +15,7 @@ type SeedReportArgs = {
  * @param request - Playwright API request context.
  * @param args - Seed parameters (use a unique companyName and IP per run).
  */
-async function seedReport(
-  request: APIRequestContext,
-  args: SeedReportArgs,
-): Promise<void> {
+async function seedReport(request: APIRequestContext, args: SeedReportArgs): Promise<void> {
   const res = await request.post("/api/reports", {
     headers: {
       "content-type": "application/json",
@@ -57,9 +50,7 @@ function getReportFormSelectTriggers(form: Locator): {
   jobLevel: Locator;
   category: Locator;
 } {
-  const triggers = form.locator(
-    'button[role="combobox"][data-slot="select-trigger"]',
-  );
+  const triggers = form.locator('button[role="combobox"][data-slot="select-trigger"]');
   return {
     stage: triggers.nth(0),
     jobLevel: triggers.nth(1),
@@ -123,9 +114,9 @@ test.describe("do-not-ghost-me basic flows", () => {
     await page.locator("body").click({ position: { x: 1, y: 1 } });
 
     const triggers = getReportFormSelectTriggers(form);
-    await expect(
-      form.locator('button[role="combobox"][data-slot="select-trigger"]'),
-    ).toHaveCount(3);
+    await expect(form.locator('button[role="combobox"][data-slot="select-trigger"]')).toHaveCount(
+      3,
+    );
 
     await selectAppSelectOptionByName(triggers.stage, /technical interview/i);
     await selectAppSelectOptionByName(triggers.jobLevel, /^junior$/i);
@@ -134,9 +125,7 @@ test.describe("do-not-ghost-me basic flows", () => {
     const positionDetailInput = form.getByRole("textbox", {
       name: /position detail/i,
     });
-    await positionDetailInput.fill(
-      "Junior Backend Developer (Playwright test)",
-    );
+    await positionDetailInput.fill("Junior Backend Developer (Playwright test)");
 
     const daysInput = form.getByRole("spinbutton", {
       name: /days without reply/i,
@@ -186,9 +175,7 @@ test.describe("do-not-ghost-me basic flows", () => {
     });
     await expect(searchInput).toBeVisible();
 
-    await expect(
-      filterForm.getByRole("combobox", { name: /country/i }),
-    ).toBeVisible();
+    await expect(filterForm.getByRole("combobox", { name: /country/i })).toBeVisible();
 
     await searchInput.fill(uniqueCompanyName);
     await filterForm.getByRole("button", { name: /apply filters/i }).click();
@@ -198,8 +185,6 @@ test.describe("do-not-ghost-me basic flows", () => {
     });
     await expect(table).toBeVisible();
 
-    await expect(
-      page.getByRole("cell", { name: uniqueCompanyName }),
-    ).toBeVisible();
+    await expect(page.getByRole("cell", { name: uniqueCompanyName })).toBeVisible();
   });
 });
