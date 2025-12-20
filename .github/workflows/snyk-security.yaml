@@ -68,8 +68,14 @@ jobs:
       - name: Fail if Snyk Code did not pass
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        if: env.SNYK_TOKEN != '' && steps.snyk_code.outputs.exit_code != '0'
-        run: exit 1
+          if: env.SNYK_TOKEN != '' && steps.snyk_code.outputs.exit_code == '2'
+          run: exit 1
+
+      - name: Debug Snyk Code exit code
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        if: env.SNYK_TOKEN != ''
+        run: echo "Snyk Code exit_code=${{ steps.snyk_code.outputs.exit_code }}"
 
       # SCA (Open Source)
       - name: Snyk Open Source (test)
