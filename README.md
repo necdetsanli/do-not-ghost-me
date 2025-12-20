@@ -17,8 +17,10 @@
     <img alt="PRs Welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg"></a>
   <a href="https://github.com/necdetsanli/do-not-ghost-me/issues">
     <img alt="GitHub Issues or Pull Requests" src="https://img.shields.io/github/issues/necdetsanli/do-not-ghost-me"></a>
-  <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/necdetsanli/do-not-ghost-me?style=social">
-  <img alt="GitHub forks" src="https://img.shields.io/github/forks/necdetsanli/do-not-ghost-me">
+  <a href="https://github.com/necdetsanli/do-not-ghost-me/stargazers">
+    <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/necdetsanli/do-not-ghost-me?style=social"></a>
+  <a href="https://github.com/necdetsanli/do-not-ghost-me/forks?include=active%2Carchived%2Cinactive%2Cnetwork&page=1&period=2y&sort_by=stargazer_counts">
+    <img alt="GitHub forks" src="https://img.shields.io/github/forks/necdetsanli/do-not-ghost-me"></a>
 </p>
 
 A privacy-aware way to track and surface ghosting in hiring processes.
