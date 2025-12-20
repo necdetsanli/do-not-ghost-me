@@ -20,15 +20,9 @@ export function CompaniesTable(props: CompaniesTableProps): JSX.Element {
           >
             <thead className="border-b border-primary bg-muted">
               <tr>
-                <th className="w-12 px-4 py-3 text-left text-xs font-medium text-secondary">
-                  #
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-secondary">
-                  Company
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-secondary">
-                  Country
-                </th>
+                <th className="w-12 px-4 py-3 text-left text-xs font-medium text-secondary">#</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-secondary">Company</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-secondary">Country</th>
                 <th className="w-24 px-4 py-3 text-right text-xs font-medium text-secondary">
                   Reports
                 </th>
@@ -47,9 +41,7 @@ export function CompaniesTable(props: CompaniesTableProps): JSX.Element {
                   <td className="px-4 py-3 text-sm text-secondary">
                     {labelForCountry(row.country)}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-primary">
-                    {row.reportsCount}
-                  </td>
+                  <td className="px-4 py-3 text-right text-sm text-primary">{row.reportsCount}</td>
                 </tr>
               ))}
             </tbody>

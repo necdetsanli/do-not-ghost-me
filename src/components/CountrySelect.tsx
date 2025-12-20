@@ -1,13 +1,7 @@
 // src/components/CountrySelect.tsx
 "use client";
 
-import type {
-  JSX,
-  ChangeEvent,
-  FocusEvent,
-  MouseEvent,
-  KeyboardEvent,
-} from "react";
+import type { JSX, ChangeEvent, FocusEvent, MouseEvent, KeyboardEvent } from "react";
 import { useId, useState } from "react";
 import type { CountryCode } from "@prisma/client";
 import { COUNTRY_OPTIONS, labelForCountry } from "@/lib/enums";
@@ -57,9 +51,7 @@ const SORTED_COUNTRY_OPTIONS: CountryOption[] = COUNTRY_OPTIONS.map(
     code,
     label: labelForCountry(code),
   }),
-).sort((a: CountryOption, b: CountryOption): number =>
-  a.label.localeCompare(b.label),
-);
+).sort((a: CountryOption, b: CountryOption): number => a.label.localeCompare(b.label));
 
 /**
  * Pure helper: filter countries by the given query (startsWith, case-insensitive).
@@ -102,9 +94,7 @@ export function CountrySelect({
   const inputId: string = id ?? generatedId;
   const listboxId: string = `${inputId}-listbox`;
 
-  const [selectedCode, setSelectedCode] = useState<CountryCode | "">(
-    initialCode ?? "",
-  );
+  const [selectedCode, setSelectedCode] = useState<CountryCode | "">(initialCode ?? "");
 
   const initialLabel: string =
     initialCode !== undefined && initialCode !== ""
@@ -121,9 +111,7 @@ export function CountrySelect({
   const filteredLength: number = filteredOptions.length;
 
   const activeOptionId: string | undefined =
-    isOpen === true &&
-    highlightedIndex !== null &&
-    filteredOptions[highlightedIndex] !== undefined
+    isOpen === true && highlightedIndex !== null && filteredOptions[highlightedIndex] !== undefined
       ? `${inputId}-option-${filteredOptions[highlightedIndex].code}`
       : undefined;
 
@@ -251,10 +239,7 @@ export function CountrySelect({
   function handleContainerBlur(event: FocusEvent<HTMLDivElement>): void {
     const relatedTarget = event.relatedTarget as Node | null;
 
-    if (
-      relatedTarget === null ||
-      event.currentTarget.contains(relatedTarget) === false
-    ) {
+    if (relatedTarget === null || event.currentTarget.contains(relatedTarget) === false) {
       setIsOpen(false);
       setHighlightedIndex(null);
     }
@@ -311,35 +296,32 @@ export function CountrySelect({
             role="listbox"
             className="absolute left-0 right-0 z-10 mt-1 max-h-80 list-none overflow-y-auto rounded-md border border-primary bg-surface text-sm shadow-md"
           >
-            {filteredOptions.map(
-              (option: CountryOption, index: number): JSX.Element => {
-                const isHighlighted: boolean =
-                  highlightedIndex === index && isOpen === true;
-                const isSelected: boolean = selectedCode === option.code;
+            {filteredOptions.map((option: CountryOption, index: number): JSX.Element => {
+              const isHighlighted: boolean = highlightedIndex === index && isOpen === true;
+              const isSelected: boolean = selectedCode === option.code;
 
-                return (
-                  <li key={option.code}>
-                    <button
-                      id={`${inputId}-option-${option.code}`}
-                      type="button"
-                      role="option"
-                      aria-selected={isSelected}
-                      data-highlighted={isHighlighted === true ? "true" : null}
-                      onMouseDown={(event): void =>
-                        handleOptionMouseDown(event, option.code, option.label)
-                      }
-                      className={cn(
-                        "combobox-option flex w-full items-center px-3 py-2 text-left text-primary",
-                        "data-[highlighted=true]:bg-surface-hover data-[highlighted=true]:text-primary",
-                        "dark:data-[highlighted=true]:bg-[rgba(79,70,229,0.25)] dark:data-[highlighted=true]:text-[#e5e7eb]",
-                      )}
-                    >
-                      {option.label}
-                    </button>
-                  </li>
-                );
-              },
-            )}
+              return (
+                <li key={option.code}>
+                  <button
+                    id={`${inputId}-option-${option.code}`}
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    data-highlighted={isHighlighted === true ? "true" : null}
+                    onMouseDown={(event): void =>
+                      handleOptionMouseDown(event, option.code, option.label)
+                    }
+                    className={cn(
+                      "combobox-option flex w-full items-center px-3 py-2 text-left text-primary",
+                      "data-[highlighted=true]:bg-surface-hover data-[highlighted=true]:text-primary",
+                      "dark:data-[highlighted=true]:bg-[rgba(79,70,229,0.25)] dark:data-[highlighted=true]:text-[#e5e7eb]",
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

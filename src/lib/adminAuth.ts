@@ -12,8 +12,7 @@ export const ADMIN_SESSION_COOKIE_NAME = "dg_admin";
  * - Production: 1 hour
  * - Non-production (development/test): 30 minutes
  */
-const ADMIN_SESSION_MAX_AGE_SECONDS: number =
-  env.NODE_ENV === "production" ? 60 * 60 : 60 * 30;
+const ADMIN_SESSION_MAX_AGE_SECONDS: number = env.NODE_ENV === "production" ? 60 * 60 : 60 * 30;
 
 /**
  * Minimal payload carried inside an admin session token.
@@ -66,15 +65,11 @@ let hasLoggedMissingAdminPassword = false;
 function sign(data: string): string {
   if (env.ADMIN_SESSION_SECRET === undefined) {
     if (hasLoggedMissingSessionSecret === false) {
-      logError(
-        "ADMIN_SESSION_SECRET is not set. Admin sessions are not available.",
-      );
+      logError("ADMIN_SESSION_SECRET is not set. Admin sessions are not available.");
       hasLoggedMissingSessionSecret = true;
     }
 
-    throw new Error(
-      "ADMIN_SESSION_SECRET is not set. Admin sessions are not available.",
-    );
+    throw new Error("ADMIN_SESSION_SECRET is not set. Admin sessions are not available.");
   }
 
   const hmac = crypto.createHmac("sha256", env.ADMIN_SESSION_SECRET);
@@ -96,9 +91,7 @@ export function verifyAdminPassword(candidate: string): boolean {
   // If no admin password is configured, never authenticate anyone.
   if (configured === undefined) {
     if (hasLoggedMissingAdminPassword === false) {
-      logError(
-        "ADMIN_PASSWORD is not set. Rejecting all admin login attempts.",
-      );
+      logError("ADMIN_PASSWORD is not set. Rejecting all admin login attempts.");
       hasLoggedMissingAdminPassword = true;
     }
 
@@ -122,10 +115,7 @@ export function verifyAdminPassword(candidate: string): boolean {
   }
 
   try {
-    const isEqual: boolean = crypto.timingSafeEqual(
-      candidateBuffer,
-      configuredBuffer,
-    );
+    const isEqual: boolean = crypto.timingSafeEqual(candidateBuffer, configuredBuffer);
     return isEqual;
   } catch {
     return false;
@@ -178,12 +168,7 @@ export function verifyAdminSessionToken(
   }
 
   const [payloadB64, sig] = parts;
-  if (
-    payloadB64 === undefined ||
-    payloadB64 === "" ||
-    sig === undefined ||
-    sig === ""
-  ) {
+  if (payloadB64 === undefined || payloadB64 === "" || sig === undefined || sig === "") {
     logWarn("Received admin session token with empty payload or signature", {
       tokenLength: token.length,
     });
@@ -196,8 +181,7 @@ export function verifyAdminSessionToken(
   } catch (error) {
     // Misconfiguration (e.g. missing secret) is already logged in sign().
     logError("Failed to compute expected signature for admin session token", {
-      error:
-        error instanceof Error ? error.message : /** fallback */ String(error),
+      error: error instanceof Error ? error.message : /** fallback */ String(error),
     });
     return null;
   }
@@ -218,9 +202,7 @@ export function verifyAdminSessionToken(
 
   try {
     const payloadJson: string = b64urlDecode(payloadB64).toString("utf8");
-    const payload: AdminSessionPayload = JSON.parse(
-      payloadJson,
-    ) as AdminSessionPayload;
+    const payload: AdminSessionPayload = JSON.parse(payloadJson) as AdminSessionPayload;
 
     const now: number = Math.floor(Date.now() / 1000);
 
@@ -294,8 +276,7 @@ export function isOriginAllowed(req: NextRequest): boolean {
   }
 
   const method: string = req.method;
-  const isSafeMethod: boolean =
-    method === "GET" || method === "HEAD" || method === "OPTIONS";
+  const isSafeMethod: boolean = method === "GET" || method === "HEAD" || method === "OPTIONS";
 
   const protoHeader: string = req.headers.get("x-forwarded-proto") ?? "";
   let proto: string;
@@ -374,10 +355,8 @@ export function requireAdminRequest(req: NextRequest): AdminSessionPayload {
     throw new Error("Admin access is not allowed from this origin.");
   }
 
-  const cookieValue: string | null =
-    req.cookies.get(ADMIN_SESSION_COOKIE_NAME)?.value ?? null;
-  const session: AdminSessionPayload | null =
-    verifyAdminSessionToken(cookieValue);
+  const cookieValue: string | null = req.cookies.get(ADMIN_SESSION_COOKIE_NAME)?.value ?? null;
+  const session: AdminSessionPayload | null = verifyAdminSessionToken(cookieValue);
 
   if (session === null) {
     logWarn("Blocked admin request with missing or invalid session", {
@@ -432,10 +411,7 @@ export function adminSessionCookieOptions(): {
  * @param token - Signed admin session token to store in the cookie.
  * @returns The same response instance for fluent chaining.
  */
-export function withAdminSessionCookie(
-  res: NextResponse,
-  token: string,
-): NextResponse {
+export function withAdminSessionCookie(res: NextResponse, token: string): NextResponse {
   const opts = adminSessionCookieOptions();
 
   res.cookies.set({

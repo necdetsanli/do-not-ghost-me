@@ -1,12 +1,7 @@
 // src/app/admin/_components/AdminReportsTable.tsx
 import type { JSX } from "react";
 
-import {
-  labelForCategory,
-  labelForCountry,
-  labelForJobLevel,
-  labelForStage,
-} from "@/lib/enums";
+import { labelForCategory, labelForCountry, labelForJobLevel, labelForStage } from "@/lib/enums";
 import type { AdminReportRow } from "@/app/admin/_lib/adminTypes";
 import {
   formatDateTime,
@@ -77,8 +72,7 @@ export function AdminReportsTable(props: AdminReportsTableProps): JSX.Element {
                 "border-b border-primary last:border-0 transition-colors",
                 "hover:bg-surface-hover",
                 report.status === "DELETED" && "bg-red-50 dark:bg-red-950/20",
-                report.status === "FLAGGED" &&
-                  "bg-yellow-50 dark:bg-yellow-950/20",
+                report.status === "FLAGGED" && "bg-yellow-50 dark:bg-yellow-950/20",
                 report.status === "ACTIVE" && "bg-surface",
               );
 
@@ -94,9 +88,7 @@ export function AdminReportsTable(props: AdminReportsTableProps): JSX.Element {
                   <td className="whitespace-nowrap px-4 py-3 text-xs text-secondary md:px-6">
                     {formatDateTime(report.createdAt)}
                   </td>
-                  <td className="px-4 py-3 text-sm text-primary md:px-6">
-                    {report.companyName}
-                  </td>
+                  <td className="px-4 py-3 text-sm text-primary md:px-6">{report.companyName}</td>
                   <td className="px-4 py-3 text-xs text-secondary">
                     {labelForCountry(report.country)}
                   </td>
@@ -109,22 +101,17 @@ export function AdminReportsTable(props: AdminReportsTableProps): JSX.Element {
                   <td className="px-4 py-3 text-xs text-secondary">
                     {labelForCategory(report.positionCategory)}
                   </td>
-                  <td className="px-4 py-3 text-xs text-secondary">
-                    {report.positionDetail}
-                  </td>
+                  <td className="px-4 py-3 text-xs text-secondary">{report.positionDetail}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-right text-xs text-secondary">
                     {formatDaysWithoutReply(report.daysWithoutReply)}
                   </td>
                   <td className="px-4 py-3 text-xs">
-                    <span className={statusBadgeClass}>
-                      {formatReportStatus(report.status)}
-                    </span>
-                    {report.flaggedReason !== null &&
-                      report.flaggedReason !== "" && (
-                        <span className="mt-1 block text-[11px] text-amber-700 dark:text-amber-300">
-                          Reason: {report.flaggedReason}
-                        </span>
-                      )}
+                    <span className={statusBadgeClass}>{formatReportStatus(report.status)}</span>
+                    {report.flaggedReason !== null && report.flaggedReason !== "" && (
+                      <span className="mt-1 block text-[11px] text-amber-700 dark:text-amber-300">
+                        Reason: {report.flaggedReason}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right text-[11px] md:px-6">
                     <div className="flex flex-wrap justify-end gap-2">
@@ -186,11 +173,7 @@ export function AdminReportsTable(props: AdminReportsTableProps): JSX.Element {
                           action={`/api/admin/reports/${report.id}`}
                           className="inline"
                         >
-                          <input
-                            type="hidden"
-                            name="action"
-                            value="hard-delete"
-                          />
+                          <input type="hidden" name="action" value="hard-delete" />
                           <button
                             type="submit"
                             className="inline-flex items-center text-[11px] font-medium text-red-900 underline hover:text-red-950 dark:text-red-300 dark:hover:text-red-200"

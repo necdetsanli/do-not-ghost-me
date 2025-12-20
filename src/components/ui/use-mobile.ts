@@ -15,10 +15,7 @@ const MOBILE_MEDIA_QUERY: string = `(max-width: ${MOBILE_BREAKPOINT - 1}px)`;
  * @returns An unsubscribe function that removes the media query listener when called.
  */
 function subscribe(onStoreChange: () => void): () => void {
-  if (
-    typeof window === "undefined" ||
-    typeof window.matchMedia !== "function"
-  ) {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
     return () => {};
   }
 
@@ -56,10 +53,7 @@ function subscribe(onStoreChange: () => void): () => void {
  * @returns True if viewport is below MOBILE_BREAKPOINT, false otherwise.
  */
 function getSnapshot(): boolean {
-  if (
-    typeof window === "undefined" ||
-    typeof window.matchMedia !== "function"
-  ) {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
     return false;
   }
 

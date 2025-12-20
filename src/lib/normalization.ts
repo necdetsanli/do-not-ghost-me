@@ -29,10 +29,7 @@ export function normalizeCompanyName(raw: string): string {
 
   const normalizedLower: string = trimmed.normalize("NFKC").toLowerCase();
 
-  const lettersAndDigitsOnly: string = normalizedLower.replace(
-    /[^\p{L}\p{N}]+/gu,
-    "",
-  );
+  const lettersAndDigitsOnly: string = normalizedLower.replace(/[^\p{L}\p{N}]+/gu, "");
 
   if (lettersAndDigitsOnly === "") {
     return "";

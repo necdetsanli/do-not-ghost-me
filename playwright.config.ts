@@ -1,16 +1,21 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = 3000;
-const DEFAULT_BASE_URL = `http://localhost:${PORT}`;
+const DEFAULT_PORT = 3000;
+const DEFAULT_BASE_URL = `http://localhost:${DEFAULT_PORT}`;
 
 const BASE_URL: string = process.env.PLAYWRIGHT_BASE_URL ?? DEFAULT_BASE_URL;
-const ADMIN_ALLOWED_HOST: string = new URL(BASE_URL).host;
+const baseUrlObj = new URL(BASE_URL);
+
+const PORT: number = Number(baseUrlObj.port || String(DEFAULT_PORT));
+const ADMIN_ALLOWED_HOST: string = baseUrlObj.host;
 
 const DEFAULT_ADMIN_PASSWORD = "test-admin-password";
-const DEFAULT_ADMIN_SESSION_SECRET =
-  "test-admin-session-secret-0123456789abcdef0123456789abcdef";
-const DEFAULT_ADMIN_CSRF_SECRET =
-  "test-admin-csrf-secret-0123456789abcdef0123456789abcdef";
+const DEFAULT_ADMIN_SESSION_SECRET = "test-admin-session-secret-0123456789abcdef0123456789abcdef";
+const DEFAULT_ADMIN_CSRF_SECRET = "test-admin-csrf-secret-0123456789abcdef0123456789abcdef";
+
+const IS_COVERAGE: boolean = process.env.PW_COLLECT_V8_COVERAGE === "1";
+const WEB_SERVER_COMMAND: string =
+  IS_COVERAGE === true ? "npm run build && npm run start" : "npm run dev";
 
 /**
  * Converts NodeJS.ProcessEnv into a Record<string, string> compatible with
@@ -118,9 +123,12 @@ export default defineConfig({
 
   webServer: {
     /**
-     * Starts the Next.js dev server before E2E tests.
+     * Starts the Next.js server before E2E tests.
+     *
+     * - Normal runs: dev server (fast feedback)
+     * - Coverage runs: production build + start (stable assets + sourcemaps)
      */
-    command: "npm run dev",
+    command: WEB_SERVER_COMMAND,
 
     /**
      * Ensures Playwright waits for the exact URL (and host) used by tests.
@@ -129,8 +137,9 @@ export default defineConfig({
 
     /**
      * Reuse an existing server in local runs for faster feedback.
+     * Never reuse for coverage runs (we want deterministic build/start).
      */
-    reuseExistingServer: process.env.CI !== "true",
+    reuseExistingServer: process.env.CI !== "true" && IS_COVERAGE === false,
 
     /**
      * Server startup timeout in milliseconds.
@@ -141,12 +150,12 @@ export default defineConfig({
      * Injects deterministic env values for E2E so host/origin checks work reliably.
      */
     env: buildWebServerEnv(process.env, {
+      PORT: String(PORT),
+
       ADMIN_ALLOWED_HOST,
       ADMIN_PASSWORD: process.env.ADMIN_PASSWORD ?? DEFAULT_ADMIN_PASSWORD,
-      ADMIN_SESSION_SECRET:
-        process.env.ADMIN_SESSION_SECRET ?? DEFAULT_ADMIN_SESSION_SECRET,
-      ADMIN_CSRF_SECRET:
-        process.env.ADMIN_CSRF_SECRET ?? DEFAULT_ADMIN_CSRF_SECRET,
+      ADMIN_SESSION_SECRET: process.env.ADMIN_SESSION_SECRET ?? DEFAULT_ADMIN_SESSION_SECRET,
+      ADMIN_CSRF_SECRET: process.env.ADMIN_CSRF_SECRET ?? DEFAULT_ADMIN_CSRF_SECRET,
     }),
   },
 

@@ -44,19 +44,8 @@ type CompanyAutocompleteInputProps = {
  * surfaces suggestions. Validation is handled by the server (Zod) and the
  * higher-level form component.
  */
-export function CompanyAutocompleteInput(
-  props: CompanyAutocompleteInputProps,
-): JSX.Element {
-  const {
-    name,
-    label,
-    value,
-    onValueChange,
-    placeholder,
-    required,
-    isRequired,
-    maxLength,
-  } = props;
+export function CompanyAutocompleteInput(props: CompanyAutocompleteInputProps): JSX.Element {
+  const { name, label, value, onValueChange, placeholder, required, isRequired, maxLength } = props;
 
   const [suggestions, setSuggestions] = useState<CompanySuggestion[]>([]);
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -66,8 +55,7 @@ export function CompanyAutocompleteInput(
   const debounceTimeoutRef = useRef<number | null>(null);
   const listboxId = useId();
 
-  const hasSuggestions: boolean =
-    suggestions.length > 0 && value.trim().length > 0;
+  const hasSuggestions: boolean = suggestions.length > 0 && value.trim().length > 0;
 
   const activeOptionId: string | undefined =
     highlightedIndex !== null && suggestions[highlightedIndex] !== undefined
@@ -259,23 +247,15 @@ export function CompanyAutocompleteInput(
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={isOpen === true}
-        aria-controls={
-          hasSuggestions === true && isOpen === true ? listboxId : undefined
-        }
+        aria-controls={hasSuggestions === true && isOpen === true ? listboxId : undefined}
         aria-activedescendant={activeOptionId}
       />
 
       {isOpen === true && hasSuggestions === true ? (
         <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-primary bg-surface shadow-md">
-          <ul
-            id={listboxId}
-            role="listbox"
-            className="divide-y divide-[var(--border-secondary)]"
-          >
+          <ul id={listboxId} role="listbox" className="divide-y divide-[var(--border-secondary)]">
             {isLoading === true ? (
-              <li className="px-3 py-2 text-xs text-secondary">
-                Loading suggestions…
-              </li>
+              <li className="px-3 py-2 text-xs text-secondary">Loading suggestions…</li>
             ) : null}
 
             {isLoading === false
@@ -296,12 +276,8 @@ export function CompanyAutocompleteInput(
                         handleSuggestionSelect(company);
                       }}
                     >
-                      <span className="truncate font-medium">
-                        {company.name}
-                      </span>
-                      <span className="ml-2 shrink-0 text-xs text-tertiary">
-                        {company.country}
-                      </span>
+                      <span className="truncate font-medium">{company.name}</span>
+                      <span className="ml-2 shrink-0 text-xs text-tertiary">{company.country}</span>
                     </li>
                   );
                 })

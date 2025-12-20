@@ -21,9 +21,7 @@ import type { CompaniesFilterFormProps } from "../types";
  * Filter/search form at the top of the "Companies" page.
  * Uses a GET form so filters are reflected in the URL.
  */
-export function CompaniesFilterForm(
-  props: CompaniesFilterFormProps,
-): JSX.Element {
+export function CompaniesFilterForm(props: CompaniesFilterFormProps): JSX.Element {
   const { filters } = props;
   const { search, country, positionCategory, seniority, stage } = filters;
 
@@ -49,11 +47,7 @@ export function CompaniesFilterForm(
         <Select
           label="Position category"
           name="category"
-          defaultValue={
-            positionCategory !== undefined
-              ? categoryEnumToSlug(positionCategory)
-              : ""
-          }
+          defaultValue={positionCategory !== undefined ? categoryEnumToSlug(positionCategory) : ""}
           options={[
             { value: "", label: "All categories" },
             ...POSITION_CATEGORY_OPTIONS.map((cat) => ({
@@ -81,9 +75,7 @@ export function CompaniesFilterForm(
         <Select
           label="Job level"
           name="seniority"
-          defaultValue={
-            seniority !== undefined ? seniorityEnumToSlug(seniority) : ""
-          }
+          defaultValue={seniority !== undefined ? seniorityEnumToSlug(seniority) : ""}
           options={[
             { value: "", label: "All seniorities" },
             ...JOB_LEVEL_OPTIONS.map((lvl) => ({

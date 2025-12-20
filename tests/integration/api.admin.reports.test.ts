@@ -1,15 +1,13 @@
 // tests/integration/api.admin.reports.test.ts
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-const {
-  requireAdminRequestMock,
-  prismaReportUpdateMock,
-  prismaReportDeleteMock,
-} = vi.hoisted(() => ({
-  requireAdminRequestMock: vi.fn(),
-  prismaReportUpdateMock: vi.fn(),
-  prismaReportDeleteMock: vi.fn(),
-}));
+const { requireAdminRequestMock, prismaReportUpdateMock, prismaReportDeleteMock } = vi.hoisted(
+  () => ({
+    requireAdminRequestMock: vi.fn(),
+    prismaReportUpdateMock: vi.fn(),
+    prismaReportDeleteMock: vi.fn(),
+  }),
+);
 
 vi.mock("@/lib/adminAuth", () => ({
   requireAdminRequest: requireAdminRequestMock,

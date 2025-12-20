@@ -83,13 +83,8 @@ describe("csrf", () => {
    * creation and verification, preventing whitespace-related mismatches.
    */
   it("trims purpose on create/verify", () => {
-    const token: string = createCsrfToken(
-      " admin-login " as unknown as "admin-login",
-    );
-    const ok: boolean = verifyCsrfToken(
-      " admin-login " as unknown as "admin-login",
-      token,
-    );
+    const token: string = createCsrfToken(" admin-login " as unknown as "admin-login");
+    const ok: boolean = verifyCsrfToken(" admin-login " as unknown as "admin-login", token);
     expect(ok).toBe(true);
   });
 
@@ -98,9 +93,9 @@ describe("csrf", () => {
    * preventing ambiguous or unsafe usage.
    */
   it("throws when purpose is empty after trim", () => {
-    expect(() =>
-      createCsrfToken("   " as unknown as "admin-login"),
-    ).toThrowError(/CSRF purpose must be a non-empty string/i);
+    expect(() => createCsrfToken("   " as unknown as "admin-login")).toThrowError(
+      /CSRF purpose must be a non-empty string/i,
+    );
   });
 
   /**

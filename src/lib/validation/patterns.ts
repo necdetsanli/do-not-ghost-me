@@ -22,8 +22,7 @@ export const NAME_LIKE_REGEX: RegExp = /^[\p{L}\p{N} _\-\/&()'",.+#]+$/u;
  * @param value - The input string to inspect.
  * @returns True if the string contains at least one Unicode letter, false otherwise.
  */
-export const containsAtLeastOneLetter = (value: string): boolean =>
-  /\p{L}/u.test(value);
+export const containsAtLeastOneLetter = (value: string): boolean => /\p{L}/u.test(value);
 
 /**
  * Convenience helper for "name-like" strings:
@@ -37,11 +36,7 @@ export const containsAtLeastOneLetter = (value: string): boolean =>
  * @param fieldLabel - Human-readable field label for error messages.
  * @returns A Zod string schema enforcing the configured constraints.
  */
-export function nameLikeString(
-  min: number,
-  max: number,
-  fieldLabel: string,
-): z.ZodString {
+export function nameLikeString(min: number, max: number, fieldLabel: string): z.ZodString {
   return z
     .string()
     .trim()

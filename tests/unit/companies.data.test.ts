@@ -142,9 +142,7 @@ describe("getCompaniesPage", () => {
     expect(page2.items.length).toBe(2);
 
     // Stable slicing: page 1 should be identical across calls.
-    expect(page1Again.items.map((x) => x.id)).toEqual(
-      page1.items.map((x) => x.id),
-    );
+    expect(page1Again.items.map((x) => x.id)).toEqual(page1.items.map((x) => x.id));
 
     // No overlap between pages.
     const page1Ids = new Set(page1.items.map((x) => x.id));

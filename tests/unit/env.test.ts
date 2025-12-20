@@ -49,9 +49,7 @@ function applyEnv(vars: EnvMap): void {
  * @param overrides - Env overrides; undefined deletes a key.
  * @returns The imported module.
  */
-async function loadEnvModule(
-  overrides: EnvMap,
-): Promise<typeof import("@/env")> {
+async function loadEnvModule(overrides: EnvMap): Promise<typeof import("@/env")> {
   vi.resetModules();
 
   const baseValid: EnvMap = {
@@ -119,9 +117,7 @@ describe("src/env.ts", () => {
       loadEnvModule({
         DATABASE_URL: "",
       }),
-    ).rejects.toThrow(
-      "Invalid environment configuration. See error log above.",
-    );
+    ).rejects.toThrow("Invalid environment configuration. See error log above.");
 
     expect(errSpy).toHaveBeenCalledTimes(1);
     errSpy.mockRestore();
@@ -134,9 +130,7 @@ describe("src/env.ts", () => {
       loadEnvModule({
         RATE_LIMIT_IP_SALT: "short-salt",
       }),
-    ).rejects.toThrow(
-      "Invalid environment configuration. See error log above.",
-    );
+    ).rejects.toThrow("Invalid environment configuration. See error log above.");
 
     expect(errSpy).toHaveBeenCalledTimes(1);
     errSpy.mockRestore();
@@ -149,9 +143,7 @@ describe("src/env.ts", () => {
       loadEnvModule({
         RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP: "6",
       }),
-    ).rejects.toThrow(
-      "Invalid environment configuration. See error log above.",
-    );
+    ).rejects.toThrow("Invalid environment configuration. See error log above.");
 
     expect(errSpy).toHaveBeenCalledTimes(1);
     errSpy.mockRestore();
@@ -164,9 +156,7 @@ describe("src/env.ts", () => {
       loadEnvModule({
         RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY: "21",
       }),
-    ).rejects.toThrow(
-      "Invalid environment configuration. See error log above.",
-    );
+    ).rejects.toThrow("Invalid environment configuration. See error log above.");
 
     expect(errSpy).toHaveBeenCalledTimes(1);
     errSpy.mockRestore();
@@ -180,9 +170,7 @@ describe("src/env.ts", () => {
         ADMIN_PASSWORD: "password1",
         ADMIN_SESSION_SECRET: undefined,
       }),
-    ).rejects.toThrow(
-      "Invalid environment configuration. See error log above.",
-    );
+    ).rejects.toThrow("Invalid environment configuration. See error log above.");
 
     expect(errSpy).toHaveBeenCalledTimes(1);
     errSpy.mockRestore();
@@ -196,9 +184,7 @@ describe("src/env.ts", () => {
         ADMIN_PASSWORD: undefined,
         ADMIN_SESSION_SECRET: "s".repeat(32),
       }),
-    ).rejects.toThrow(
-      "Invalid environment configuration. See error log above.",
-    );
+    ).rejects.toThrow("Invalid environment configuration. See error log above.");
 
     expect(errSpy).toHaveBeenCalledTimes(1);
     errSpy.mockRestore();
@@ -213,9 +199,7 @@ describe("src/env.ts", () => {
         ADMIN_SESSION_SECRET: "s".repeat(32),
         ADMIN_CSRF_SECRET: undefined,
       }),
-    ).rejects.toThrow(
-      "Invalid environment configuration. See error log above.",
-    );
+    ).rejects.toThrow("Invalid environment configuration. See error log above.");
 
     expect(errSpy).toHaveBeenCalledTimes(1);
     errSpy.mockRestore();
@@ -243,9 +227,7 @@ describe("src/env.ts", () => {
         NODE_ENV: "production",
         RATE_LIMIT_IP_SALT: "replace-with-a-strong-random-salt-value-123456",
       }),
-    ).rejects.toThrow(
-      "Invalid environment configuration. See error log above.",
-    );
+    ).rejects.toThrow("Invalid environment configuration. See error log above.");
 
     expect(errSpy).toHaveBeenCalledTimes(1);
     errSpy.mockRestore();

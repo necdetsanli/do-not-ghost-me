@@ -12,9 +12,7 @@ export const Select = SelectPrimitive.Root;
 export const SelectGroup = SelectPrimitive.Group;
 export const SelectValue = SelectPrimitive.Value;
 
-export type SelectTriggerProps = React.ComponentProps<
-  typeof SelectPrimitive.Trigger
->;
+export type SelectTriggerProps = React.ComponentProps<typeof SelectPrimitive.Trigger>;
 
 /**
  * Trigger button for the select.
@@ -22,11 +20,7 @@ export type SelectTriggerProps = React.ComponentProps<
  * - Full-width on mobile by default.
  * - Uses design tokens for border, background and focus ring.
  */
-export function SelectTrigger({
-  className,
-  children,
-  ...props
-}: SelectTriggerProps): JSX.Element {
+export function SelectTrigger({ className, children, ...props }: SelectTriggerProps): JSX.Element {
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
@@ -52,9 +46,7 @@ export function SelectTrigger({
   );
 }
 
-export type SelectContentProps = React.ComponentProps<
-  typeof SelectPrimitive.Content
-> & {
+export type SelectContentProps = React.ComponentProps<typeof SelectPrimitive.Content> & {
   /**
    * Controls how the popup is positioned.
    * - "popper": aligns to the trigger dimensions.
@@ -114,24 +106,16 @@ export function SelectContent({
   );
 }
 
-export type SelectLabelProps = React.ComponentProps<
-  typeof SelectPrimitive.Label
->;
+export type SelectLabelProps = React.ComponentProps<typeof SelectPrimitive.Label>;
 
 /**
  * Group label inside the select dropdown.
  */
-export function SelectLabel({
-  className,
-  ...props
-}: SelectLabelProps): JSX.Element {
+export function SelectLabel({ className, ...props }: SelectLabelProps): JSX.Element {
   return (
     <SelectPrimitive.Label
       data-slot="select-label"
-      className={cn(
-        "px-2 py-1.5 text-xs font-medium text-secondary",
-        className,
-      )}
+      className={cn("px-2 py-1.5 text-xs font-medium text-secondary", className)}
       {...props}
     />
   );
@@ -145,11 +129,7 @@ export type SelectItemProps = React.ComponentProps<typeof SelectPrimitive.Item>;
  * - Uses our global highlight styles via `[data-slot="select-item"]`.
  * - Shows a check icon when selected.
  */
-export function SelectItem({
-  className,
-  children,
-  ...props
-}: SelectItemProps): JSX.Element {
+export function SelectItem({ className, children, ...props }: SelectItemProps): JSX.Element {
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
@@ -168,17 +148,12 @@ export function SelectItem({
   );
 }
 
-export type SelectSeparatorProps = React.ComponentProps<
-  typeof SelectPrimitive.Separator
->;
+export type SelectSeparatorProps = React.ComponentProps<typeof SelectPrimitive.Separator>;
 
 /**
  * Visual separator between groups of options.
  */
-export function SelectSeparator({
-  className,
-  ...props
-}: SelectSeparatorProps): JSX.Element {
+export function SelectSeparator({ className, ...props }: SelectSeparatorProps): JSX.Element {
   return (
     <SelectPrimitive.Separator
       data-slot="select-separator"

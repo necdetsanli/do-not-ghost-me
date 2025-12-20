@@ -1,11 +1,6 @@
 // tests/e2e/admin.moderation.spec.ts
-import {
-  test,
-  expect,
-  type Page,
-  type Locator,
-  type APIResponse,
-} from "@playwright/test";
+import type { Page, Locator, APIResponse } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 /**
  * Generates a valid test-net IPv4 address to reduce rate-limit collisions across runs.
@@ -24,10 +19,7 @@ function generateTestIpAddress(): string {
  * @param optionLabel - The visible option label to choose.
  * @returns Promise that resolves when the option is selected.
  */
-async function selectRadixOptionByLabel(
-  trigger: Locator,
-  optionLabel: string,
-): Promise<void> {
+async function selectRadixOptionByLabel(trigger: Locator, optionLabel: string): Promise<void> {
   await expect(trigger).toBeVisible();
   await trigger.scrollIntoViewIfNeeded();
   await trigger.click();
@@ -144,9 +136,7 @@ async function loginAsAdmin(page: Page, adminPassword: string): Promise<void> {
     loginForm.getByRole("button", { name: /^Sign in$/i }).click(),
   ]);
 
-  await expect(
-    page.getByRole("heading", { name: /Admin\s+–\s+Reports/i }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Admin\s+–\s+Reports/i })).toBeVisible();
 }
 
 /**
@@ -156,10 +146,7 @@ async function loginAsAdmin(page: Page, adminPassword: string): Promise<void> {
  * @param positionDetail - Unique marker expected in the table.
  * @returns The matching row locator.
  */
-async function getAdminRowByPositionDetail(
-  page: Page,
-  positionDetail: string,
-): Promise<Locator> {
+async function getAdminRowByPositionDetail(page: Page, positionDetail: string): Promise<Locator> {
   await page.goto("/admin");
 
   const table = page.getByRole("table", {
@@ -167,10 +154,7 @@ async function getAdminRowByPositionDetail(
   });
   await expect(table).toBeVisible();
 
-  const row = table
-    .getByRole("row")
-    .filter({ hasText: positionDetail })
-    .first();
+  const row = table.getByRole("row").filter({ hasText: positionDetail }).first();
   await expect(row).toBeVisible();
 
   return row;
@@ -184,9 +168,7 @@ async function getAdminRowByPositionDetail(
  * @throws {Error} When action path cannot be found.
  */
 async function getRowReportActionPath(row: Locator): Promise<string> {
-  const anyActionForm = row
-    .locator('form[action^="/api/admin/reports/"]')
-    .first();
+  const anyActionForm = row.locator('form[action^="/api/admin/reports/"]').first();
   const actionPath = await anyActionForm.getAttribute("action");
 
   if (typeof actionPath !== "string" || actionPath.trim().length === 0) {
@@ -288,8 +270,7 @@ async function postAdminForm(
   form: Record<string, string>,
   overrideOrigin?: string,
 ): Promise<APIResponse> {
-  const effectiveOrigin =
-    typeof overrideOrigin === "string" ? overrideOrigin : origin;
+  const effectiveOrigin = typeof overrideOrigin === "string" ? overrideOrigin : origin;
 
   return page.request.post(absoluteUrl, {
     form,
@@ -333,10 +314,7 @@ test.describe("admin dashboard moderation", () => {
      * We set Origin/Referer to pass origin checks, then assert we are rejected due to missing session.
      */
     {
-      const unauthUrl = new URL(
-        "/api/admin/reports/dummy-id",
-        origin,
-      ).toString();
+      const unauthUrl = new URL("/api/admin/reports/dummy-id", origin).toString();
       const res = await page.request.post(unauthUrl, {
         form: { action: "flag" },
         headers: {
@@ -414,14 +392,9 @@ test.describe("admin dashboard moderation", () => {
      * Admin UI should show FLAGGED + reason.
      */
     {
-      const flaggedRow = await getAdminRowByPositionDetail(
-        page,
-        positionDetail,
-      );
+      const flaggedRow = await getAdminRowByPositionDetail(page, positionDetail);
       await expect(flaggedRow.getByText(/^Flagged$/i)).toBeVisible();
-      await expect(
-        flaggedRow.getByText(/Reason:\s*E2E: suspected spam/i),
-      ).toBeVisible();
+      await expect(flaggedRow.getByText(/Reason:\s*E2E: suspected spam/i)).toBeVisible();
     }
 
     /**
@@ -438,10 +411,7 @@ test.describe("admin dashboard moderation", () => {
      * Admin UI should show ACTIVE again.
      */
     {
-      const restoredRow = await getAdminRowByPositionDetail(
-        page,
-        positionDetail,
-      );
+      const restoredRow = await getAdminRowByPositionDetail(page, positionDetail);
       await expect(restoredRow.getByText(/^Active$/i)).toBeVisible();
     }
 
@@ -459,10 +429,7 @@ test.describe("admin dashboard moderation", () => {
      * Admin UI should show DELETED.
      */
     {
-      const deletedRow = await getAdminRowByPositionDetail(
-        page,
-        positionDetail,
-      );
+      const deletedRow = await getAdminRowByPositionDetail(page, positionDetail);
       await expect(deletedRow.getByText(/^Deleted$/i)).toBeVisible();
     }
 
@@ -475,20 +442,14 @@ test.describe("admin dashboard moderation", () => {
      * 9) Hard delete via UI (navigation-safe).
      */
     {
-      const deletedRow = await getAdminRowByPositionDetail(
-        page,
-        positionDetail,
-      );
+      const deletedRow = await getAdminRowByPositionDetail(page, positionDetail);
 
       const hardDeleteButton = deletedRow.getByRole("button", {
         name: /^Hard delete$/i,
       });
       await expect(hardDeleteButton).toBeVisible();
 
-      await Promise.all([
-        page.waitForURL(/\/admin(\/)?$/),
-        hardDeleteButton.click(),
-      ]);
+      await Promise.all([page.waitForURL(/\/admin(\/)?$/), hardDeleteButton.click()]);
     }
 
     /**
@@ -499,9 +460,7 @@ test.describe("admin dashboard moderation", () => {
       const table = page.getByRole("table", {
         name: /admin reports moderation table/i,
       });
-      const remaining = table
-        .getByRole("row")
-        .filter({ hasText: positionDetail });
+      const remaining = table.getByRole("row").filter({ hasText: positionDetail });
       await expect(remaining).toHaveCount(0);
     }
 

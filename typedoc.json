@@ -11,7 +11,7 @@
     "src/app/companies/_lib",
     "src/app/companies/types.ts"
   ],
-  
+
   "entryPointStrategy": "expand",
 
   "out": "docs/api",

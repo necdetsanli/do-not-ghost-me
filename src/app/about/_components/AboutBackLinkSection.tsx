@@ -8,10 +8,7 @@ import Link from "next/link";
 export function AboutBackLinkSection(): JSX.Element {
   return (
     <section className="mt-12 flex flex-wrap items-center gap-3">
-      <Link
-        href="/"
-        className="text-sm text-secondary underline-offset-4 hover:underline"
-      >
+      <Link href="/" className="text-sm text-secondary underline-offset-4 hover:underline">
         Back to home
       </Link>
     </section>

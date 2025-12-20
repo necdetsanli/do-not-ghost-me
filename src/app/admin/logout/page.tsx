@@ -36,12 +36,10 @@ export default function AdminLogoutPage(): JSX.Element {
   return (
     <div className="flex min-h-screen items-center justify-center bg-base px-4 py-8">
       <section className="w-full max-w-lg rounded-xl border border-primary bg-surface px-6 py-6 shadow-md md:px-8 md:py-8">
-        <h1 className="mb-2 text-xl font-semibold text-primary md:text-2xl">
-          Logging you out…
-        </h1>
+        <h1 className="mb-2 text-xl font-semibold text-primary md:text-2xl">Logging you out…</h1>
         <p className="text-sm text-secondary md:text-base">
-          You are being signed out of the admin dashboard and will be redirected
-          to the public homepage.
+          You are being signed out of the admin dashboard and will be redirected to the public
+          homepage.
         </p>
       </section>
     </div>

@@ -42,27 +42,18 @@ export function parseFilters(searchParams?: SearchParams): ResolvedFilters {
 
   const categorySlugRaw = (searchParams?.category ?? "").trim().toLowerCase();
   const categorySlug =
-    categorySlugRaw === "" || categorySlugRaw === "all"
-      ? undefined
-      : categorySlugRaw;
+    categorySlugRaw === "" || categorySlugRaw === "all" ? undefined : categorySlugRaw;
   const positionCategory =
     categorySlug !== undefined ? categorySlugToEnum(categorySlug) : undefined;
 
   const senioritySlugRaw = (searchParams?.seniority ?? "").trim().toLowerCase();
   const senioritySlug =
-    senioritySlugRaw === "" || senioritySlugRaw === "all"
-      ? undefined
-      : senioritySlugRaw;
-  const seniority =
-    senioritySlug !== undefined
-      ? senioritySlugToEnum(senioritySlug)
-      : undefined;
+    senioritySlugRaw === "" || senioritySlugRaw === "all" ? undefined : senioritySlugRaw;
+  const seniority = senioritySlug !== undefined ? senioritySlugToEnum(senioritySlug) : undefined;
 
   const stageSlugRaw = (searchParams?.stage ?? "").trim().toLowerCase();
-  const stageSlug =
-    stageSlugRaw === "" || stageSlugRaw === "all" ? undefined : stageSlugRaw;
-  const stage =
-    stageSlug !== undefined ? stageSlugToEnum(stageSlug) : undefined;
+  const stageSlug = stageSlugRaw === "" || stageSlugRaw === "all" ? undefined : stageSlugRaw;
+  const stage = stageSlug !== undefined ? stageSlugToEnum(stageSlug) : undefined;
 
   return {
     page,

@@ -98,19 +98,13 @@ async function pickMostReportedCompanyThisWeek(
       }
       return { companyId: t.companyId, name, reportCount: t.reportCount };
     })
-    .filter(
-      (x): x is { companyId: string; name: string; reportCount: number } =>
-        x !== null,
-    );
+    .filter((x): x is { companyId: string; name: string; reportCount: number } => x !== null);
 
   if (resolved.length === 0) {
-    logWarn(
-      "[GET /api/reports/stats] No company records found for top groups",
-      {
-        companyIds: ids,
-        maxCount,
-      },
-    );
+    logWarn("[GET /api/reports/stats] No company records found for top groups", {
+      companyIds: ids,
+      maxCount,
+    });
     return null;
   }
 
@@ -182,8 +176,7 @@ export async function GET(): Promise<NextResponse> {
       reportCount: g._count.companyId,
     }));
 
-    const mostReportedCompany =
-      await pickMostReportedCompanyThisWeek(candidates);
+    const mostReportedCompany = await pickMostReportedCompanyThisWeek(candidates);
 
     const body: ReportsStatsResponseBody = {
       totalReports,

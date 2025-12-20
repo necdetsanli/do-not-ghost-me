@@ -84,13 +84,10 @@ export function POST(req: NextRequest): NextResponse {
     maxAge: 0,
   });
 
-  logInfo(
-    "[POST /api/admin/logout] Admin logout successful, session cookie cleared",
-    {
-      host: req.headers.get("host"),
-      cookieName: cookieOpts.name,
-    },
-  );
+  logInfo("[POST /api/admin/logout] Admin logout successful, session cookie cleared", {
+    host: req.headers.get("host"),
+    cookieName: cookieOpts.name,
+  });
 
   return response;
 }

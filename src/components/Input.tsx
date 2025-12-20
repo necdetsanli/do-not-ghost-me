@@ -75,8 +75,7 @@ export function Input({
 
   const descriptionId: string | undefined =
     description !== undefined ? `${inputId}-description` : undefined;
-  const errorId: string | undefined =
-    errorMessage !== undefined ? `${inputId}-error` : undefined;
+  const errorId: string | undefined = errorMessage !== undefined ? `${inputId}-error` : undefined;
 
   const describedByIds: string[] = [];
   if (descriptionId !== undefined) {

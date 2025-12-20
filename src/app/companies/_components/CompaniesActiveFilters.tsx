@@ -1,19 +1,12 @@
 // src/app/companies/_components/CompaniesActiveFilters.tsx
 import type { JSX } from "react";
-import {
-  labelForCategory,
-  labelForJobLevel,
-  labelForStage,
-  labelForCountry,
-} from "@/lib/enums";
+import { labelForCategory, labelForJobLevel, labelForStage, labelForCountry } from "@/lib/enums";
 import type { CompaniesActiveFiltersProps } from "../types";
 
 /**
  * Chip-style summary of currently active filters.
  */
-export function CompaniesActiveFilters(
-  props: CompaniesActiveFiltersProps,
-): JSX.Element {
+export function CompaniesActiveFilters(props: CompaniesActiveFiltersProps): JSX.Element {
   const { filters } = props;
   const { search, country, positionCategory, seniority, stage } = filters;
 
@@ -50,18 +43,14 @@ export function CompaniesActiveFilters(
         {positionCategory !== undefined && (
           <span className="inline-flex items-center gap-1 rounded-full border border-primary bg-surface px-2 py-0.5 text-xs text-secondary">
             <span>Category:</span>
-            <strong className="text-primary">
-              {labelForCategory(positionCategory)}
-            </strong>
+            <strong className="text-primary">{labelForCategory(positionCategory)}</strong>
           </span>
         )}
 
         {seniority !== undefined && (
           <span className="inline-flex items-center gap-1 rounded-full border border-primary bg-surface px-2 py-0.5 text-xs text-secondary">
             <span>Seniority:</span>
-            <strong className="text-primary">
-              {labelForJobLevel(seniority)}
-            </strong>
+            <strong className="text-primary">{labelForJobLevel(seniority)}</strong>
           </span>
         )}
 

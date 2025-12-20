@@ -5,13 +5,7 @@ import type { JSX, ReactNode } from "react";
 import { Button as UiButton } from "@/components/ui/button";
 import { cn } from "@/components/ui/utils";
 
-type ButtonVariant =
-  | "primary"
-  | "secondary"
-  | "outline"
-  | "ghost"
-  | "destructive"
-  | "link";
+type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "destructive" | "link";
 type ButtonSize = "sm" | "md" | "lg" | "icon";
 
 type UiButtonProps = React.ComponentProps<typeof UiButton>;
@@ -55,13 +49,7 @@ export function Button({
 
   // App-level → UI-level size map
   const uiSize: UiButtonProps["size"] =
-    size === "sm"
-      ? "sm"
-      : size === "md"
-        ? "default"
-        : size === "lg"
-          ? "lg"
-          : "icon";
+    size === "sm" ? "sm" : size === "md" ? "default" : size === "lg" ? "lg" : "icon";
 
   return (
     <UiButton

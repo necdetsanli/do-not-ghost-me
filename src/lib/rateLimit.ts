@@ -15,11 +15,9 @@ import { hasPrismaErrorCode } from "@/lib/prismaErrors";
 import { logWarn, logError } from "@/lib/logger";
 import { formatUnknownError } from "@/lib/errorUtils";
 
-const MAX_REPORTS_PER_COMPANY_PER_IP: number =
-  env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP;
+const MAX_REPORTS_PER_COMPANY_PER_IP: number = env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP;
 
-const MAX_REPORTS_PER_IP_PER_DAY: number =
-  env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY;
+const MAX_REPORTS_PER_IP_PER_DAY: number = env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY;
 
 /**
  * Arguments required to enforce IP-based rate limits for report creation.
@@ -186,10 +184,7 @@ export async function enforceReportLimitForIpCompanyPosition(
         currentCount: existingCompanyCount,
       });
 
-      throw new ReportRateLimitError(
-        COMPANY_POSITION_LIMIT_MESSAGE,
-        "company-position-limit",
-      );
+      throw new ReportRateLimitError(COMPANY_POSITION_LIMIT_MESSAGE, "company-position-limit");
     }
 
     // 3) Per-position uniqueness for this IP + company.
@@ -202,34 +197,24 @@ export async function enforceReportLimitForIpCompanyPosition(
         },
       });
     } catch (error: unknown) {
-      const isUniqueViolation: boolean =
-        hasPrismaErrorCode(error, "P2002") === true;
+      const isUniqueViolation: boolean = hasPrismaErrorCode(error, "P2002") === true;
 
       if (isUniqueViolation === true) {
-        logWarn(
-          "[rateLimit] Duplicate report for company + position from this IP",
-          {
-            ipHash,
-            companyId,
-            positionKey,
-          },
-        );
-
-        throw new ReportRateLimitError(
-          DUPLICATE_POSITION_LIMIT_MESSAGE,
-          "company-position-limit",
-        );
-      }
-
-      logError(
-        "[rateLimit] Unexpected error while enforcing company/position limit",
-        {
+        logWarn("[rateLimit] Duplicate report for company + position from this IP", {
           ipHash,
           companyId,
           positionKey,
-          error: formatUnknownError(error),
-        },
-      );
+        });
+
+        throw new ReportRateLimitError(DUPLICATE_POSITION_LIMIT_MESSAGE, "company-position-limit");
+      }
+
+      logError("[rateLimit] Unexpected error while enforcing company/position limit", {
+        ipHash,
+        companyId,
+        positionKey,
+        error: formatUnknownError(error),
+      });
 
       throw error;
     }

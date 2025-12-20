@@ -6,9 +6,7 @@ import type { CompaniesPaginationProps } from "../types";
  * Simple "Previous / Next" pagination controls.
  * Links are precomputed in the page component.
  */
-export function CompaniesPagination(
-  props: CompaniesPaginationProps,
-): JSX.Element {
+export function CompaniesPagination(props: CompaniesPaginationProps): JSX.Element {
   const { hasResults, page, totalPages, previousHref, nextHref } = props;
 
   if (!hasResults) {
@@ -19,10 +17,7 @@ export function CompaniesPagination(
   const nextDisabled = page >= totalPages || nextHref == null;
 
   return (
-    <nav
-      className="mt-2 flex items-center gap-3 text-sm text-secondary"
-      aria-label="Pagination"
-    >
+    <nav className="mt-2 flex items-center gap-3 text-sm text-secondary" aria-label="Pagination">
       <a
         href={previousHref ?? "#"}
         aria-disabled={prevDisabled}

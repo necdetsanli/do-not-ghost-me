@@ -46,8 +46,7 @@ export function ImageWithFallback({
     [onError],
   );
 
-  const effectiveSrc: string =
-    didError === true ? (fallbackSrc ?? DEFAULT_ERROR_IMAGE_SRC) : src;
+  const effectiveSrc: string = didError === true ? (fallbackSrc ?? DEFAULT_ERROR_IMAGE_SRC) : src;
 
   return (
     <Image

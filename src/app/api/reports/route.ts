@@ -35,9 +35,7 @@ type HoneypotIssue = {
  * @param error - The domain-specific rate limit error.
  * @returns A NextResponse with the appropriate HTTP status and JSON payload.
  */
-function mapRateLimitErrorToResponse(
-  error: ReportRateLimitError,
-): NextResponse {
+function mapRateLimitErrorToResponse(error: ReportRateLimitError): NextResponse {
   return NextResponse.json(
     {
       error: error.message,
@@ -238,9 +236,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       error: formatUnknownError(error),
     });
 
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

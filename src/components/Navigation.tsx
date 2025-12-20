@@ -16,10 +16,9 @@ import {
 import { cn } from "@/components/ui/utils";
 
 // Client-only theme toggle (no SSR → no hydration mismatch)
-const ThemeToggle = dynamic(
-  () => import("./ThemeToggle").then((m) => m.ThemeToggle),
-  { ssr: false },
-);
+const ThemeToggle = dynamic(() => import("./ThemeToggle").then((m) => m.ThemeToggle), {
+  ssr: false,
+});
 
 type NavItem = {
   href: string;
@@ -95,17 +94,12 @@ export function Navigation(): JSX.Element {
 
                 return (
                   <NavigationMenuItem key={item.href}>
-                    <NavigationMenuLink
-                      asChild
-                      data-active={active ? "true" : "false"}
-                    >
+                    <NavigationMenuLink asChild data-active={active ? "true" : "false"}>
                       <Link
                         href={item.href}
                         className={cn(
                           "text-sm transition-colors",
-                          active
-                            ? "font-medium text-primary"
-                            : "text-secondary hover:text-primary",
+                          active ? "font-medium text-primary" : "text-secondary hover:text-primary",
                         )}
                         aria-current={active ? "page" : undefined}
                       >

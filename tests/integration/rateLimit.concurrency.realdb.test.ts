@@ -1,13 +1,5 @@
 // tests/integration/rateLimit.concurrency.realdb.test.ts
-import {
-  describe,
-  it,
-  expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-  vi,
-} from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { PositionCategory } from "@prisma/client";
 import fs from "node:fs";
 import path from "node:path";

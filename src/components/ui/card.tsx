@@ -38,10 +38,7 @@ function Card({ className, ...props }: CardProps): React.JSX.Element {
  * @param props - Header props including optional `className` and `children`.
  * @returns A styled card header element.
  */
-function CardHeader({
-  className,
-  ...props
-}: CardHeaderProps): React.JSX.Element {
+function CardHeader({ className, ...props }: CardHeaderProps): React.JSX.Element {
   return (
     <div
       data-slot="card-header"
@@ -62,11 +59,7 @@ function CardHeader({
  */
 function CardTitle({ className, ...props }: CardTitleProps): React.JSX.Element {
   return (
-    <h4
-      data-slot="card-title"
-      className={cn("leading-none text-primary", className)}
-      {...props}
-    />
+    <h4 data-slot="card-title" className={cn("leading-none text-primary", className)} {...props} />
   );
 }
 
@@ -76,17 +69,8 @@ function CardTitle({ className, ...props }: CardTitleProps): React.JSX.Element {
  * @param props - Description props including optional `className` and `children`.
  * @returns A styled paragraph element for the card description.
  */
-function CardDescription({
-  className,
-  ...props
-}: CardDescriptionProps): React.JSX.Element {
-  return (
-    <p
-      data-slot="card-description"
-      className={cn("text-secondary", className)}
-      {...props}
-    />
-  );
+function CardDescription({ className, ...props }: CardDescriptionProps): React.JSX.Element {
+  return <p data-slot="card-description" className={cn("text-secondary", className)} {...props} />;
 }
 
 /**
@@ -98,17 +82,11 @@ function CardDescription({
  * @param props - Action props including optional `className` and `children`.
  * @returns A styled container for card actions.
  */
-function CardAction({
-  className,
-  ...props
-}: CardActionProps): React.JSX.Element {
+function CardAction({ className, ...props }: CardActionProps): React.JSX.Element {
   return (
     <div
       data-slot="card-action"
-      className={cn(
-        "col-start-2 row-span-2 row-start-1 self-start justify-self-end",
-        className,
-      )}
+      className={cn("col-start-2 row-span-2 row-start-1 self-start justify-self-end", className)}
       {...props}
     />
   );
@@ -120,10 +98,7 @@ function CardAction({
  * @param props - Content props including optional `className` and `children`.
  * @returns A styled container for the card body content.
  */
-function CardContent({
-  className,
-  ...props
-}: CardContentProps): React.JSX.Element {
+function CardContent({ className, ...props }: CardContentProps): React.JSX.Element {
   return (
     <div
       data-slot="card-content"
@@ -139,10 +114,7 @@ function CardContent({
  * @param props - Footer props including optional `className` and `children`.
  * @returns A styled container for the card footer content.
  */
-function CardFooter({
-  className,
-  ...props
-}: CardFooterProps): React.JSX.Element {
+function CardFooter({ className, ...props }: CardFooterProps): React.JSX.Element {
   return (
     <div
       data-slot="card-footer"
@@ -152,12 +124,4 @@ function CardFooter({
   );
 }
 
-export {
-  Card,
-  CardHeader,
-  CardFooter,
-  CardTitle,
-  CardAction,
-  CardDescription,
-  CardContent,
-};
+export { Card, CardHeader, CardFooter, CardTitle, CardAction, CardDescription, CardContent };

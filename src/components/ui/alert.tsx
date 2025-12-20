@@ -63,17 +63,11 @@ function Alert({ className, variant, ...props }: AlertProps): JSX.Element {
  * @param props - Standard div props including children and className.
  * @returns A styled title row for the alert.
  */
-function AlertTitle({
-  className,
-  ...props
-}: ComponentProps<"div">): JSX.Element {
+function AlertTitle({ className, ...props }: ComponentProps<"div">): JSX.Element {
   return (
     <div
       data-slot="alert-title"
-      className={cn(
-        "col-start-2 min-h-4 line-clamp-1 font-medium tracking-tight",
-        className,
-      )}
+      className={cn("col-start-2 min-h-4 line-clamp-1 font-medium tracking-tight", className)}
       {...props}
     />
   );
@@ -88,10 +82,7 @@ function AlertTitle({
  * @param props - Standard div props including children and className.
  * @returns A styled description container for the alert.
  */
-function AlertDescription({
-  className,
-  ...props
-}: ComponentProps<"div">): JSX.Element {
+function AlertDescription({ className, ...props }: ComponentProps<"div">): JSX.Element {
   return (
     <div
       data-slot="alert-description"

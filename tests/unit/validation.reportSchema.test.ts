@@ -66,9 +66,7 @@ describe("reportSchema", () => {
 
     expect(parsed.success).toBe(false);
     if (parsed.success === false) {
-      const issue = parsed.error.issues.find(
-        (i) => i.path.join(".") === "companyName",
-      );
+      const issue = parsed.error.issues.find((i) => i.path.join(".") === "companyName");
       expect(issue).toBeDefined();
     }
   });
@@ -81,9 +79,7 @@ describe("reportSchema", () => {
 
     expect(parsed.success).toBe(false);
     if (parsed.success === false) {
-      const issue = parsed.error.issues.find(
-        (i) => i.path.join(".") === "companyName",
-      );
+      const issue = parsed.error.issues.find((i) => i.path.join(".") === "companyName");
       expect(issue).toBeDefined();
       expect(issue?.message.toLowerCase()).toContain("at least one letter");
     }
@@ -97,9 +93,7 @@ describe("reportSchema", () => {
 
     expect(parsed.success).toBe(false);
     if (parsed.success === false) {
-      const issue = parsed.error.issues.find(
-        (i) => i.path.join(".") === "positionDetail",
-      );
+      const issue = parsed.error.issues.find((i) => i.path.join(".") === "positionDetail");
       expect(issue).toBeDefined();
       expect(issue?.message.toLowerCase()).toContain("at least");
     }
@@ -113,9 +107,7 @@ describe("reportSchema", () => {
 
     expect(parsed.success).toBe(false);
     if (parsed.success === false) {
-      const issue = parsed.error.issues.find(
-        (i) => i.path.join(".") === "stage",
-      );
+      const issue = parsed.error.issues.find((i) => i.path.join(".") === "stage");
       expect(issue).toBeDefined();
     }
   });
@@ -128,9 +120,7 @@ describe("reportSchema", () => {
 
     expect(parsed.success).toBe(false);
     if (parsed.success === false) {
-      const issue = parsed.error.issues.find(
-        (i) => i.path.join(".") === "country",
-      );
+      const issue = parsed.error.issues.find((i) => i.path.join(".") === "country");
       expect(issue).toBeDefined();
       // If you enforce a custom message via errorMap, this should match:
       // expect(issue?.message).toBe("Please select a valid country");
@@ -206,9 +196,7 @@ describe("reportSchema", () => {
 
       expect(parsed.success).toBe(false);
       if (parsed.success === false) {
-        const issue = parsed.error.issues.find(
-          (i) => i.path.join(".") === "daysWithoutReply",
-        );
+        const issue = parsed.error.issues.find((i) => i.path.join(".") === "daysWithoutReply");
         expect(issue).toBeDefined();
       }
     });
@@ -221,9 +209,7 @@ describe("reportSchema", () => {
 
       expect(parsed.success).toBe(false);
       if (parsed.success === false) {
-        const issue = parsed.error.issues.find(
-          (i) => i.path.join(".") === "daysWithoutReply",
-        );
+        const issue = parsed.error.issues.find((i) => i.path.join(".") === "daysWithoutReply");
         expect(issue).toBeDefined();
         expect(issue?.message.toLowerCase()).toContain("integer");
       }
@@ -251,9 +237,7 @@ describe("reportSchema", () => {
 
       expect(parsed.success).toBe(false);
       if (parsed.success === false) {
-        const issue = parsed.error.issues.find(
-          (i) => i.path.join(".") === "daysWithoutReply",
-        );
+        const issue = parsed.error.issues.find((i) => i.path.join(".") === "daysWithoutReply");
         expect(issue).toBeDefined();
       }
     });
@@ -288,9 +272,7 @@ describe("reportSchema", () => {
 
       expect(parsed.success).toBe(false);
       if (parsed.success === false) {
-        const issue = parsed.error.issues.find(
-          (i) => i.path.join(".") === "honeypot",
-        );
+        const issue = parsed.error.issues.find((i) => i.path.join(".") === "honeypot");
         expect(issue).toBeDefined();
       }
     });
