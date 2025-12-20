@@ -1,0 +1,36 @@
+# VCS / editor
+.git
+.github
+.vscode
+.idea
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Node / logs
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Env (keep example)
+.env
+.env.*
+!.env.example
+
+# Build artifacts
+.next
+out
+dist
+coverage
+
+# Docs / misc
+docs
+*.md
+
+# Docker-compose / docker files not needed in build context
+docker-compose*.yml
+Dockerfile*
