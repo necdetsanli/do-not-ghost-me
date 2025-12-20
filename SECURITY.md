@@ -8,7 +8,7 @@ Only the latest release on the default branch is supported with security updates
 
 If you believe you’ve found a security vulnerability, please report it privately:
 
-- Email: me@necdetsanli.com
+- Email: security@donotghostme.com
 
 Please include:
 
