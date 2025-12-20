@@ -1,6 +1,12 @@
 // tests/unit/api.health.test.ts
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
+import {
+  TEST_RATE_LIMIT_IP_SALT,
+  TEST_ADMIN_PASSWORD,
+  TEST_ADMIN_SESSION_SECRET,
+  TEST_ADMIN_CSRF_SECRET,
+} from "../testUtils/testSecrets";
 
 type EnvSnapshot = Record<string, string | undefined>;
 
@@ -62,13 +68,13 @@ function applyBaseEnv(): void {
 
   env.NODE_ENV = "test";
   env.DATABASE_URL = "postgresql://user:pass@localhost:5432/testdb";
-  env.RATE_LIMIT_IP_SALT = "test-rate-limit-salt-32-bytes-minimum-000000";
+  env.RATE_LIMIT_IP_SALT = TEST_RATE_LIMIT_IP_SALT;
   env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP = "3";
   env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY = "10";
 
-  env.ADMIN_PASSWORD = "test-admin-password";
-  env.ADMIN_SESSION_SECRET = "test-admin-session-secret-32-bytes-minimum-0000000";
-  env.ADMIN_CSRF_SECRET = "test-admin-csrf-secret-32-bytes-minimum-000000000";
+  env.ADMIN_PASSWORD = TEST_ADMIN_PASSWORD;
+  env.ADMIN_SESSION_SECRET = TEST_ADMIN_SESSION_SECRET;
+  env.ADMIN_CSRF_SECRET = TEST_ADMIN_CSRF_SECRET;
   env.ADMIN_ALLOWED_HOST = "example.test";
 }
 

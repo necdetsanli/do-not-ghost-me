@@ -1,6 +1,13 @@
 // tests/integration/api.admin.login.test.ts
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
+import {
+  TEST_ADMIN_PASSWORD,
+  TEST_ADMIN_PASSWORD_WRONG,
+  TEST_ADMIN_SESSION_SECRET,
+  TEST_ADMIN_CSRF_SECRET,
+  TEST_RATE_LIMIT_IP_SALT,
+} from "../testUtils/testSecrets";
 
 /**
  * Applies a minimal valid env for importing the app env schema.
@@ -18,22 +25,13 @@ function applyBaseEnv(overrides: Partial<Record<string, string>> = {}): void {
     overrides.DATABASE_URL ?? "postgresql://user:pass@localhost:5432/testdb",
   );
 
-  vi.stubEnv(
-    "RATE_LIMIT_IP_SALT",
-    overrides.RATE_LIMIT_IP_SALT ?? "test-rate-limit-salt-32-bytes-minimum-000000",
-  );
+  vi.stubEnv("RATE_LIMIT_IP_SALT", overrides.RATE_LIMIT_IP_SALT ?? TEST_RATE_LIMIT_IP_SALT);
 
-  vi.stubEnv("ADMIN_PASSWORD", overrides.ADMIN_PASSWORD ?? "test-admin-password");
+  vi.stubEnv("ADMIN_PASSWORD", overrides.ADMIN_PASSWORD ?? TEST_ADMIN_PASSWORD);
 
-  vi.stubEnv(
-    "ADMIN_SESSION_SECRET",
-    overrides.ADMIN_SESSION_SECRET ?? "test-admin-session-secret-32-bytes-minimum-0000000",
-  );
+  vi.stubEnv("ADMIN_SESSION_SECRET", overrides.ADMIN_SESSION_SECRET ?? TEST_ADMIN_SESSION_SECRET);
 
-  vi.stubEnv(
-    "ADMIN_CSRF_SECRET",
-    overrides.ADMIN_CSRF_SECRET ?? "test-admin-csrf-secret-32-bytes-minimum-000000000",
-  );
+  vi.stubEnv("ADMIN_CSRF_SECRET", overrides.ADMIN_CSRF_SECRET ?? TEST_ADMIN_CSRF_SECRET);
 
   // If you want "unset", keep it as an empty string so the app can treat it as disabled.
   vi.stubEnv("ADMIN_ALLOWED_HOST", overrides.ADMIN_ALLOWED_HOST ?? "");
@@ -93,6 +91,22 @@ async function importCsrfHelpers(): Promise<{
 }
 
 /**
+ * Generates a valid and an invalid CSRF token based on current env.
+ *
+ * IMPORTANT: Must be called after applyBaseEnv(), because createCsrfToken depends on env.
+ *
+ * @returns CSRF tokens.
+ */
+async function getCsrfTokens(): Promise<{ validCsrf: string; invalidCsrf: string }> {
+  const { createCsrfToken } = await importCsrfHelpers();
+
+  return {
+    validCsrf: createCsrfToken("admin-login"),
+    invalidCsrf: createCsrfToken("not-admin-login"), // purpose mismatch => invalid
+  };
+}
+
+/**
  * Asserts a redirect response to /admin/login?error=1.
  *
  * @param res - Response to assert.
@@ -145,6 +159,7 @@ describe("POST /api/admin/login", () => {
   it("returns 403 JSON when ADMIN_ALLOWED_HOST is set and Host header mismatches", async () => {
     applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
 
+    const { invalidCsrf } = await getCsrfTokens();
     const { POST } = await importLoginPost();
 
     const req = buildLoginPostRequest(
@@ -152,7 +167,7 @@ describe("POST /api/admin/login", () => {
       {
         host: "evil.test",
       },
-      { password: "whatever", _csrf: "irrelevant" },
+      { password: TEST_ADMIN_PASSWORD_WRONG, _csrf: invalidCsrf },
     );
 
     const res = await POST(req);
@@ -165,6 +180,7 @@ describe("POST /api/admin/login", () => {
   it("returns 403 JSON when Origin header is present and mismatches allowed host", async () => {
     applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
 
+    const { invalidCsrf } = await getCsrfTokens();
     const { POST } = await importLoginPost();
 
     const req = buildLoginPostRequest(
@@ -173,7 +189,7 @@ describe("POST /api/admin/login", () => {
         host: "allowed.test",
         origin: "https://evil.test",
       },
-      { password: "whatever", _csrf: "irrelevant" },
+      { password: TEST_ADMIN_PASSWORD_WRONG, _csrf: invalidCsrf },
     );
 
     const res = await POST(req);
@@ -186,6 +202,7 @@ describe("POST /api/admin/login", () => {
   it("redirects to /admin/login?error=1 when CSRF is invalid", async () => {
     applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
 
+    const { invalidCsrf } = await getCsrfTokens();
     const { POST } = await importLoginPost();
 
     const req = buildLoginPostRequest(
@@ -195,7 +212,7 @@ describe("POST /api/admin/login", () => {
         origin: "https://allowed.test",
         "x-forwarded-for": "203.0.113.21",
       },
-      { password: "test-admin-password", _csrf: "invalid-csrf" },
+      { password: TEST_ADMIN_PASSWORD, _csrf: invalidCsrf },
     );
 
     const res = await POST(req);
@@ -206,9 +223,7 @@ describe("POST /api/admin/login", () => {
   it("redirects to /admin/login?error=1 when password is missing", async () => {
     applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
 
-    const { createCsrfToken } = await importCsrfHelpers();
-    const csrf = createCsrfToken("admin-login");
-
+    const { validCsrf } = await getCsrfTokens();
     const { POST } = await importLoginPost();
 
     const req = buildLoginPostRequest(
@@ -218,7 +233,7 @@ describe("POST /api/admin/login", () => {
         origin: "https://allowed.test",
         "x-forwarded-for": "203.0.113.22",
       },
-      { _csrf: csrf },
+      { _csrf: validCsrf },
     );
 
     const res = await POST(req);
@@ -229,9 +244,7 @@ describe("POST /api/admin/login", () => {
   it("redirects to /admin/login?error=1 when password is wrong", async () => {
     applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
 
-    const { createCsrfToken } = await importCsrfHelpers();
-    const csrf = createCsrfToken("admin-login");
-
+    const { validCsrf } = await getCsrfTokens();
     const { POST } = await importLoginPost();
 
     const req = buildLoginPostRequest(
@@ -241,7 +254,7 @@ describe("POST /api/admin/login", () => {
         origin: "https://allowed.test",
         "x-forwarded-for": "203.0.113.23",
       },
-      { password: "wrong-password", _csrf: csrf },
+      { password: TEST_ADMIN_PASSWORD_WRONG, _csrf: validCsrf },
     );
 
     const res = await POST(req);
@@ -252,9 +265,7 @@ describe("POST /api/admin/login", () => {
   it("redirects to /admin and sets a signed HttpOnly session cookie when password is correct", async () => {
     applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
 
-    const { createCsrfToken } = await importCsrfHelpers();
-    const csrf = createCsrfToken("admin-login");
-
+    const { validCsrf } = await getCsrfTokens();
     const { POST } = await importLoginPost();
 
     const req = buildLoginPostRequest(
@@ -264,7 +275,7 @@ describe("POST /api/admin/login", () => {
         origin: "https://allowed.test",
         "x-forwarded-for": "203.0.113.24",
       },
-      { password: "test-admin-password", _csrf: csrf },
+      { password: TEST_ADMIN_PASSWORD, _csrf: validCsrf },
     );
 
     const res = await POST(req);
@@ -284,9 +295,7 @@ describe("POST /api/admin/login", () => {
   it("returns 429 JSON after too many failed attempts from the same IP", async () => {
     applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
 
-    const { createCsrfToken } = await importCsrfHelpers();
-    const csrf = createCsrfToken("admin-login");
-
+    const { validCsrf } = await getCsrfTokens();
     const { POST } = await importLoginPost();
 
     const url = "https://allowed.test/api/admin/login";
@@ -298,16 +307,16 @@ describe("POST /api/admin/login", () => {
 
     for (let i = 0; i < 5; i += 1) {
       const req = buildLoginPostRequest(url, headers, {
-        password: "wrong-password",
-        _csrf: csrf,
+        password: TEST_ADMIN_PASSWORD_WRONG,
+        _csrf: validCsrf,
       });
       const res = await POST(req);
       await expectErrorRedirect(res);
     }
 
     const sixthReq = buildLoginPostRequest(url, headers, {
-      password: "wrong-password",
-      _csrf: csrf,
+      password: TEST_ADMIN_PASSWORD_WRONG,
+      _csrf: validCsrf,
     });
     const sixthRes = await POST(sixthReq);
 
@@ -320,6 +329,7 @@ describe("POST /api/admin/login", () => {
   it("returns 403 JSON when Origin header is not a valid URL", async () => {
     applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
 
+    const { invalidCsrf } = await getCsrfTokens();
     const { POST } = await importLoginPost();
 
     const req = buildLoginPostRequest(
@@ -328,7 +338,7 @@ describe("POST /api/admin/login", () => {
         host: "allowed.test",
         origin: "not-a-url",
       },
-      { password: "whatever", _csrf: "irrelevant" },
+      { password: TEST_ADMIN_PASSWORD_WRONG, _csrf: invalidCsrf },
     );
 
     const res = await POST(req);
@@ -344,9 +354,7 @@ describe("POST /api/admin/login", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2025-01-01T00:00:00.000Z"));
 
-    const { createCsrfToken } = await importCsrfHelpers();
-    const csrf = createCsrfToken("admin-login");
-
+    const { validCsrf } = await getCsrfTokens();
     const { POST } = await importLoginPost();
 
     const url = "https://allowed.test/api/admin/login";
@@ -358,16 +366,16 @@ describe("POST /api/admin/login", () => {
 
     for (let i = 0; i < 5; i += 1) {
       const req = buildLoginPostRequest(url, headers, {
-        password: "wrong-password",
-        _csrf: csrf,
+        password: TEST_ADMIN_PASSWORD_WRONG,
+        _csrf: validCsrf,
       });
       const res = await POST(req);
       await expectErrorRedirect(res);
     }
 
     const lockedReq = buildLoginPostRequest(url, headers, {
-      password: "wrong-password",
-      _csrf: csrf,
+      password: TEST_ADMIN_PASSWORD_WRONG,
+      _csrf: validCsrf,
     });
     const lockedRes = await POST(lockedReq);
     expect(lockedRes.status).toBe(429);
@@ -376,8 +384,8 @@ describe("POST /api/admin/login", () => {
     vi.setSystemTime(new Date("2025-01-01T00:15:00.001Z"));
 
     const afterLockReq = buildLoginPostRequest(url, headers, {
-      password: "wrong-password",
-      _csrf: csrf,
+      password: TEST_ADMIN_PASSWORD_WRONG,
+      _csrf: validCsrf,
     });
     const afterLockRes = await POST(afterLockReq);
 
@@ -388,6 +396,8 @@ describe("POST /api/admin/login", () => {
 
   it("returns 500 JSON when CSRF verification throws unexpectedly", async () => {
     applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
+
+    const { invalidCsrf } = await getCsrfTokens();
 
     vi.resetModules();
     vi.doMock("@/lib/csrf", () => ({
@@ -406,7 +416,7 @@ describe("POST /api/admin/login", () => {
         origin: "https://allowed.test",
         "x-forwarded-for": "203.0.113.78",
       },
-      { password: "test-admin-password", _csrf: "any" },
+      { password: TEST_ADMIN_PASSWORD, _csrf: invalidCsrf },
     );
 
     const res = await POST(req);

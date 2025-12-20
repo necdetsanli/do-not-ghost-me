@@ -1,6 +1,7 @@
 // playwright.config.ts
 import { randomBytes } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
+import { TEST_ADMIN_PASSWORD } from "./tests/testUtils/testSecrets";
 
 const DEFAULT_PORT = 3000;
 const DEFAULT_BASE_URL = `http://localhost:${DEFAULT_PORT}`;
@@ -72,7 +73,7 @@ function resolveAdminE2eAuthEnv(): {
   return { adminPassword, adminSessionSecret, adminCsrfSecret };
 }
 
-const { adminPassword, adminSessionSecret, adminCsrfSecret } = resolveAdminE2eAuthEnv();
+const { adminSessionSecret, adminCsrfSecret } = resolveAdminE2eAuthEnv();
 
 /**
  * Converts NodeJS.ProcessEnv into a Record<string, string> compatible with
@@ -132,7 +133,9 @@ export default defineConfig({
       PORT: String(PORT),
 
       ADMIN_ALLOWED_HOST,
-      ADMIN_PASSWORD: adminPassword,
+      ADMIN_PASSWORD: process.env.ADMIN_PASSWORD?.trim().length
+        ? process.env.ADMIN_PASSWORD.trim()
+        : TEST_ADMIN_PASSWORD,
       ADMIN_SESSION_SECRET: adminSessionSecret,
       ADMIN_CSRF_SECRET: adminCsrfSecret,
     }),

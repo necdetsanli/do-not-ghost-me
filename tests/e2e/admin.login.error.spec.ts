@@ -1,12 +1,14 @@
-// tests/e2e/admin.login.error.spec.ts
 import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./fixtures";
+import { TEST_ADMIN_PASSWORD, TEST_ADMIN_PASSWORD_WRONG } from "../testUtils/testSecrets";
 
 /**
  * Returns an admin password for E2E tests.
  *
- * If the environment variable is not present, we use a deterministic fallback
- * to match Playwright webServer env injection.
+ * We prefer the injected environment variable. If missing (local misconfig),
+ * we fall back to a runtime-generated test secret so we never hardcode passwords.
+ *
+ * IMPORTANT: Ensure your Playwright webServer uses the same ADMIN_PASSWORD.
  *
  * @returns Admin password string.
  */
@@ -16,14 +18,14 @@ function getAdminPassword(): string {
     return raw.trim();
   }
 
-  return "test-admin-password";
+  return TEST_ADMIN_PASSWORD;
 }
 
 /**
  * Sets a deterministic client IP for the test to keep rate-limiting stable.
  *
- * @param page - Playwright page.
- * @returns Promise resolved when headers are applied.
+ * @param {Page} page - Playwright page.
+ * @returns {Promise<void>} Promise resolved when headers are applied.
  */
 async function setDeterministicClientIp(page: Page): Promise<void> {
   await page.context().setExtraHTTPHeaders({
@@ -34,8 +36,8 @@ async function setDeterministicClientIp(page: Page): Promise<void> {
 /**
  * Returns the admin login form locator.
  *
- * @param page - Playwright page.
- * @returns Login form locator.
+ * @param {Page} page - Playwright page.
+ * @returns {Locator} Login form locator.
  */
 function getAdminLoginForm(page: Page): Locator {
   return page.getByRole("form", { name: /admin login form/i });
@@ -50,7 +52,7 @@ test.describe("admin login error handling", () => {
     const form = getAdminLoginForm(page);
     await expect(form).toBeVisible();
 
-    await form.getByLabel(/^Password$/i).fill("definitely-wrong-password");
+    await form.getByLabel(/^Password$/i).fill(TEST_ADMIN_PASSWORD_WRONG);
 
     await Promise.all([
       page.waitForURL(/\/admin\/login\?error=1/i),

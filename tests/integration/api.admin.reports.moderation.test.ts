@@ -1,6 +1,12 @@
 // tests/integration/api.admin.reports.moderation.test.ts
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
+import {
+  TEST_RATE_LIMIT_IP_SALT,
+  TEST_ADMIN_PASSWORD,
+  TEST_ADMIN_SESSION_SECRET,
+  TEST_ADMIN_CSRF_SECRET,
+} from "../testUtils/testSecrets";
 
 type EnvKey =
   | "NODE_ENV"
@@ -11,31 +17,14 @@ type EnvKey =
   | "ADMIN_ALLOWED_HOST"
   | "ADMIN_CSRF_SECRET";
 
-/**
- * Environment snapshot type for safe restore.
- */
 type EnvSnapshot = Record<EnvKey, string | undefined>;
-
 type EnvOverrides = Partial<Record<EnvKey, string>>;
 
-/**
- * Reads a process.env variable via index signature (avoids readonly typing issues).
- *
- * @param key - Environment variable key.
- * @returns Environment variable value (if set).
- */
 function getEnvVar(key: EnvKey): string | undefined {
   const env = process.env as unknown as Record<string, string | undefined>;
   return env[key];
 }
 
-/**
- * Sets or deletes a process.env variable via index signature (avoids readonly typing issues).
- *
- * @param key - Environment variable key.
- * @param value - Value to set, or undefined to delete.
- * @returns void
- */
 function setEnvVar(key: EnvKey, value: string | undefined): void {
   const env = process.env as unknown as Record<string, string | undefined>;
   if (value === undefined) {
@@ -45,11 +34,6 @@ function setEnvVar(key: EnvKey, value: string | undefined): void {
   env[key] = value;
 }
 
-/**
- * Takes a snapshot of process.env keys used in these tests.
- *
- * @returns Snapshot object.
- */
 function snapshotEnv(): EnvSnapshot {
   return {
     NODE_ENV: getEnvVar("NODE_ENV"),
@@ -63,9 +47,11 @@ function snapshotEnv(): EnvSnapshot {
 }
 
 /**
- * Restores process.env from a snapshot.
+ * Applies a minimal valid env for importing the app env schema.
  *
- * @param snap - Environment snapshot.
+ * Uses vi.stubEnv to avoid direct process.env assignments (read-only typing).
+ *
+ * @param overrides - Partial env overrides for a test.
  * @returns void
  */
 function restoreEnv(snap: EnvSnapshot): void {
@@ -78,31 +64,18 @@ function restoreEnv(snap: EnvSnapshot): void {
   setEnvVar("ADMIN_CSRF_SECRET", snap.ADMIN_CSRF_SECRET);
 }
 
-/**
- * Applies a minimal valid env for importing the app env schema.
- *
- * @param overrides - Partial env overrides for a test.
- * @returns void
- */
 function applyBaseEnv(overrides: EnvOverrides = {}): void {
   setEnvVar("NODE_ENV", overrides.NODE_ENV ?? "test");
   setEnvVar(
     "DATABASE_URL",
     overrides.DATABASE_URL ?? "postgresql://user:pass@localhost:5432/testdb",
   );
-  setEnvVar(
-    "RATE_LIMIT_IP_SALT",
-    overrides.RATE_LIMIT_IP_SALT ?? "test-rate-limit-salt-32-bytes-minimum-000000",
-  );
-  setEnvVar("ADMIN_PASSWORD", overrides.ADMIN_PASSWORD ?? "test-admin-password");
-  setEnvVar(
-    "ADMIN_SESSION_SECRET",
-    overrides.ADMIN_SESSION_SECRET ?? "test-admin-session-secret-32-bytes-minimum-0000000",
-  );
-  setEnvVar(
-    "ADMIN_CSRF_SECRET",
-    overrides.ADMIN_CSRF_SECRET ?? "test-admin-csrf-secret-32-bytes-minimum-000000000",
-  );
+
+  setEnvVar("RATE_LIMIT_IP_SALT", overrides.RATE_LIMIT_IP_SALT ?? TEST_RATE_LIMIT_IP_SALT);
+  setEnvVar("ADMIN_PASSWORD", overrides.ADMIN_PASSWORD ?? TEST_ADMIN_PASSWORD);
+  setEnvVar("ADMIN_SESSION_SECRET", overrides.ADMIN_SESSION_SECRET ?? TEST_ADMIN_SESSION_SECRET);
+  setEnvVar("ADMIN_CSRF_SECRET", overrides.ADMIN_CSRF_SECRET ?? TEST_ADMIN_CSRF_SECRET);
+
   setEnvVar("ADMIN_ALLOWED_HOST", overrides.ADMIN_ALLOWED_HOST ?? "admin.test");
 }
 

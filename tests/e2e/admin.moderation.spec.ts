@@ -1,11 +1,30 @@
-// tests/e2e/admin.moderation.spec.ts
 import type { Page, Locator, APIResponse } from "@playwright/test";
 import { test, expect } from "./fixtures";
+import { TEST_ADMIN_PASSWORD } from "../testUtils/testSecrets";
+
+/**
+ * Returns an admin password for E2E tests.
+ *
+ * We prefer the injected environment variable. If missing (local misconfig),
+ * we fall back to a runtime-generated test secret so we never hardcode passwords.
+ *
+ * IMPORTANT: Ensure your Playwright webServer uses the same ADMIN_PASSWORD.
+ *
+ * @returns Admin password string.
+ */
+function getAdminPassword(): string {
+  const raw = process.env.ADMIN_PASSWORD;
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    return raw.trim();
+  }
+
+  return TEST_ADMIN_PASSWORD;
+}
 
 /**
  * Generates a valid test-net IPv4 address to reduce rate-limit collisions across runs.
  *
- * @returns A valid IPv4 address in TEST-NET-3 (203.0.113.0/24).
+ * @returns {string} A valid IPv4 address in TEST-NET-3 (203.0.113.0/24).
  */
 function generateTestIpAddress(): string {
   const lastOctet = (Date.now() % 200) + 1;
@@ -15,9 +34,9 @@ function generateTestIpAddress(): string {
 /**
  * Selects an option from the app Select (Radix UI select trigger with role=combobox).
  *
- * @param trigger - The select trigger locator (role=combobox).
- * @param optionLabel - The visible option label to choose.
- * @returns Promise that resolves when the option is selected.
+ * @param {Locator} trigger - The select trigger locator (role=combobox).
+ * @param {string} optionLabel - The visible option label to choose.
+ * @returns {Promise<void>} Promise that resolves when the option is selected.
  */
 async function selectRadixOptionByLabel(trigger: Locator, optionLabel: string): Promise<void> {
   await expect(trigger).toBeVisible();
@@ -34,11 +53,11 @@ async function selectRadixOptionByLabel(trigger: Locator, optionLabel: string): 
 /**
  * Selects a country in the CountrySelect type-ahead combobox.
  *
- * @param page - Playwright page.
- * @param form - The report form locator.
- * @param query - The query to type (e.g., "Ger").
- * @param countryLabel - The country label to click (e.g., "Germany").
- * @returns Promise that resolves when the country is selected.
+ * @param {Page} page - Playwright page.
+ * @param {Locator} form - The report form locator.
+ * @param {string} query - The query to type (e.g., "Ger").
+ * @param {string} countryLabel - The country label to click (e.g., "Germany").
+ * @returns {Promise<void>} Promise that resolves when the country is selected.
  */
 async function selectCountryByTypeahead(
   page: Page,
@@ -59,10 +78,10 @@ async function selectCountryByTypeahead(
 /**
  * Creates a report using the public form, ensuring the min fill-time guard is satisfied.
  *
- * @param page - Playwright page.
- * @param companyName - Unique company name.
- * @param positionDetail - Unique position detail marker.
- * @returns Promise that resolves when the report is submitted and feedback is visible.
+ * @param {Page} page - Playwright page.
+ * @param {string} companyName - Unique company name.
+ * @param {string} positionDetail - Unique position detail marker.
+ * @returns {Promise<void>} Promise that resolves when the report is submitted and feedback is visible.
  */
 async function createPublicReport(
   page: Page,
@@ -86,22 +105,16 @@ async function createPublicReport(
 
   const stageTrigger = form.getByRole("combobox", { name: /^Stage$/i });
   const jobLevelTrigger = form.getByRole("combobox", { name: /^Job level$/i });
-  const categoryTrigger = form.getByRole("combobox", {
-    name: /^Position category$/i,
-  });
+  const categoryTrigger = form.getByRole("combobox", { name: /^Position category$/i });
 
   await selectRadixOptionByLabel(stageTrigger, "Technical Interview");
   await selectRadixOptionByLabel(jobLevelTrigger, "Junior");
   await selectRadixOptionByLabel(categoryTrigger, "Engineering");
 
-  const positionDetailInput = form.getByRole("textbox", {
-    name: /^Position detail$/i,
-  });
+  const positionDetailInput = form.getByRole("textbox", { name: /^Position detail$/i });
   await positionDetailInput.fill(positionDetail);
 
-  const daysInput = form.getByRole("spinbutton", {
-    name: /^Days without reply \(optional\)$/i,
-  });
+  const daysInput = form.getByRole("spinbutton", { name: /^Days without reply \(optional\)$/i });
   await daysInput.fill("14");
 
   await selectCountryByTypeahead(page, form, "Ger", "Germany");
@@ -119,9 +132,9 @@ async function createPublicReport(
 /**
  * Logs in as admin using the provided password.
  *
- * @param page - Playwright page.
- * @param adminPassword - Admin password to submit.
- * @returns Promise that resolves when the admin dashboard is visible.
+ * @param {Page} page - Playwright page.
+ * @param {string} adminPassword - Admin password to submit.
+ * @returns {Promise<void>} Promise that resolves when the admin dashboard is visible.
  */
 async function loginAsAdmin(page: Page, adminPassword: string): Promise<void> {
   await page.goto("/admin/login");
@@ -142,16 +155,14 @@ async function loginAsAdmin(page: Page, adminPassword: string): Promise<void> {
 /**
  * Opens the admin dashboard and returns the first row matching the position detail marker.
  *
- * @param page - Playwright page.
- * @param positionDetail - Unique marker expected in the table.
- * @returns The matching row locator.
+ * @param {Page} page - Playwright page.
+ * @param {string} positionDetail - Unique marker expected in the table.
+ * @returns {Promise<Locator>} The matching row locator.
  */
 async function getAdminRowByPositionDetail(page: Page, positionDetail: string): Promise<Locator> {
   await page.goto("/admin");
 
-  const table = page.getByRole("table", {
-    name: /admin reports moderation table/i,
-  });
+  const table = page.getByRole("table", { name: /admin reports moderation table/i });
   await expect(table).toBeVisible();
 
   const row = table.getByRole("row").filter({ hasText: positionDetail }).first();
@@ -163,8 +174,8 @@ async function getAdminRowByPositionDetail(page: Page, positionDetail: string): 
 /**
  * Returns the action path (e.g. "/api/admin/reports/<id>") from a row action form.
  *
- * @param row - Admin table row.
- * @returns Action path string.
+ * @param {Locator} row - Admin table row.
+ * @returns {Promise<string>} Action path string.
  * @throws {Error} When action path cannot be found.
  */
 async function getRowReportActionPath(row: Locator): Promise<string> {
@@ -181,10 +192,10 @@ async function getRowReportActionPath(row: Locator): Promise<string> {
 /**
  * Clicks an admin moderation action button inside the given row and waits for return to /admin.
  *
- * @param page - Playwright page.
- * @param row - The target row locator.
- * @param actionName - Button name to click (e.g., "Flag", "Restore").
- * @returns Promise that resolves after navigation back to /admin completes.
+ * @param {Page} page - Playwright page.
+ * @param {Locator} row - The target row locator.
+ * @param {string} actionName - Button name to click (e.g., "Flag", "Restore").
+ * @returns {Promise<void>} Promise that resolves after navigation back to /admin completes.
  */
 async function clickAdminActionAndWait(
   page: Page,
@@ -200,13 +211,10 @@ async function clickAdminActionAndWait(
 /**
  * Clicks an admin moderation action for a report identified by the position detail marker.
  *
- * This helper is navigation-safe: it re-opens /admin and re-resolves the row
- * before attempting to click, avoiding stale locators after page.goto().
- *
- * @param page - Playwright page.
- * @param positionDetail - Unique marker expected in the table.
- * @param actionName - Button name to click (e.g., "Restore", "Soft delete").
- * @returns Promise that resolves after the action completes and /admin is loaded.
+ * @param {Page} page - Playwright page.
+ * @param {string} positionDetail - Unique marker expected in the table.
+ * @param {string} actionName - Button name to click (e.g., "Restore", "Soft delete").
+ * @returns {Promise<void>} Promise that resolves after the action completes and /admin is loaded.
  */
 async function clickAdminActionByPositionDetail(
   page: Page,
@@ -220,10 +228,10 @@ async function clickAdminActionByPositionDetail(
 /**
  * Asserts whether a company appears in the /companies listing when searched by name.
  *
- * @param page - Playwright page.
- * @param companyName - Company name to search.
- * @param shouldExist - Expected visibility.
- * @returns Promise that resolves when the expectation is satisfied.
+ * @param {Page} page - Playwright page.
+ * @param {string} companyName - Company name to search.
+ * @param {boolean} shouldExist - Expected visibility.
+ * @returns {Promise<void>} Promise that resolves when the expectation is satisfied.
  */
 async function expectCompanyInCompaniesSearch(
   page: Page,
@@ -232,9 +240,7 @@ async function expectCompanyInCompaniesSearch(
 ): Promise<void> {
   await page.goto(`/companies?search=${encodeURIComponent(companyName)}`);
 
-  const table = page.getByRole("table", {
-    name: /companies with ghosting reports/i,
-  });
+  const table = page.getByRole("table", { name: /companies with ghosting reports/i });
 
   if (shouldExist === true) {
     await expect(table).toBeVisible();
@@ -256,12 +262,12 @@ async function expectCompanyInCompaniesSearch(
  * Sends an admin moderation POST via APIRequestContext with explicit Origin/Referer
  * so that isOriginAllowed() can be exercised deterministically.
  *
- * @param page - Playwright page.
- * @param absoluteUrl - Absolute URL to POST to.
- * @param origin - Expected origin (e.g. "http://127.0.0.1:3000").
- * @param form - Form fields.
- * @param overrideOrigin - Optional origin override to test origin mismatch.
- * @returns API response.
+ * @param {Page} page - Playwright page.
+ * @param {string} absoluteUrl - Absolute URL to POST to.
+ * @param {string} origin - Expected origin (e.g. "http://127.0.0.1:3000").
+ * @param {Record<string, string>} form - Form fields.
+ * @param {string} [overrideOrigin] - Optional origin override to test origin mismatch.
+ * @returns {Promise<APIResponse>} API response.
  */
 async function postAdminForm(
   page: Page,
@@ -295,10 +301,7 @@ test.describe("admin dashboard moderation", () => {
 
     const origin = new URL(baseUrl).origin;
 
-    /**
-     * If env isn't provided, we use the same fallback as playwright.config.ts injects into webServer.
-     */
-    const adminPassword = process.env.ADMIN_PASSWORD ?? "test-admin-password";
+    const adminPassword = getAdminPassword();
 
     const testIp = generateTestIpAddress();
     await page.context().setExtraHTTPHeaders({
@@ -309,10 +312,6 @@ test.describe("admin dashboard moderation", () => {
     const companyName = `Admin E2E Corp ${runId}`;
     const positionDetail = `Junior Backend Developer (admin e2e) ${runId}`;
 
-    /**
-     * 0) Cover: unauthorized admin moderation attempt (requireAdminRequest path).
-     * We set Origin/Referer to pass origin checks, then assert we are rejected due to missing session.
-     */
     {
       const unauthUrl = new URL("/api/admin/reports/dummy-id", origin).toString();
       const res = await page.request.post(unauthUrl, {
@@ -326,36 +325,18 @@ test.describe("admin dashboard moderation", () => {
       expect(res.status()).toBe(401);
     }
 
-    /**
-     * 1) Create report via public form (covers rateLimit + form validation paths).
-     */
     await createPublicReport(page, companyName, positionDetail);
 
-    /**
-     * Public stats should include ACTIVE report.
-     */
     await expectCompanyInCompaniesSearch(page, companyName, true);
 
-    /**
-     * 2) Admin login.
-     */
     await loginAsAdmin(page, adminPassword);
 
-    /**
-     * 3) Locate row.
-     */
     const row = await getAdminRowByPositionDetail(page, positionDetail);
     await expect(row.getByText(/^Active$/i)).toBeVisible();
 
-    /**
-     * Extract report action path for API coverage.
-     */
     const actionPath = await getRowReportActionPath(row);
     const actionUrl = new URL(actionPath, origin).toString();
 
-    /**
-     * 4) Cover: origin mismatch (isOriginAllowed -> false).
-     */
     {
       const res = await postAdminForm(
         page,
@@ -367,19 +348,11 @@ test.describe("admin dashboard moderation", () => {
       expect(res.status()).toBe(401);
     }
 
-    /**
-     * 5) Cover: unknown moderation action -> 400.
-     */
     {
-      const res = await postAdminForm(page, actionUrl, origin, {
-        action: "nope",
-      });
+      const res = await postAdminForm(page, actionUrl, origin, { action: "nope" });
       expect(res.status()).toBe(400);
     }
 
-    /**
-     * 6) Flag via API with a reason (covers normalizeOptionalText + flaggedReason render).
-     */
     {
       const res = await postAdminForm(page, actionUrl, origin, {
         action: "flag",
@@ -388,85 +361,48 @@ test.describe("admin dashboard moderation", () => {
       expect(res.status()).toBe(303);
     }
 
-    /**
-     * Admin UI should show FLAGGED + reason.
-     */
     {
       const flaggedRow = await getAdminRowByPositionDetail(page, positionDetail);
       await expect(flaggedRow.getByText(/^Flagged$/i)).toBeVisible();
       await expect(flaggedRow.getByText(/Reason:\s*E2E: suspected spam/i)).toBeVisible();
     }
 
-    /**
-     * Public stats should exclude FLAGGED (navigates to /companies).
-     */
     await expectCompanyInCompaniesSearch(page, companyName, false);
 
-    /**
-     * 7) Restore via UI (navigation-safe).
-     */
     await clickAdminActionByPositionDetail(page, positionDetail, "Restore");
 
-    /**
-     * Admin UI should show ACTIVE again.
-     */
     {
       const restoredRow = await getAdminRowByPositionDetail(page, positionDetail);
       await expect(restoredRow.getByText(/^Active$/i)).toBeVisible();
     }
 
-    /**
-     * Public stats should include ACTIVE (navigates to /companies).
-     */
     await expectCompanyInCompaniesSearch(page, companyName, true);
 
-    /**
-     * 8) Soft delete via UI (navigation-safe).
-     */
     await clickAdminActionByPositionDetail(page, positionDetail, "Soft delete");
 
-    /**
-     * Admin UI should show DELETED.
-     */
     {
       const deletedRow = await getAdminRowByPositionDetail(page, positionDetail);
       await expect(deletedRow.getByText(/^Deleted$/i)).toBeVisible();
     }
 
-    /**
-     * Public stats should exclude DELETED (navigates to /companies).
-     */
     await expectCompanyInCompaniesSearch(page, companyName, false);
 
-    /**
-     * 9) Hard delete via UI (navigation-safe).
-     */
     {
       const deletedRow = await getAdminRowByPositionDetail(page, positionDetail);
 
-      const hardDeleteButton = deletedRow.getByRole("button", {
-        name: /^Hard delete$/i,
-      });
+      const hardDeleteButton = deletedRow.getByRole("button", { name: /^Hard delete$/i });
       await expect(hardDeleteButton).toBeVisible();
 
       await Promise.all([page.waitForURL(/\/admin(\/)?$/), hardDeleteButton.click()]);
     }
 
-    /**
-     * Row should be gone from the admin table.
-     */
     await page.goto("/admin");
     {
-      const table = page.getByRole("table", {
-        name: /admin reports moderation table/i,
-      });
+      const table = page.getByRole("table", { name: /admin reports moderation table/i });
       const remaining = table.getByRole("row").filter({ hasText: positionDetail });
       await expect(remaining).toHaveCount(0);
     }
 
-    /**
-     * Public stats should not show it.
-     */
     await expectCompanyInCompaniesSearch(page, companyName, false);
   });
 });
