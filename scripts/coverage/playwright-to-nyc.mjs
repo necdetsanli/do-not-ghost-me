@@ -127,8 +127,12 @@ async function main() {
   }
 
   if (convertedScripts === 0) {
-    console.error("[coverage] No scripts were converted. Most likely no sourcemapped Next assets were found.");
-    console.error("[coverage] Tip: run E2E coverage against a production build with browser sourcemaps enabled.");
+    console.error(
+      "[coverage] No scripts were converted. Most likely no sourcemapped Next assets were found.",
+    );
+    console.error(
+      "[coverage] Tip: run E2E coverage against a production build with browser sourcemaps enabled.",
+    );
     process.exitCode = 1;
     return;
   }
