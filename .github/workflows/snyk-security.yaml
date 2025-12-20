@@ -46,6 +46,8 @@ jobs:
 
       # SAST (Code) -> GitHub Code Scanning
       - name: Snyk Code (SARIF)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         id: snyk_code
         if: env.SNYK_TOKEN != ''
         run: |
@@ -56,18 +58,23 @@ jobs:
           set -e
 
       - name: Upload SARIF to GitHub Code Scanning
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         if: always() && env.SNYK_TOKEN != '' && hashFiles('snyk-code.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk-code.sarif
 
-      # main-PR "required" job ise fail ettir:
       - name: Fail if Snyk Code did not pass
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         if: env.SNYK_TOKEN != '' && steps.snyk_code.outputs.exit_code != '0'
         run: exit 1
 
       # SCA (Open Source)
       - name: Snyk Open Source (test)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk test --all-projects
 
   snyk_staging_optional:
@@ -100,11 +107,15 @@ jobs:
         continue-on-error: true
 
       - name: Snyk Open Source (test) (optional)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk test --all-projects
         continue-on-error: true
 
   snyk_main_monitor:
     name: Snyk (monitor on main push)
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
     if: github.event_name == 'push' && github.ref_name == 'main'
     runs-on: ubuntu-latest
     permissions:
@@ -132,4 +143,6 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
       - name: Snyk Open Source (monitor)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: snyk monitor --all-projects
