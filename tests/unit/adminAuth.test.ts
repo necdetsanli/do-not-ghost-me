@@ -90,11 +90,7 @@ function makeReq({
       if (name !== "dg_admin") {
         return undefined;
       }
-      if (
-        cookieValue === null ||
-        cookieValue === undefined ||
-        cookieValue === ""
-      ) {
+      if (cookieValue === null || cookieValue === undefined || cookieValue === "") {
         return undefined;
       }
       return { value: cookieValue };
@@ -301,10 +297,7 @@ describe("adminAuth session token lifecycle", () => {
     });
 
     const payloadB64 = b64urlEncode("not-json");
-    const sig = signHmacSha256B64url(
-      payloadB64,
-      env.ADMIN_SESSION_SECRET ?? "secret",
-    );
+    const sig = signHmacSha256B64url(payloadB64, env.ADMIN_SESSION_SECRET ?? "secret");
     const token = `${payloadB64}.${sig}`;
 
     const payload = mod.verifyAdminSessionToken(token);
@@ -325,10 +318,7 @@ describe("adminAuth session token lifecycle", () => {
     const now = Math.floor(Date.now() / 1000);
     const badPayload = { sub: "user", iat: now, exp: now + 1000 };
     const payloadB64 = b64urlEncode(JSON.stringify(badPayload));
-    const sig = signHmacSha256B64url(
-      payloadB64,
-      env.ADMIN_SESSION_SECRET ?? "secret",
-    );
+    const sig = signHmacSha256B64url(payloadB64, env.ADMIN_SESSION_SECRET ?? "secret");
     const token = `${payloadB64}.${sig}`;
 
     const payload = mod.verifyAdminSessionToken(token);
@@ -348,10 +338,7 @@ describe("adminAuth session token lifecycle", () => {
     const now = Math.floor(Date.now() / 1000);
     const expiredPayload = { sub: "admin", iat: now - 100, exp: now - 1 };
     const payloadB64 = b64urlEncode(JSON.stringify(expiredPayload));
-    const sig = signHmacSha256B64url(
-      payloadB64,
-      env.ADMIN_SESSION_SECRET ?? "secret",
-    );
+    const sig = signHmacSha256B64url(payloadB64, env.ADMIN_SESSION_SECRET ?? "secret");
     const token = `${payloadB64}.${sig}`;
 
     const payload = mod.verifyAdminSessionToken(token);
@@ -512,9 +499,7 @@ describe("adminAuth.requireAdminRequest", () => {
       cookieValue: null,
     });
 
-    expect(() => mod.requireAdminRequest(req)).toThrow(
-      "Missing or invalid admin session.",
-    );
+    expect(() => mod.requireAdminRequest(req)).toThrow("Missing or invalid admin session.");
   });
 
   /**

@@ -17,11 +17,7 @@ export type InputProps = React.ComponentProps<"input">;
  * @param props - Standard input props plus optional `className` override.
  * @returns A styled input element.
  */
-export function Input({
-  className,
-  type,
-  ...props
-}: InputProps): React.JSX.Element {
+export function Input({ className, type, ...props }: InputProps): React.JSX.Element {
   return (
     <input
       type={type}

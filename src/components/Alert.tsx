@@ -21,12 +21,7 @@ interface AlertProps {
  * - Maps domain-level `type` to design-system variants.
  * - Renders a leading icon and an optional dismiss button.
  */
-export function Alert({
-  type,
-  message,
-  onClose,
-  className,
-}: AlertProps): JSX.Element {
+export function Alert({ type, message, onClose, className }: AlertProps): JSX.Element {
   const Icon = type === "success" ? CheckCircle : AlertCircle;
   const variant = type === "error" ? "destructive" : "success";
 

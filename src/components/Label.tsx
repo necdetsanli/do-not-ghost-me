@@ -21,17 +21,9 @@ export interface LabelProps extends UiLabelProps {
  * App-level Label wrapper.
  * Uses the ui/label primitive and adds a required asterisk when isRequired is true.
  */
-export function Label({
-  className,
-  children,
-  isRequired,
-  ...props
-}: LabelProps): JSX.Element {
+export function Label({ className, children, isRequired, ...props }: LabelProps): JSX.Element {
   return (
-    <UiLabel
-      className={cn("inline-flex items-center gap-1", className)}
-      {...props}
-    >
+    <UiLabel className={cn("inline-flex items-center gap-1", className)} {...props}>
       {children}
       {isRequired === true ? (
         <span aria-hidden="true" className="text-[var(--error-text)]">

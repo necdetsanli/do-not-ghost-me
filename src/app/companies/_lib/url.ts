@@ -1,9 +1,5 @@
 // src/app/companies/_lib/url.ts
-import {
-  categoryEnumToSlug,
-  seniorityEnumToSlug,
-  stageEnumToSlug,
-} from "@/lib/enums";
+import { categoryEnumToSlug, seniorityEnumToSlug, stageEnumToSlug } from "@/lib/enums";
 import type { ResolvedFilters } from "../types";
 
 /**
@@ -18,11 +14,7 @@ import type { ResolvedFilters } from "../types";
  * @param filters - Current resolved filters whose values should be encoded into the query string.
  * @returns A relative URL (pathname + query string) for the requested page and filters.
  */
-export function buildPageUrl(
-  base: string,
-  page: number,
-  filters: ResolvedFilters,
-): string {
+export function buildPageUrl(base: string, page: number, filters: ResolvedFilters): string {
   const params = new URLSearchParams();
   params.set("page", String(page));
 

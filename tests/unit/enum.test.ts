@@ -48,9 +48,7 @@ describe("lib/enums", () => {
    * for key enum values.
    */
   it("label helpers return custom labels where available", () => {
-    expect(labelForCategory(PositionCategory.SALES_MARKETING)).toBe(
-      "Sales & Marketing",
-    );
+    expect(labelForCategory(PositionCategory.SALES_MARKETING)).toBe("Sales & Marketing");
     expect(labelForJobLevel(JobLevel.MID)).toBe("Mid-Level");
     expect(labelForStage(Stage.CV_SCREEN)).toBe("CV Screening");
     expect(labelForCountry(CountryCode.TR)).toBe("Turkey");
@@ -62,9 +60,7 @@ describe("lib/enums", () => {
    */
   it("label helpers fall back when unknown enum values are provided", () => {
     const unknownCategory = "SOME_NEW_CATEGORY" as unknown as PositionCategory;
-    expect(labelForCategory(unknownCategory)).toBe(
-      formatEnumLabel("SOME_NEW_CATEGORY"),
-    );
+    expect(labelForCategory(unknownCategory)).toBe(formatEnumLabel("SOME_NEW_CATEGORY"));
 
     const unknownCountry = "XX" as unknown as CountryCode;
     expect(labelForCountry(unknownCountry)).toBe("XX");

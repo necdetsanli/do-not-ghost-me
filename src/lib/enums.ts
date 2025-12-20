@@ -43,16 +43,15 @@ export function formatEnumLabel(value: string): string {
 // Base enum value arrays
 // ---------------------------------------------------------------------------
 
-export const POSITION_CATEGORY_OPTIONS: readonly PositionCategory[] =
-  Object.values(PositionCategory) as readonly PositionCategory[];
+export const POSITION_CATEGORY_OPTIONS: readonly PositionCategory[] = Object.values(
+  PositionCategory,
+) as readonly PositionCategory[];
 
 export const JOB_LEVEL_OPTIONS: readonly JobLevel[] = Object.values(
   JobLevel,
 ) as readonly JobLevel[];
 
-export const STAGE_OPTIONS: readonly Stage[] = Object.values(
-  Stage,
-) as readonly Stage[];
+export const STAGE_OPTIONS: readonly Stage[] = Object.values(Stage) as readonly Stage[];
 
 export const COUNTRY_OPTIONS: readonly CountryCode[] = Object.values(
   CountryCode,
@@ -448,9 +447,7 @@ function buildSlugMaps<E extends string>(values: readonly E[]): SlugMaps<E> {
 // Slug maps for PositionCategory (category filters in URLs)
 // ---------------------------------------------------------------------------
 
-const CATEGORY_SLUG_MAPS: SlugMaps<PositionCategory> = buildSlugMaps(
-  POSITION_CATEGORY_OPTIONS,
-);
+const CATEGORY_SLUG_MAPS: SlugMaps<PositionCategory> = buildSlugMaps(POSITION_CATEGORY_OPTIONS);
 
 /**
  * Maps a PositionCategory enum value to its URL slug.
@@ -476,8 +473,7 @@ export function categorySlugToEnum(slug: string): PositionCategory | undefined {
 // Slug maps for JobLevel (seniority filters in URLs)
 // ---------------------------------------------------------------------------
 
-const SENIORITY_SLUG_MAPS: SlugMaps<JobLevel> =
-  buildSlugMaps(JOB_LEVEL_OPTIONS);
+const SENIORITY_SLUG_MAPS: SlugMaps<JobLevel> = buildSlugMaps(JOB_LEVEL_OPTIONS);
 
 /**
  * Maps a JobLevel enum value to its URL slug.

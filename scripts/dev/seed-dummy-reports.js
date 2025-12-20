@@ -20,13 +20,7 @@
 
 require("dotenv/config");
 
-const {
-  PrismaClient,
-  Stage,
-  JobLevel,
-  PositionCategory,
-  CountryCode,
-} = require("@prisma/client");
+const { PrismaClient, Stage, JobLevel, PositionCategory, CountryCode } = require("@prisma/client");
 const { PrismaPg } = require("@prisma/adapter-pg");
 const { Pool } = require("pg");
 
@@ -133,9 +127,7 @@ async function main() {
 
   let totalReports = 0;
 
-  console.log(
-    `[seed] Will create ${TOTAL_COMPANIES} companies with varying report counts...`,
-  );
+  console.log(`[seed] Will create ${TOTAL_COMPANIES} companies with varying report counts...`);
 
   for (let i = 0; i < TOTAL_COMPANIES; i += 1) {
     const index = i + 1;

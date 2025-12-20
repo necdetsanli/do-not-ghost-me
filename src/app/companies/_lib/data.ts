@@ -165,9 +165,7 @@ export async function getCompaniesPage(filters: ResolvedFilters): Promise<{
     type CountAll = { _all: number };
 
     const countAll: number =
-      typeof g._count === "object" && g._count !== null
-        ? (g._count as CountAll)._all
-        : 0;
+      typeof g._count === "object" && g._count !== null ? (g._count as CountAll)._all : 0;
 
     const meta = companyMap.get(g.companyId);
 
@@ -190,9 +188,7 @@ export async function getCompaniesPage(filters: ResolvedFilters): Promise<{
   const totalCompanies: number = allItems.length;
 
   const totalPages: number =
-    totalCompanies === 0
-      ? 1
-      : Math.max(1, Math.ceil(totalCompanies / PAGE_SIZE));
+    totalCompanies === 0 ? 1 : Math.max(1, Math.ceil(totalCompanies / PAGE_SIZE));
 
   const items: CompanyRow[] = allItems.slice(skip, skip + PAGE_SIZE);
 

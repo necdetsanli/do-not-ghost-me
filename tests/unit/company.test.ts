@@ -45,9 +45,7 @@ vi.mock("@/lib/logger", () => ({
 
 import { findOrCreateCompanyForReport } from "@/lib/company";
 
-type CompanyForReportShape = Awaited<
-  ReturnType<typeof findOrCreateCompanyForReport>
->;
+type CompanyForReportShape = Awaited<ReturnType<typeof findOrCreateCompanyForReport>>;
 
 /**
  * Creates a Company shape matching the select projection used by
@@ -98,9 +96,7 @@ describe("findOrCreateCompanyForReport", () => {
       country,
     });
 
-    await expect(call).rejects.toThrow(
-      "Company name must not be empty after normalization.",
-    );
+    await expect(call).rejects.toThrow("Company name must not be empty after normalization.");
 
     expect(logErrorMock).toHaveBeenCalledTimes(1);
     expect(prismaCompanyFindUniqueMock).not.toHaveBeenCalled();

@@ -54,8 +54,7 @@ type CsrfPayload = {
  */
 function getCsrfSecret(): string {
   const configuredRaw: string | undefined = env.ADMIN_CSRF_SECRET;
-  const configured: string =
-    configuredRaw !== undefined ? configuredRaw.trim() : "";
+  const configured: string = configuredRaw !== undefined ? configuredRaw.trim() : "";
 
   if (configured.length > 0) {
     return configured;
@@ -154,12 +153,7 @@ export function createCsrfToken(purpose: CsrfPurpose): string {
   const secret: string = getCsrfSecret();
   const issuedAt: number = Date.now();
   const nonce: string = crypto.randomBytes(16).toString("base64url");
-  const signature: string = computeSignature(
-    secret,
-    trimmedPurpose,
-    issuedAt,
-    nonce,
-  );
+  const signature: string = computeSignature(secret, trimmedPurpose, issuedAt, nonce);
 
   const payload: CsrfPayload = {
     v: CSRF_TOKEN_VERSION,
@@ -188,10 +182,7 @@ export function createCsrfToken(purpose: CsrfPurpose): string {
  * @param token - Raw token string from the client (may be null).
  * @returns True when the token is valid, false otherwise.
  */
-export function verifyCsrfToken(
-  purpose: CsrfPurpose,
-  token: string | null,
-): boolean {
+export function verifyCsrfToken(purpose: CsrfPurpose, token: string | null): boolean {
   if (token === null) {
     return false;
   }
@@ -203,9 +194,7 @@ export function verifyCsrfToken(
 
   try {
     const secret: string = getCsrfSecret();
-    const decodedJson: string = Buffer.from(trimmedToken, "base64url").toString(
-      "utf8",
-    );
+    const decodedJson: string = Buffer.from(trimmedToken, "base64url").toString("utf8");
     const payload = JSON.parse(decodedJson) as Partial<CsrfPayload>;
 
     if (payload.v !== CSRF_TOKEN_VERSION) {
@@ -226,19 +215,13 @@ export function verifyCsrfToken(
     }
 
     const now: number = Date.now();
-    const isExpired: boolean =
-      now - payload.iat > CSRF_TOKEN_TTL_MS || payload.iat > now;
+    const isExpired: boolean = now - payload.iat > CSRF_TOKEN_TTL_MS || payload.iat > now;
 
     if (isExpired === true) {
       return false;
     }
 
-    const expectedSignature: string = computeSignature(
-      secret,
-      payload.p,
-      payload.iat,
-      payload.n,
-    );
+    const expectedSignature: string = computeSignature(secret, payload.p, payload.iat, payload.n);
 
     return timingSafeEqual(payload.s, expectedSignature);
   } catch {

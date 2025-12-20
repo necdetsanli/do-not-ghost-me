@@ -14,9 +14,7 @@ export function ThemeToggle(): JSX.Element {
   const { theme, setTheme } = useTheme();
 
   const currentTheme: "light" | "dark" | "system" =
-    theme === "light" || theme === "dark" || theme === "system"
-      ? theme
-      : "system";
+    theme === "light" || theme === "dark" || theme === "system" ? theme : "system";
 
   const isLightActive = currentTheme === "light";
   const isDarkActive = currentTheme === "dark";

@@ -112,10 +112,10 @@ export async function findOrCreateCompanyForReport(args: {
     // P2002 => unique constraint violation (likely another request created it
     // in the small window between findUnique and create).
     if (isPrismaUniqueViolation(error) === true) {
-      logWarn(
-        "Detected concurrent company creation race; reusing existing company row.",
-        { normalizedName, country },
-      );
+      logWarn("Detected concurrent company creation race; reusing existing company row.", {
+        normalizedName,
+        country,
+      });
 
       const concurrent = await prisma.company.findUnique({
         where: {
@@ -136,10 +136,10 @@ export async function findOrCreateCompanyForReport(args: {
         return concurrent;
       }
 
-      logError(
-        "Unique constraint error for company, but no row found after retry.",
-        { normalizedName, country },
-      );
+      logError("Unique constraint error for company, but no row found after retry.", {
+        normalizedName,
+        country,
+      });
     } else {
       logError("Failed to create company for report", {
         normalizedName,

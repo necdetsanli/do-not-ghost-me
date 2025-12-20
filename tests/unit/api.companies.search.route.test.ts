@@ -70,9 +70,7 @@ describe("GET /api/companies/search", () => {
   });
 
   it("returns [] when q is empty/whitespace and does not hit the DB", async () => {
-    const req = makeReq(
-      "http://localhost:3000/api/companies/search?q=%20%20%20",
-    );
+    const req = makeReq("http://localhost:3000/api/companies/search?q=%20%20%20");
 
     const res = await GET(req);
 
@@ -87,9 +85,7 @@ describe("GET /api/companies/search", () => {
       { id: "c1", name: "Alpha", country: "US" },
     ]);
 
-    const req = makeReq(
-      "http://localhost:3000/api/companies/search?q=%20Alp%20",
-    );
+    const req = makeReq("http://localhost:3000/api/companies/search?q=%20Alp%20");
 
     const res = await GET(req);
 
@@ -101,8 +97,7 @@ describe("GET /api/companies/search", () => {
 
     expect(mocks.prismaMock.company.findMany).toHaveBeenCalledTimes(1);
 
-    const args = mocks.prismaMock.company.findMany.mock
-      .calls[0]?.[0] as PrismaCompanyFindManyArgs;
+    const args = mocks.prismaMock.company.findMany.mock.calls[0]?.[0] as PrismaCompanyFindManyArgs;
 
     expect(args.where.name.startsWith).toBe("Alp");
     expect(args.where.name.mode).toBe("insensitive");
@@ -111,9 +106,7 @@ describe("GET /api/companies/search", () => {
   });
 
   it("returns 500 JSON on unexpected DB error and logs it", async () => {
-    vi.mocked(mocks.prismaMock.company.findMany).mockRejectedValue(
-      new Error("db-down"),
-    );
+    vi.mocked(mocks.prismaMock.company.findMany).mockRejectedValue(new Error("db-down"));
 
     const req = makeReq("http://localhost:3000/api/companies/search?q=Ac");
 

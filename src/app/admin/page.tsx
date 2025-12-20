@@ -4,10 +4,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { env } from "@/env";
-import {
-  ADMIN_SESSION_COOKIE_NAME,
-  verifyAdminSessionToken,
-} from "@/lib/adminAuth";
+import { ADMIN_SESSION_COOKIE_NAME, verifyAdminSessionToken } from "@/lib/adminAuth";
 import { fetchAdminReports } from "@/app/admin/_lib/adminData";
 import { AdminHeader } from "@/app/admin/_components/AdminHeader";
 import { AdminEmptyState } from "@/app/admin/_components/AdminEmptyState";

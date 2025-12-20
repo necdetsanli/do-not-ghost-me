@@ -48,10 +48,7 @@ function getLoginRateLimitStore(): LoginRateLimitStore {
     __adminLoginRateLimitStore?: LoginRateLimitStore;
   };
 
-  globalAny.__adminLoginRateLimitStore ??= new Map<
-    string,
-    LoginRateLimitState
-  >();
+  globalAny.__adminLoginRateLimitStore ??= new Map<string, LoginRateLimitState>();
 
   return globalAny.__adminLoginRateLimitStore;
 }
@@ -292,10 +289,7 @@ function buildErrorRedirectResponse(req: NextRequest): NextResponse {
  * @param {string} sessionToken - Signed admin session token.
  * @returns {NextResponse} Redirect response to /admin with session cookie set.
  */
-function buildSuccessRedirectResponse(
-  req: NextRequest,
-  sessionToken: string,
-): NextResponse {
+function buildSuccessRedirectResponse(req: NextRequest, sessionToken: string): NextResponse {
   const url = new URL(req.url);
   url.pathname = "/admin";
   url.search = "";
@@ -313,8 +307,7 @@ function buildSuccessRedirectResponse(
 function buildRateLimitResponse(): NextResponse {
   return NextResponse.json(
     {
-      error:
-        "Too many admin login attempts from this IP. Please try again later.",
+      error: "Too many admin login attempts from this IP. Please try again later.",
     },
     { status: 429 },
   );

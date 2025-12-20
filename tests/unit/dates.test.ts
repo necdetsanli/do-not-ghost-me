@@ -27,9 +27,7 @@ describe("lib/dates", () => {
      */
     it("throws when the provided Date is invalid", () => {
       const invalid: Date = new Date("not-a-date");
-      expect(() => toUtcDayKey(invalid)).toThrow(
-        "toUtcDayKey received an invalid Date instance.",
-      );
+      expect(() => toUtcDayKey(invalid)).toThrow("toUtcDayKey received an invalid Date instance.");
     });
   });
 

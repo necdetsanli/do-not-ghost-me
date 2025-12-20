@@ -274,7 +274,9 @@ Example:
  * @returns A promise that resolves if the action is allowed.
  * @throws ReportRateLimitError If the limits are exceeded.
  */
-export async function enforceReportLimitForIpCompanyPosition(params: EnforceRateLimitParams): Promise<void> {
+export async function enforceReportLimitForIpCompanyPosition(
+  params: EnforceRateLimitParams,
+): Promise<void> {
   // ...
 }
 ```

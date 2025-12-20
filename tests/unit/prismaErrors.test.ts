@@ -1,9 +1,6 @@
 // tests/unit/prismaErrors.test.ts
 import { describe, it, expect } from "vitest";
-import {
-  hasPrismaErrorCode,
-  isPrismaUniqueViolation,
-} from "@/lib/prismaErrors";
+import { hasPrismaErrorCode, isPrismaUniqueViolation } from "@/lib/prismaErrors";
 
 /**
  * Unit tests for lib/prismaErrors.

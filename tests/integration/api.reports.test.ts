@@ -22,8 +22,7 @@ vi.mock("@/lib/company", () => ({
 }));
 
 vi.mock("@/lib/rateLimit", () => ({
-  enforceReportLimitForIpCompanyPosition:
-    enforceReportLimitForIpCompanyPositionMock,
+  enforceReportLimitForIpCompanyPosition: enforceReportLimitForIpCompanyPositionMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -207,9 +206,7 @@ describe("POST /api/reports", () => {
       "daily-ip-limit",
     );
 
-    enforceReportLimitForIpCompanyPositionMock.mockRejectedValue(
-      rateLimitError,
-    );
+    enforceReportLimitForIpCompanyPositionMock.mockRejectedValue(rateLimitError);
 
     const body = {
       companyName: "Rate Limited Corp",
@@ -240,9 +237,7 @@ describe("POST /api/reports", () => {
    * - does not leak implementation details
    */
   it("returns 500 on unexpected errors", async () => {
-    findOrCreateCompanyForReportMock.mockRejectedValue(
-      new Error("database offline"),
-    );
+    findOrCreateCompanyForReportMock.mockRejectedValue(new Error("database offline"));
 
     const body = {
       companyName: "Crash Corp",

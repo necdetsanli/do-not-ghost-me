@@ -7,10 +7,8 @@ const BASE_URL: string = process.env.PLAYWRIGHT_BASE_URL ?? DEFAULT_BASE_URL;
 const ADMIN_ALLOWED_HOST: string = new URL(BASE_URL).host;
 
 const DEFAULT_ADMIN_PASSWORD = "test-admin-password";
-const DEFAULT_ADMIN_SESSION_SECRET =
-  "test-admin-session-secret-0123456789abcdef0123456789abcdef";
-const DEFAULT_ADMIN_CSRF_SECRET =
-  "test-admin-csrf-secret-0123456789abcdef0123456789abcdef";
+const DEFAULT_ADMIN_SESSION_SECRET = "test-admin-session-secret-0123456789abcdef0123456789abcdef";
+const DEFAULT_ADMIN_CSRF_SECRET = "test-admin-csrf-secret-0123456789abcdef0123456789abcdef";
 
 /**
  * Converts NodeJS.ProcessEnv into a Record<string, string> compatible with
@@ -143,10 +141,8 @@ export default defineConfig({
     env: buildWebServerEnv(process.env, {
       ADMIN_ALLOWED_HOST,
       ADMIN_PASSWORD: process.env.ADMIN_PASSWORD ?? DEFAULT_ADMIN_PASSWORD,
-      ADMIN_SESSION_SECRET:
-        process.env.ADMIN_SESSION_SECRET ?? DEFAULT_ADMIN_SESSION_SECRET,
-      ADMIN_CSRF_SECRET:
-        process.env.ADMIN_CSRF_SECRET ?? DEFAULT_ADMIN_CSRF_SECRET,
+      ADMIN_SESSION_SECRET: process.env.ADMIN_SESSION_SECRET ?? DEFAULT_ADMIN_SESSION_SECRET,
+      ADMIN_CSRF_SECRET: process.env.ADMIN_CSRF_SECRET ?? DEFAULT_ADMIN_CSRF_SECRET,
     }),
   },
 

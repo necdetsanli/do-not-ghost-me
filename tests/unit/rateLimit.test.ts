@@ -21,25 +21,21 @@ type TxShape = {
   };
 };
 
-const {
-  env,
-  toUtcDayKeyMock,
-  logWarnMock,
-  logErrorMock,
-  prismaTransactionMock,
-} = vi.hoisted(() => ({
-  env: {
-    NODE_ENV: "test",
-    RATE_LIMIT_IP_SALT: "unit-test-salt",
-    RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP: 2,
-    RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY: 3,
-  } as EnvShape,
+const { env, toUtcDayKeyMock, logWarnMock, logErrorMock, prismaTransactionMock } = vi.hoisted(
+  () => ({
+    env: {
+      NODE_ENV: "test",
+      RATE_LIMIT_IP_SALT: "unit-test-salt",
+      RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP: 2,
+      RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY: 3,
+    } as EnvShape,
 
-  toUtcDayKeyMock: vi.fn(),
-  logWarnMock: vi.fn(),
-  logErrorMock: vi.fn(),
-  prismaTransactionMock: vi.fn(),
-}));
+    toUtcDayKeyMock: vi.fn(),
+    logWarnMock: vi.fn(),
+    logErrorMock: vi.fn(),
+    prismaTransactionMock: vi.fn(),
+  }),
+);
 
 vi.mock("@/env", () => ({ env }));
 
@@ -224,9 +220,7 @@ describe("lib/rateLimit.ts", () => {
 
       const ip = "203.0.113.5";
       const expectedIpHash = hmacHex(ip, env.RATE_LIMIT_IP_SALT);
-      const expectedPositionKey = `${positionCategory}:${positionDetailRaw
-        .trim()
-        .toLowerCase()}`;
+      const expectedPositionKey = `${positionCategory}:${positionDetailRaw.trim().toLowerCase()}`;
 
       await mod.enforceReportLimitForIpCompanyPosition({
         ip,
@@ -283,9 +277,7 @@ describe("lib/rateLimit.ts", () => {
       });
 
       await expect(call).rejects.toBeInstanceOf(errorMod.ReportRateLimitError);
-      await expect(call).rejects.toThrow(
-        "You have reached the daily report limit.",
-      );
+      await expect(call).rejects.toThrow("You have reached the daily report limit.");
 
       expect(tx.$executeRaw).toHaveBeenCalledTimes(0);
       expect(logWarnMock).toHaveBeenCalledTimes(1);
@@ -440,9 +432,7 @@ describe("lib/rateLimit.ts", () => {
           positionCategory,
           positionDetail: positionDetailRaw,
         });
-        throw new Error(
-          "Expected enforceReportLimitForIpCompanyPosition to throw.",
-        );
+        throw new Error("Expected enforceReportLimitForIpCompanyPosition to throw.");
       } catch (err: unknown) {
         expect(errorMod.isReportRateLimitError(err)).toBe(true);
       }

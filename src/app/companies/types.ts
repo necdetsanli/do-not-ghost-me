@@ -1,10 +1,5 @@
 // src/app/companies/types.ts
-import type {
-  CountryCode,
-  JobLevel,
-  PositionCategory,
-  Stage,
-} from "@prisma/client";
+import type { CountryCode, JobLevel, PositionCategory, Stage } from "@prisma/client";
 
 /**
  * Shape of a single row in the "Top companies" table.

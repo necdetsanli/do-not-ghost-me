@@ -95,9 +95,7 @@ export function ReportForm(): JSX.Element {
   const [formResetKey, setFormResetKey] = useState<number>(0);
 
   // Mirror of CountrySelect internal state to ensure a country is actually selected.
-  const [selectedCountryCode, setSelectedCountryCode] = useState<
-    CountryCode | ""
-  >("");
+  const [selectedCountryCode, setSelectedCountryCode] = useState<CountryCode | "">("");
 
   // Controlled state for the company name input so that the autocomplete
   // component can manage suggestions while preserving a free-text value.
@@ -131,9 +129,7 @@ export function ReportForm(): JSX.Element {
    *
    * @param event - The form submission event.
    */
-  async function handleSubmit(
-    event: FormEvent<HTMLFormElement>,
-  ): Promise<void> {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
 
     const form: HTMLFormElement = event.currentTarget;
@@ -143,8 +139,7 @@ export function ReportForm(): JSX.Element {
     const firstInteractionAt: number | null = firstInteractionAtRef.current;
 
     const hasMinimumFillTime: boolean =
-      firstInteractionAt !== null &&
-      now - firstInteractionAt >= MIN_FORM_FILL_TIME_MS;
+      firstInteractionAt !== null && now - firstInteractionAt >= MIN_FORM_FILL_TIME_MS;
 
     if (hasMinimumFillTime === false) {
       // Treat as a bot-like submission:
@@ -192,12 +187,9 @@ export function ReportForm(): JSX.Element {
 
     const rawCountryCode: string = String(formData.get("country") ?? "").trim();
 
-    const rawDaysWithoutReply: string = String(
-      formData.get("daysWithoutReply") ?? "",
-    ).trim();
+    const rawDaysWithoutReply: string = String(formData.get("daysWithoutReply") ?? "").trim();
 
-    const daysWithoutReply: string | null =
-      rawDaysWithoutReply === "" ? null : rawDaysWithoutReply;
+    const daysWithoutReply: string | null = rawDaysWithoutReply === "" ? null : rawDaysWithoutReply;
 
     const payload = {
       companyName: String(formData.get("companyName") ?? "").trim(),
@@ -299,8 +291,8 @@ export function ReportForm(): JSX.Element {
               Submit a report
             </h2>
             <p className="text-sm text-secondary">
-              All reports are anonymous. We collect minimal data and apply rate
-              limiting to prevent abuse. You can browse aggregated statistics on{" "}
+              All reports are anonymous. We collect minimal data and apply rate limiting to prevent
+              abuse. You can browse aggregated statistics on{" "}
               <a
                 href="/companies"
                 className="font-medium text-[var(--color-primary-600)] underline"
@@ -399,11 +391,7 @@ export function ReportForm(): JSX.Element {
 
               {/* CountrySelect (CountryCode enum, type-ahead) */}
               <div className="md:col-span-2">
-                <CountrySelect
-                  name="country"
-                  isRequired
-                  onChangeCode={setSelectedCountryCode}
-                />
+                <CountrySelect name="country" isRequired onChangeCode={setSelectedCountryCode} />
               </div>
             </div>
 

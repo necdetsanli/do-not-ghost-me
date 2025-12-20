@@ -95,9 +95,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       error: formatUnknownError(error),
     });
 
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

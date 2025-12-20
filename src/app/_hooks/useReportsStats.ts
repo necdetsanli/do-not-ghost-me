@@ -91,9 +91,7 @@ let cachedStats: ReportsStatsApiResponse | null = null;
  * @param value - Unknown JSON value.
  * @returns True if the payload matches the expected shape.
  */
-function isValidReportsStatsResponse(
-  value: unknown,
-): value is ReportsStatsApiResponse {
+function isValidReportsStatsResponse(value: unknown): value is ReportsStatsApiResponse {
   if (typeof value !== "object" || value === null) {
     return false;
   }
@@ -115,10 +113,7 @@ function isValidReportsStatsResponse(
     return false;
   }
 
-  if (
-    typeof raw.mostReportedCompany !== "object" ||
-    raw.mostReportedCompany === null
-  ) {
+  if (typeof raw.mostReportedCompany !== "object" || raw.mostReportedCompany === null) {
     return false;
   }
 
@@ -127,9 +122,7 @@ function isValidReportsStatsResponse(
     reportCount?: unknown;
   };
 
-  return (
-    typeof company.name === "string" && typeof company.reportCount === "number"
-  );
+  return typeof company.name === "string" && typeof company.reportCount === "number";
 }
 
 /**
@@ -139,10 +132,7 @@ function isValidReportsStatsResponse(
  * @param b - Next stats.
  * @returns True if both snapshots represent the same values.
  */
-function statsEqual(
-  a: ReportsStatsApiResponse,
-  b: ReportsStatsApiResponse,
-): boolean {
+function statsEqual(a: ReportsStatsApiResponse, b: ReportsStatsApiResponse): boolean {
   if (a.totalReports !== b.totalReports) {
     return false;
   }
@@ -174,9 +164,7 @@ function statsEqual(
  * @returns Stats state and controls for the caller UI.
  */
 export function useReportsStats(): UseReportsStatsResult {
-  const [stats, setStats] = useState<ReportsStatsApiResponse | null>(
-    () => cachedStats,
-  );
+  const [stats, setStats] = useState<ReportsStatsApiResponse | null>(() => cachedStats);
   const [status, setStatus] = useState<StatsStatus>(() =>
     cachedStats !== null ? "success" : "loading",
   );
@@ -266,8 +254,7 @@ export function useReportsStats(): UseReportsStatsResult {
 
         setStatus("success");
       } catch (err: unknown) {
-        const aborted: boolean =
-          err instanceof DOMException && err.name === "AbortError";
+        const aborted: boolean = err instanceof DOMException && err.name === "AbortError";
 
         if (aborted !== true) {
           if (hasEverLoadedRef.current === false) {
@@ -326,10 +313,7 @@ export function useReportsStats(): UseReportsStatsResult {
       }
     };
 
-    window.addEventListener(
-      REPORT_SUBMITTED_EVENT_NAME,
-      onReportSubmitted as EventListener,
-    );
+    window.addEventListener(REPORT_SUBMITTED_EVENT_NAME, onReportSubmitted as EventListener);
 
     window.addEventListener("focus", onAutoRefreshSignal);
     window.addEventListener("pageshow", onAutoRefreshSignal);
@@ -338,10 +322,7 @@ export function useReportsStats(): UseReportsStatsResult {
     void fetchOnce(true);
 
     return () => {
-      window.removeEventListener(
-        REPORT_SUBMITTED_EVENT_NAME,
-        onReportSubmitted as EventListener,
-      );
+      window.removeEventListener(REPORT_SUBMITTED_EVENT_NAME, onReportSubmitted as EventListener);
 
       window.removeEventListener("focus", onAutoRefreshSignal);
       window.removeEventListener("pageshow", onAutoRefreshSignal);

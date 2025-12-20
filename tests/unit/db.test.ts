@@ -9,13 +9,11 @@ const envMock: { DATABASE_URL: string; NODE_ENV: string } = {
   NODE_ENV: "development",
 };
 
-const { poolCtorMock, prismaPgCtorMock, prismaClientCtorMock } = vi.hoisted(
-  () => ({
-    poolCtorMock: vi.fn(),
-    prismaPgCtorMock: vi.fn(),
-    prismaClientCtorMock: vi.fn(),
-  }),
-);
+const { poolCtorMock, prismaPgCtorMock, prismaClientCtorMock } = vi.hoisted(() => ({
+  poolCtorMock: vi.fn(),
+  prismaPgCtorMock: vi.fn(),
+  prismaClientCtorMock: vi.fn(),
+}));
 
 vi.mock("@/env", () => ({
   env: envMock,

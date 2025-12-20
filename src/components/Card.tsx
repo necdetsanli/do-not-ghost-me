@@ -29,11 +29,4 @@ export function Card({ children, className }: CardProps): JSX.Element {
   return <UiCard className={cn("p-6 sm:p-8", className)}>{children}</UiCard>;
 }
 
-export {
-  CardHeader,
-  CardFooter,
-  CardTitle,
-  CardAction,
-  CardDescription,
-  CardContent,
-};
+export { CardHeader, CardFooter, CardTitle, CardAction, CardDescription, CardContent };

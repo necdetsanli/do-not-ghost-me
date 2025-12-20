@@ -29,8 +29,7 @@ export const MISSING_IP_MESSAGE = "Client IP is required to submit a report.";
 /**
  * Shared message for daily IP limit violations.
  */
-export const DAILY_IP_LIMIT_MESSAGE =
-  "You have reached the daily report limit.";
+export const DAILY_IP_LIMIT_MESSAGE = "You have reached the daily report limit.";
 
 /**
  * Shared message for per-company limit violations.
@@ -92,8 +91,6 @@ export class ReportRateLimitError extends Error {
  * @param error - The unknown error value to inspect.
  * @returns True if the error is an instance of ReportRateLimitError, false otherwise.
  */
-export function isReportRateLimitError(
-  error: unknown,
-): error is ReportRateLimitError {
+export function isReportRateLimitError(error: unknown): error is ReportRateLimitError {
   return error instanceof ReportRateLimitError;
 }

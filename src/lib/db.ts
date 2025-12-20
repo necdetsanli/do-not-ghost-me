@@ -43,8 +43,7 @@ const globalForPrisma = globalThis as typeof globalThis & {
  * to avoid exhausting database connections during hot reloads.
  * Always prefer importing this singleton in API routes and server components.
  */
-export const prisma: PrismaClient =
-  globalForPrisma.prisma ?? createPrismaClient();
+export const prisma: PrismaClient = globalForPrisma.prisma ?? createPrismaClient();
 
 if (env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;

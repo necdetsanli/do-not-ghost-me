@@ -28,10 +28,7 @@ type AdminReportRouteContext = {
  * @param maxLength - Maximum allowed length for the normalized string.
  * @returns A trimmed, truncated string or null when empty/invalid.
  */
-function normalizeOptionalText(
-  value: FormDataEntryValue | null,
-  maxLength: number,
-): string | null {
+function normalizeOptionalText(value: FormDataEntryValue | null, maxLength: number): string | null {
   if (typeof value !== "string") {
     return null;
   }
@@ -71,20 +68,15 @@ export async function POST(
   try {
     requireAdminRequest(request);
   } catch (error: unknown) {
-    const message: string =
-      error instanceof Error ? error.message : "Admin access is not allowed.";
+    const message: string = error instanceof Error ? error.message : "Admin access is not allowed.";
 
-    logWarn(
-      "[admin] Unauthorized or disallowed admin report moderation request",
-      {
-        path: request.nextUrl.pathname,
-        method: request.method,
-        errorMessage: message,
-      },
-    );
+    logWarn("[admin] Unauthorized or disallowed admin report moderation request", {
+      path: request.nextUrl.pathname,
+      method: request.method,
+      errorMessage: message,
+    });
 
-    const status: number =
-      message === "Admin access is not allowed from this host." ? 403 : 401;
+    const status: number = message === "Admin access is not allowed from this host." ? 403 : 401;
 
     return NextResponse.json({ error: message }, { status });
   }
@@ -99,10 +91,7 @@ export async function POST(
       method: request.method,
     });
 
-    return NextResponse.json(
-      { error: "Missing or invalid report id" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Missing or invalid report id" }, { status: 400 });
   }
 
   // 3) Form data
@@ -116,20 +105,14 @@ export async function POST(
       method: request.method,
     });
 
-    return NextResponse.json(
-      { error: "Missing moderation action" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Missing moderation action" }, { status: 400 });
   }
 
   const action: string = actionRaw.trim();
 
   try {
     if (action === "flag") {
-      const reason: string | null = normalizeOptionalText(
-        formData.get("reason"),
-        255,
-      );
+      const reason: string | null = normalizeOptionalText(formData.get("reason"), 255);
 
       await prisma.report.update({
         where: { id: reportId },
@@ -190,10 +173,7 @@ export async function POST(
         action,
       });
 
-      return NextResponse.json(
-        { error: `Unknown moderation action: ${action}` },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: `Unknown moderation action: ${action}` }, { status: 400 });
     }
 
     // On success, redirect back to the admin dashboard.
@@ -209,9 +189,6 @@ export async function POST(
       error: formatUnknownError(error),
     });
 
-    return NextResponse.json(
-      { error: "Failed to apply moderation action" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Failed to apply moderation action" }, { status: 500 });
   }
 }

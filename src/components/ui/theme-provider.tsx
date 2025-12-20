@@ -2,10 +2,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  ThemeProvider as NextThemesProvider,
-  useTheme as useNextTheme,
-} from "next-themes";
+import { ThemeProvider as NextThemesProvider, useTheme as useNextTheme } from "next-themes";
 import type { ThemeProviderProps } from "next-themes";
 
 /**
@@ -23,10 +20,7 @@ export type ThemeMode = "light" | "dark" | "system";
  * - enableSystem to keep the theme synced with OS when using "system"
  * - disableTransitionOnChange to avoid jarring CSS transitions on toggle
  */
-export function ThemeProvider({
-  children,
-  ...props
-}: ThemeProviderProps): React.JSX.Element {
+export function ThemeProvider({ children, ...props }: ThemeProviderProps): React.JSX.Element {
   return (
     <NextThemesProvider
       attribute="class"

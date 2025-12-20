@@ -9,9 +9,7 @@ import { ChevronDownIcon } from "lucide-react";
 
 import { cn } from "./utils";
 
-export type NavigationMenuProps = React.ComponentProps<
-  typeof NavigationMenuPrimitive.Root
-> & {
+export type NavigationMenuProps = React.ComponentProps<typeof NavigationMenuPrimitive.Root> & {
   /**
    * Controls whether the shared viewport container is rendered.
    * When false, each content panel behaves more like a standalone popover.
@@ -51,9 +49,7 @@ export function NavigationMenu({
   );
 }
 
-export type NavigationMenuListProps = React.ComponentProps<
-  typeof NavigationMenuPrimitive.List
->;
+export type NavigationMenuListProps = React.ComponentProps<typeof NavigationMenuPrimitive.List>;
 
 /**
  * Container for navigation menu items.
@@ -64,25 +60,17 @@ export type NavigationMenuListProps = React.ComponentProps<
  * @param props - List props including children and optional `className`.
  * @returns The styled navigation menu list element.
  */
-export function NavigationMenuList({
-  className,
-  ...props
-}: NavigationMenuListProps): JSX.Element {
+export function NavigationMenuList({ className, ...props }: NavigationMenuListProps): JSX.Element {
   return (
     <NavigationMenuPrimitive.List
       data-slot="navigation-menu-list"
-      className={cn(
-        "flex flex-1 list-none items-center justify-center gap-1",
-        className,
-      )}
+      className={cn("flex flex-1 list-none items-center justify-center gap-1", className)}
       {...props}
     />
   );
 }
 
-export type NavigationMenuItemProps = React.ComponentProps<
-  typeof NavigationMenuPrimitive.Item
->;
+export type NavigationMenuItemProps = React.ComponentProps<typeof NavigationMenuPrimitive.Item>;
 
 /**
  * Single navigation menu item wrapper.
@@ -94,10 +82,7 @@ export type NavigationMenuItemProps = React.ComponentProps<
  * @param props - Item props including children and optional `className`.
  * @returns The styled navigation menu item element.
  */
-export function NavigationMenuItem({
-  className,
-  ...props
-}: NavigationMenuItemProps): JSX.Element {
+export function NavigationMenuItem({ className, ...props }: NavigationMenuItemProps): JSX.Element {
   return (
     <NavigationMenuPrimitive.Item
       data-slot="navigation-menu-item"
@@ -257,9 +242,7 @@ export function NavigationMenuViewport({
   );
 }
 
-export type NavigationMenuLinkProps = React.ComponentProps<
-  typeof NavigationMenuPrimitive.Link
->;
+export type NavigationMenuLinkProps = React.ComponentProps<typeof NavigationMenuPrimitive.Link>;
 
 /**
  * Link used inside navigation menu content.
@@ -270,10 +253,7 @@ export type NavigationMenuLinkProps = React.ComponentProps<
  * @param props - Link props including children and optional `className`.
  * @returns The styled navigation menu link element.
  */
-export function NavigationMenuLink({
-  className,
-  ...props
-}: NavigationMenuLinkProps): JSX.Element {
+export function NavigationMenuLink({ className, ...props }: NavigationMenuLinkProps): JSX.Element {
   return (
     <NavigationMenuPrimitive.Link
       data-slot="navigation-menu-link"

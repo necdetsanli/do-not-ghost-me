@@ -15,8 +15,7 @@ type AdminLoginPageProps = {
 
 export const metadata: Metadata = {
   title: "Admin login | Do Not Ghost Me",
-  description:
-    "Restricted admin area for moderating reports submitted to Do Not Ghost Me.",
+  description: "Restricted admin area for moderating reports submitted to Do Not Ghost Me.",
 };
 
 /**
@@ -31,9 +30,7 @@ export const metadata: Metadata = {
  * @param props - Page props including lazy searchParams.
  * @returns Admin login page JSX.
  */
-export default async function AdminLoginPage(
-  props: AdminLoginPageProps,
-): Promise<JSX.Element> {
+export default async function AdminLoginPage(props: AdminLoginPageProps): Promise<JSX.Element> {
   const csrfToken: string = createCsrfToken("admin-login");
 
   const resolvedSearchParams:
@@ -53,16 +50,13 @@ export default async function AdminLoginPage(
         <header className="mb-4 space-y-2">
           <h1 className="text-2xl font-semibold text-primary">Admin login</h1>
           <p className="text-sm text-secondary">
-            This area is restricted to administrators. Your login will be
-            secured using a signed, HttpOnly session cookie.
+            This area is restricted to administrators. Your login will be secured using a signed,
+            HttpOnly session cookie.
           </p>
         </header>
 
         {hasError === true ? (
-          <div
-            role="alert"
-            className="mb-4 alert-error rounded-md border px-3 py-2 text-sm"
-          >
+          <div role="alert" className="mb-4 alert-error rounded-md border px-3 py-2 text-sm">
             Invalid password or session token. Please try again.
           </div>
         ) : null}
@@ -76,10 +70,7 @@ export default async function AdminLoginPage(
           <input type="hidden" name={CSRF_FIELD_NAME} value={csrfToken} />
 
           <div className="space-y-2">
-            <label
-              htmlFor="admin-password"
-              className="flex flex-col gap-1 text-sm text-primary"
-            >
+            <label htmlFor="admin-password" className="flex flex-col gap-1 text-sm text-primary">
               <span>Password</span>
               <input
                 id="admin-password"

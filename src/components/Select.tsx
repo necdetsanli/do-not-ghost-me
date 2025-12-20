@@ -125,8 +125,7 @@ export function Select({
 
   const descriptionId: string | undefined =
     description !== undefined ? `${selectId}-description` : undefined;
-  const errorId: string | undefined =
-    errorMessage !== undefined ? `${selectId}-error` : undefined;
+  const errorId: string | undefined = errorMessage !== undefined ? `${selectId}-error` : undefined;
 
   const describedByIds: string[] = [];
   if (descriptionId !== undefined) {
@@ -148,12 +147,9 @@ export function Select({
   // Controlled vs uncontrolled
   const isControlled: boolean = value !== undefined;
 
-  const [internalValue, setInternalValue] = React.useState<string | undefined>(
-    defaultValue,
-  );
+  const [internalValue, setInternalValue] = React.useState<string | undefined>(defaultValue);
 
-  const currentValue: string | undefined =
-    isControlled === true ? value : internalValue;
+  const currentValue: string | undefined = isControlled === true ? value : internalValue;
 
   const handleValueChange = (nextValue: string): void => {
     if (isControlled === false) {
@@ -167,9 +163,7 @@ export function Select({
 
   const validOptions: SelectOption[] = React.useMemo(
     (): SelectOption[] =>
-      options.filter(
-        (option: SelectOption): boolean => option.value.trim() !== "",
-      ),
+      options.filter((option: SelectOption): boolean => option.value.trim() !== ""),
     [options],
   );
 
@@ -203,10 +197,7 @@ export function Select({
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
 
-        <SelectContent
-          position={contentPosition}
-          className={cn(contentClassName)}
-        >
+        <SelectContent position={contentPosition} className={cn(contentClassName)}>
           {validOptions.map(
             (option: SelectOption): JSX.Element => (
               <SelectItem
@@ -217,9 +208,7 @@ export function Select({
                 <div className="flex flex-col">
                   <span>{option.label}</span>
                   {option.description !== undefined ? (
-                    <span className="text-xs text-muted-foreground">
-                      {option.description}
-                    </span>
+                    <span className="text-xs text-muted-foreground">{option.description}</span>
                   ) : null}
                 </div>
               </SelectItem>

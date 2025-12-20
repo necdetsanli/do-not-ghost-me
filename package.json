@@ -5,7 +5,7 @@
   "license": "AGPL-3.0-or-later",
   "description": "Report recruitment ghosting in a privacy-safe way.",
   "engines": {
-    "node": ">=24.0.0",
+    "node": ">=24",
     "npm": ">=11.7.0"
   },
   "packageManager": "npm@11.7.0",

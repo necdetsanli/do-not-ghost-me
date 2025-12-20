@@ -76,9 +76,7 @@ export function getClientIp(req: NextRequest): string | null {
   };
 
   if (Object.prototype.hasOwnProperty.call(requestWithIp, "ip")) {
-    const normalizedFromReqIp: string | null = normalizeIpString(
-      requestWithIp.ip ?? null,
-    );
+    const normalizedFromReqIp: string | null = normalizeIpString(requestWithIp.ip ?? null);
 
     if (normalizedFromReqIp !== null) {
       return normalizedFromReqIp;
