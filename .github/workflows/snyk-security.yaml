@@ -120,12 +120,14 @@ jobs:
 
   snyk_main_monitor:
     name: Snyk (monitor on main push)
-    env:
-      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
     if: github.event_name == 'push' && github.ref_name == 'main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      security-events: write
+      actions: read
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
     steps:
       - name: Checkout
@@ -147,6 +149,26 @@ jobs:
         uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Snyk Code (SARIF) on main
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        if: env.SNYK_TOKEN != ''
+        run: |
+          set +e
+          snyk code test -d --sarif-file-output=snyk-code.sarif
+          exit_code=$?
+          echo "Snyk Code exit_code=$exit_code"
+          # main push'ta sadece raporla; istersen exit_code==2'de fail ettirebilirsin.
+          set -e
+
+      - name: Upload SARIF to GitHub Code Scanning (main)
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        if: always() && env.SNYK_TOKEN != '' && hashFiles('snyk-code.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: snyk-code.sarif
 
       - name: Snyk Open Source (monitor)
         env:
