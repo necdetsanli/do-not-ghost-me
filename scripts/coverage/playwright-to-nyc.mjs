@@ -21,11 +21,7 @@ const { createCoverageMap } = coverageLib;
  * The directory should contain one or more *.json files,
  * each being a valid Istanbul coverage map object.
  */
-const DEFAULT_INPUT_DIRS = [
-  "coverage/e2e/raw",
-  "test-results/coverage",
-  "coverage/playwright",
-];
+const DEFAULT_INPUT_DIRS = ["coverage/e2e/raw", "test-results/coverage", "coverage/playwright"];
 
 const inputDirFromEnv = process.env.PW_COVERAGE_DIR;
 const inputDirs =
@@ -79,8 +75,7 @@ async function readCoverageJson(filePath) {
   const raw = await fs.readFile(filePath, "utf8");
   const parsed = JSON.parse(raw);
 
-  const isObject =
-    typeof parsed === "object" && parsed !== null && Array.isArray(parsed) === false;
+  const isObject = typeof parsed === "object" && parsed !== null && Array.isArray(parsed) === false;
 
   if (isObject === false) {
     return null;
@@ -103,9 +98,7 @@ async function main() {
   }
 
   if (allJsonFiles.length === 0) {
-    console.error(
-      `[coverage] No coverage JSON files found. Searched: ${inputDirs.join(", ")}`,
-    );
+    console.error(`[coverage] No coverage JSON files found. Searched: ${inputDirs.join(", ")}`);
     console.error(
       `[coverage] Ensure your Playwright fixtures write Istanbul coverage fragments into one of these dirs, or set PW_COVERAGE_DIR.`,
     );
@@ -140,9 +133,7 @@ async function main() {
   const outPath = path.join(NYC_OUTPUT_DIR, NYC_OUTPUT_FILE);
   await fs.writeFile(outPath, JSON.stringify(map.toJSON()), "utf8");
 
-  console.log(
-    `[coverage] Merged ${String(mergedCount)} coverage fragments into ${outPath}`,
-  );
+  console.log(`[coverage] Merged ${String(mergedCount)} coverage fragments into ${outPath}`);
 }
 
 await main();
