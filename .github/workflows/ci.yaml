@@ -1,0 +1,107 @@
+# .github/workflows/ci.yaml
+name: CI
+
+on:
+  pull_request:
+    branches: ["staging", "main"]
+  push:
+    branches: ["staging", "main"]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dngm_ci
+        options: >-
+          --health-cmd="pg_isready -U postgres -d dngm_ci"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+      # Required by src/env.ts (+ admin tests)
+      NODE_ENV: "test"
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/dngm_ci"
+      RATE_LIMIT_IP_SALT: "ci-only-salt-please-replace-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP: "3"
+      RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY: "10"
+      ADMIN_PASSWORD: "ci-admin-password"
+      ADMIN_SESSION_SECRET: "ci-admin-session-secret-32-bytes-minimum-0000000"
+      ADMIN_CSRF_SECRET: "ci-admin-csrf-secret-32-bytes-minimum-000000000"
+      # Leave host restriction off in CI unless you specifically need it
+      ADMIN_ALLOWED_HOST: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node (from .nvmrc)
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prisma generate
+        run: npm run prisma:generate
+
+      - name: Prisma migrate (deploy)
+        run: npm run prisma:deploy
+
+      - name: Install Playwright browsers (+ system deps)
+        run: npx playwright install --with-deps
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run check
+
+      # Vitest coverage + Playwright coverage -> merged lcov at coverage/lcov.info
+      - name: Coverage (unit+integration+e2e)
+        run: npm run coverage:all
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage/lcov.info
+          fail_ci_if_error: false
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+            coverage/e2e
+          if-no-files-found: ignore
