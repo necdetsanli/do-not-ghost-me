@@ -15,10 +15,7 @@ const projectRootDir: string = fileURLToPath(new URL(".", import.meta.url));
  *
  * @type {string}
  */
-const baseSetupFile: string = path.resolve(
-  projectRootDir,
-  "tests/setup/test-env.ts",
-);
+const baseSetupFile: string = path.resolve(projectRootDir, "tests/setup/test-env.ts");
 
 /**
  * Optional DOM-specific setup (only for jsdom tests).
@@ -26,10 +23,7 @@ const baseSetupFile: string = path.resolve(
  *
  * @type {string}
  */
-const domSetupFile: string = path.resolve(
-  projectRootDir,
-  "tests/setup/test-dom.ts",
-);
+const domSetupFile: string = path.resolve(projectRootDir, "tests/setup/test-dom.ts");
 
 export default defineConfig({
   test: {
@@ -48,7 +42,8 @@ export default defineConfig({
      */
     coverage: {
       provider: "v8",
-      reportsDirectory: path.resolve(projectRootDir, "coverage"),
+      reporter: ["text", "lcov"],
+      reportsDirectory: path.resolve(projectRootDir, "coverage/vitest"),
     },
 
     /**

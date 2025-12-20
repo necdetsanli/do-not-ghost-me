@@ -24,6 +24,11 @@
     "test:coverage": "vitest --coverage",
     "test:ci": "vitest --runInBand",
     "test:e2e": "playwright test",
+    "test:e2e:coverage:to-nyc": "node scripts/coverage/playwright-to-nyc.mjs",
+    "test:e2e:coverage:report": "nyc report --reporter=lcov --reporter=text --report-dir=coverage/e2e",
+    "test:e2e:coverage": "npm run test:e2e && npm run test:e2e:coverage:to-nyc && npm run test:e2e:coverage:report",
+    "coverage:merge": "lcov-result-merger \"coverage/**/lcov.info\" \"coverage/lcov.info\"",
+    "coverage:all": "npm run test:coverage && npm run test:e2e:coverage && npm run coverage:merge",
     "verify": "npm run lint && npm run check && npm run test && npm run test:e2e",
     "verify:ci": "npm run lint && npm run check && npm run test:ci && npm run test:e2e",
     "prisma:generate": "prisma generate",
@@ -68,7 +73,11 @@
     "dotenv": "^17.2.3",
     "eslint": "^9.39.2",
     "eslint-config-next": "16.1.0",
+    "glob": "13.0.0",
+    "istanbul-lib-coverage": "3.2.2",
     "jsdom": "^27.3.0",
+    "lcov-result-merger": "5.0.1",
+    "nyc": "17.1.0",
     "prettier": "^3.7.4",
     "prisma": "^7.2.0",
     "rimraf": "^6.1.2",
@@ -76,6 +85,7 @@
     "typedoc": "^0.28.15",
     "typedoc-plugin-markdown": "^4.9.0",
     "typescript": "^5",
+    "v8-to-istanbul": "9.3.0",
     "vitest": "^4.0.16"
   }
 }
