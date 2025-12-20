@@ -46,12 +46,25 @@ jobs:
 
       # SAST (Code) -> GitHub Code Scanning
       - name: Snyk Code (SARIF)
-        run: snyk code test --sarif > snyk-code.sarif
+        id: snyk_code
+        if: env.SNYK_TOKEN != ''
+        run: |
+          set +e
+          snyk code test -d --sarif-file-output=snyk-code.sarif
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          set -e
 
       - name: Upload SARIF to GitHub Code Scanning
+        if: always() && env.SNYK_TOKEN != '' && hashFiles('snyk-code.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk-code.sarif
+
+      # main-PR "required" job ise fail ettir:
+      - name: Fail if Snyk Code did not pass
+        if: env.SNYK_TOKEN != '' && steps.snyk_code.outputs.exit_code != '0'
+        run: exit 1
 
       # SCA (Open Source)
       - name: Snyk Open Source (test)
