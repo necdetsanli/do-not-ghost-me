@@ -1,5 +1,11 @@
 // tests/unit/env.test.ts
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  TEST_ADMIN_PASSWORD,
+  TEST_ADMIN_SESSION_SECRET,
+  TEST_ADMIN_CSRF_SECRET,
+  TEST_RATE_LIMIT_IP_SALT,
+} from "../testUtils/testSecrets";
 
 type EnvMap = Record<string, string | undefined>;
 
@@ -54,10 +60,12 @@ async function loadEnvModule(overrides: EnvMap): Promise<typeof import("@/env")>
 
   const baseValid: EnvMap = {
     DATABASE_URL: "postgresql://example.test/db",
-    RATE_LIMIT_IP_SALT: "a".repeat(32),
+    RATE_LIMIT_IP_SALT: TEST_RATE_LIMIT_IP_SALT,
+
     NODE_ENV: undefined,
     RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP: undefined,
     RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY: undefined,
+
     ADMIN_PASSWORD: undefined,
     ADMIN_SESSION_SECRET: undefined,
     ADMIN_ALLOWED_HOST: undefined,
@@ -167,7 +175,7 @@ describe("src/env.ts", () => {
 
     await expect(
       loadEnvModule({
-        ADMIN_PASSWORD: "password1",
+        ADMIN_PASSWORD: TEST_ADMIN_PASSWORD,
         ADMIN_SESSION_SECRET: undefined,
       }),
     ).rejects.toThrow("Invalid environment configuration. See error log above.");
@@ -182,7 +190,7 @@ describe("src/env.ts", () => {
     await expect(
       loadEnvModule({
         ADMIN_PASSWORD: undefined,
-        ADMIN_SESSION_SECRET: "s".repeat(32),
+        ADMIN_SESSION_SECRET: TEST_ADMIN_SESSION_SECRET,
       }),
     ).rejects.toThrow("Invalid environment configuration. See error log above.");
 
@@ -195,8 +203,8 @@ describe("src/env.ts", () => {
 
     await expect(
       loadEnvModule({
-        ADMIN_PASSWORD: "password1",
-        ADMIN_SESSION_SECRET: "s".repeat(32),
+        ADMIN_PASSWORD: TEST_ADMIN_PASSWORD,
+        ADMIN_SESSION_SECRET: TEST_ADMIN_SESSION_SECRET,
         ADMIN_CSRF_SECRET: undefined,
       }),
     ).rejects.toThrow("Invalid environment configuration. See error log above.");
@@ -207,15 +215,15 @@ describe("src/env.ts", () => {
 
   it("admin invariants: succeeds when ADMIN_PASSWORD + ADMIN_SESSION_SECRET + ADMIN_CSRF_SECRET are set", async () => {
     const mod = await loadEnvModule({
-      ADMIN_PASSWORD: "password1",
-      ADMIN_SESSION_SECRET: "s".repeat(32),
-      ADMIN_CSRF_SECRET: "c".repeat(32),
+      ADMIN_PASSWORD: TEST_ADMIN_PASSWORD,
+      ADMIN_SESSION_SECRET: TEST_ADMIN_SESSION_SECRET,
+      ADMIN_CSRF_SECRET: TEST_ADMIN_CSRF_SECRET,
       ADMIN_ALLOWED_HOST: "example.test",
     });
 
-    expect(mod.env.ADMIN_PASSWORD).toBe("password1");
-    expect(mod.env.ADMIN_SESSION_SECRET).toBe("s".repeat(32));
-    expect(mod.env.ADMIN_CSRF_SECRET).toBe("c".repeat(32));
+    expect(mod.env.ADMIN_PASSWORD).toBe(TEST_ADMIN_PASSWORD);
+    expect(mod.env.ADMIN_SESSION_SECRET).toBe(TEST_ADMIN_SESSION_SECRET);
+    expect(mod.env.ADMIN_CSRF_SECRET).toBe(TEST_ADMIN_CSRF_SECRET);
     expect(mod.env.ADMIN_ALLOWED_HOST).toBe("example.test");
   });
 

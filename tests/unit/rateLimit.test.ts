@@ -21,21 +21,29 @@ type TxShape = {
   };
 };
 
-const { env, toUtcDayKeyMock, logWarnMock, logErrorMock, prismaTransactionMock } = vi.hoisted(
-  () => ({
-    env: {
-      NODE_ENV: "test",
-      RATE_LIMIT_IP_SALT: "unit-test-salt",
-      RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP: 2,
-      RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY: 3,
-    } as EnvShape,
+const { HOISTED_SALT, env, toUtcDayKeyMock, logWarnMock, logErrorMock, prismaTransactionMock } =
+  vi.hoisted(() => {
+    /**
+     * NOTE: Anything used inside vi.hoisted MUST be created inside this callback.
+     * Do not reference variables declared outside, otherwise TDZ errors can occur.
+     */
+    const HOISTED_SALT = "a".repeat(64);
 
-    toUtcDayKeyMock: vi.fn(),
-    logWarnMock: vi.fn(),
-    logErrorMock: vi.fn(),
-    prismaTransactionMock: vi.fn(),
-  }),
-);
+    return {
+      HOISTED_SALT,
+      env: {
+        NODE_ENV: "test",
+        RATE_LIMIT_IP_SALT: HOISTED_SALT,
+        RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP: 2,
+        RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY: 3,
+      } as EnvShape,
+
+      toUtcDayKeyMock: vi.fn(),
+      logWarnMock: vi.fn(),
+      logErrorMock: vi.fn(),
+      prismaTransactionMock: vi.fn(),
+    };
+  });
 
 vi.mock("@/env", () => ({ env }));
 
@@ -105,11 +113,12 @@ function makeTx(): TxShape {
 /**
  * Dynamically imports lib/rateLimit after resetting module state.
  *
- * @returns An object containing:
- * - mod: the rateLimit module
- * - errorMod: the rateLimitError module
+ * @returns The rateLimit module and the rateLimitError module.
  */
-async function loadRateLimit() {
+async function loadRateLimit(): Promise<{
+  mod: typeof import("@/lib/rateLimit");
+  errorMod: typeof import("@/lib/rateLimitError");
+}> {
   vi.resetModules();
 
   const errorMod = await import("@/lib/rateLimitError");
@@ -128,7 +137,7 @@ describe("lib/rateLimit.ts", () => {
     vi.clearAllMocks();
 
     env.NODE_ENV = "test";
-    env.RATE_LIMIT_IP_SALT = "unit-test-salt";
+    env.RATE_LIMIT_IP_SALT = HOISTED_SALT;
     env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP = 2;
     env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY = 3;
 

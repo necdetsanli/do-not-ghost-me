@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 
 const { env } = vi.hoisted(() => ({
   env: {
-    NODE_ENV: "test",
+    NODE_ENV: "test" as "test" | "production" | "development",
     ADMIN_CSRF_SECRET: undefined as string | undefined,
   },
 }));
@@ -13,7 +13,25 @@ vi.mock("@/env", () => ({
   env,
 }));
 
-import { createCsrfToken, verifyCsrfToken } from "@/lib/csrf";
+/**
+ * Imports CSRF helpers with a fresh module graph.
+ * The csrf module may snapshot env at import time, so tests must reload it
+ * after mutating env to avoid stale configuration.
+ *
+ * @returns CSRF helper functions.
+ */
+async function loadCsrf(): Promise<{
+  createCsrfToken: (purpose: string) => string;
+  verifyCsrfToken: (purpose: string, token: string | null) => boolean;
+}> {
+  vi.resetModules();
+  const mod = await import("@/lib/csrf");
+
+  return {
+    createCsrfToken: mod.createCsrfToken as (purpose: string) => string,
+    verifyCsrfToken: mod.verifyCsrfToken as (purpose: string, token: string | null) => boolean,
+  };
+}
 
 /**
  * Decodes a base64url-encoded CSRF token into its JSON payload.
@@ -66,63 +84,53 @@ describe("csrf", () => {
     randomSpy.mockRestore();
     vi.useRealTimers();
     vi.clearAllMocks();
+    vi.resetModules();
   });
 
-  /**
-   * Ensures CSRF token creation and verification succeed using the
-   * dev/test fallback secret when no explicit secret is configured.
-   */
-  it("creates a token and verifies it (dev/test fallback secret)", () => {
+  it("creates a token and verifies it (dev/test fallback secret)", async () => {
+    const { createCsrfToken, verifyCsrfToken } = await loadCsrf();
+
     const token: string = createCsrfToken("admin-login");
     const ok: boolean = verifyCsrfToken("admin-login", token);
     expect(ok).toBe(true);
   });
 
-  /**
-   * Ensures purpose strings are trimmed consistently during both token
-   * creation and verification, preventing whitespace-related mismatches.
-   */
-  it("trims purpose on create/verify", () => {
+  it("trims purpose on create/verify", async () => {
+    const { createCsrfToken, verifyCsrfToken } = await loadCsrf();
+
     const token: string = createCsrfToken(" admin-login " as unknown as "admin-login");
     const ok: boolean = verifyCsrfToken(" admin-login " as unknown as "admin-login", token);
     expect(ok).toBe(true);
   });
 
-  /**
-   * Ensures token creation fails fast when the purpose is blank after trimming,
-   * preventing ambiguous or unsafe usage.
-   */
-  it("throws when purpose is empty after trim", () => {
+  it("throws when purpose is empty after trim", async () => {
+    const { createCsrfToken } = await loadCsrf();
+
     expect(() => createCsrfToken("   " as unknown as "admin-login")).toThrowError(
       /CSRF purpose must be a non-empty string/i,
     );
   });
 
-  /**
-   * Ensures verification is fail-closed for missing/empty token inputs.
-   */
-  it("returns false for null / empty tokens", () => {
+  it("returns false for null / empty tokens", async () => {
+    const { verifyCsrfToken } = await loadCsrf();
+
     expect(verifyCsrfToken("admin-login", null)).toBe(false);
     expect(verifyCsrfToken("admin-login", "")).toBe(false);
     expect(verifyCsrfToken("admin-login", "   ")).toBe(false);
   });
 
-  /**
-   * Ensures verification is fail-closed for malformed tokens, including
-   * invalid base64url strings and invalid JSON payloads.
-   */
-  it("returns false for invalid base64 / invalid JSON", () => {
+  it("returns false for invalid base64 / invalid JSON", async () => {
+    const { verifyCsrfToken } = await loadCsrf();
+
     expect(verifyCsrfToken("admin-login", "not-a-valid-token")).toBe(false);
 
     const token: string = Buffer.from("not-json", "utf8").toString("base64url");
     expect(verifyCsrfToken("admin-login", token)).toBe(false);
   });
 
-  /**
-   * Ensures a token is rejected if its version field is tampered with,
-   * preventing acceptance of unknown/unsupported token formats.
-   */
-  it("returns false when version mismatches", () => {
+  it("returns false when version mismatches", async () => {
+    const { createCsrfToken, verifyCsrfToken } = await loadCsrf();
+
     const token: string = createCsrfToken("admin-login");
     const payload = decodeToken(token) as Record<string, unknown>;
     payload.v = 999;
@@ -131,11 +139,9 @@ describe("csrf", () => {
     expect(verifyCsrfToken("admin-login", tampered)).toBe(false);
   });
 
-  /**
-   * Ensures a token is bound to its intended purpose and cannot be replayed
-   * for a different purpose.
-   */
-  it("returns false when purpose mismatches", () => {
+  it("returns false when purpose mismatches", async () => {
+    const { createCsrfToken, verifyCsrfToken } = await loadCsrf();
+
     const token: string = createCsrfToken("admin-login");
     const payload = decodeToken(token) as Record<string, unknown>;
     payload.p = "something-else";
@@ -144,11 +150,9 @@ describe("csrf", () => {
     expect(verifyCsrfToken("admin-login", tampered)).toBe(false);
   });
 
-  /**
-   * Ensures verification rejects payloads that do not match the expected shape
-   * (types and required fields), even when base64/json decoding succeeds.
-   */
-  it("returns false when payload shape is invalid", () => {
+  it("returns false when payload shape is invalid", async () => {
+    const { createCsrfToken, verifyCsrfToken } = await loadCsrf();
+
     const token: string = createCsrfToken("admin-login");
     const payload = decodeToken(token) as Record<string, unknown>;
 
@@ -164,10 +168,9 @@ describe("csrf", () => {
     expect(verifyCsrfToken("admin-login", encodeToken(payload3))).toBe(false);
   });
 
-  /**
-   * Ensures tokens expire after the configured TTL and are rejected after expiry.
-   */
-  it("returns false for expired tokens", () => {
+  it("returns false for expired tokens", async () => {
+    const { createCsrfToken, verifyCsrfToken } = await loadCsrf();
+
     const token: string = createCsrfToken("admin-login");
 
     const oneHourMs: number = 60 * 60 * 1000;
@@ -176,21 +179,20 @@ describe("csrf", () => {
     expect(verifyCsrfToken("admin-login", token)).toBe(false);
   });
 
-  /**
-   * Ensures verification is fail-closed for tokens whose iat is not consistent
-   * with the current clock (iat in the future).
-   */
-  it("returns false when iat is in the future", () => {
+  it("returns false when iat is in the future", async () => {
+    const { createCsrfToken, verifyCsrfToken } = await loadCsrf();
+
     const token: string = createCsrfToken("admin-login");
+
+    // Move clock back so token's iat is now in the future relative to "now".
     vi.setSystemTime(new Date(Date.now() - 1));
+
     expect(verifyCsrfToken("admin-login", token)).toBe(false);
   });
 
-  /**
-   * Ensures signature comparison rejects tampering even when the signature
-   * length is unchanged (constant-time compare safety path).
-   */
-  it("returns false when signature mismatches (same length)", () => {
+  it("returns false when signature mismatches (same length)", async () => {
+    const { createCsrfToken, verifyCsrfToken } = await loadCsrf();
+
     const token: string = createCsrfToken("admin-login");
     const payload = decodeToken(token) as Record<string, unknown>;
 
@@ -202,11 +204,9 @@ describe("csrf", () => {
     expect(verifyCsrfToken("admin-login", encodeToken(payload))).toBe(false);
   });
 
-  /**
-   * Ensures signature comparison rejects tampering when the signature length
-   * differs from the expected signature length.
-   */
-  it("returns false when signature mismatches (different length)", () => {
+  it("returns false when signature mismatches (different length)", async () => {
+    const { createCsrfToken, verifyCsrfToken } = await loadCsrf();
+
     const token: string = createCsrfToken("admin-login");
     const payload = decodeToken(token) as Record<string, unknown>;
 
@@ -215,28 +215,27 @@ describe("csrf", () => {
     expect(verifyCsrfToken("admin-login", encodeToken(payload))).toBe(false);
   });
 
-  /**
-   * Ensures the configured secret is used when present and that tokens become
-   * invalid if the secret changes (rotation invalidates old tokens).
-   */
-  it("uses configured secret when ADMIN_CSRF_SECRET is set (and fails if secret changes)", () => {
+  it("uses configured secret when ADMIN_CSRF_SECRET is set (and fails if secret changes)", async () => {
     env.ADMIN_CSRF_SECRET = "secret-a";
 
-    const token: string = createCsrfToken("admin-login");
-    expect(verifyCsrfToken("admin-login", token)).toBe(true);
+    // Import AFTER setting secret-a so module snapshots the right secret.
+    const csrfA = await loadCsrf();
 
+    const token: string = csrfA.createCsrfToken("admin-login");
+    expect(csrfA.verifyCsrfToken("admin-login", token)).toBe(true);
+
+    // Rotate secret, then re-import to pick up new config.
     env.ADMIN_CSRF_SECRET = "secret-b";
-    expect(verifyCsrfToken("admin-login", token)).toBe(false);
+    const csrfB = await loadCsrf();
+
+    expect(csrfB.verifyCsrfToken("admin-login", token)).toBe(false);
   });
 
-  /**
-   * Ensures production mode fails closed when the secret is missing:
-   * - create must throw (misconfiguration)
-   * - verify must return false
-   */
-  it("in production, create throws if ADMIN_CSRF_SECRET is missing; verify returns false", () => {
+  it("in production, create throws if ADMIN_CSRF_SECRET is missing; verify returns false", async () => {
     env.NODE_ENV = "production";
     env.ADMIN_CSRF_SECRET = undefined;
+
+    const { createCsrfToken, verifyCsrfToken } = await loadCsrf();
 
     expect(() => createCsrfToken("admin-login")).toThrowError(
       /ADMIN_CSRF_SECRET must be set in production/i,

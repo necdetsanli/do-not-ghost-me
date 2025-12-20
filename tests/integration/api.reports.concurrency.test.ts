@@ -2,6 +2,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { PositionCategory } from "@prisma/client";
+import {
+  TEST_RATE_LIMIT_IP_SALT,
+  TEST_ADMIN_PASSWORD,
+  TEST_ADMIN_SESSION_SECRET,
+  TEST_ADMIN_CSRF_SECRET,
+} from "../testUtils/testSecrets";
 
 type EnvKey =
   | "NODE_ENV"
@@ -150,16 +156,15 @@ function restoreEnv(snap: EnvSnapshot): void {
 function applyBaseEnv(): void {
   setEnvVar("NODE_ENV", "test");
   setEnvVar("DATABASE_URL", "postgresql://user:pass@localhost:5432/testdb");
-  setEnvVar("RATE_LIMIT_IP_SALT", "test-rate-limit-salt-32-bytes-minimum-000000");
+
+  setEnvVar("RATE_LIMIT_IP_SALT", TEST_RATE_LIMIT_IP_SALT);
   setEnvVar("RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP", "3");
   setEnvVar("RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY", "10");
 
-  // Keep admin vars consistent with env invariants.
-  setEnvVar("ADMIN_PASSWORD", "test-admin-password");
-  setEnvVar("ADMIN_SESSION_SECRET", "test-admin-session-secret-32-bytes-minimum-0000000");
-  setEnvVar("ADMIN_CSRF_SECRET", "test-admin-csrf-secret-32-bytes-minimum-000000000");
+  setEnvVar("ADMIN_PASSWORD", TEST_ADMIN_PASSWORD);
+  setEnvVar("ADMIN_SESSION_SECRET", TEST_ADMIN_SESSION_SECRET);
+  setEnvVar("ADMIN_CSRF_SECRET", TEST_ADMIN_CSRF_SECRET);
 
-  // IMPORTANT: Do not set undefined. Use a valid host or delete.
   setEnvVar("ADMIN_ALLOWED_HOST", "example.test");
 }
 
