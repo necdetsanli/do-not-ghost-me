@@ -36,7 +36,6 @@ jobs:
       github.event.deployment_status.state == 'success' &&
       github.event.deployment.environment == 'Preview' &&
       github.event.deployment_status.environment_url != ''
-    
 
     steps:
       - name: Checkout (deployment ref)
@@ -73,7 +72,7 @@ jobs:
               - "spider.processform: false"
               - "spider.postform: false"
           YAML
-         
+
       - name: Run HawkScan
         uses: stackhawk/hawkscan-action@4c3258cd62248dac6d9fe91dd8d45928c697dee0
         with:
