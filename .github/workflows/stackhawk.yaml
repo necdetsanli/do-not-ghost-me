@@ -38,6 +38,7 @@ jobs:
     env:
       HAWK_API_KEY: ${{ secrets.HAWK_API_KEY }}
 
+
     steps:
       - name: Checkout (deployment SHA)
         uses: actions/checkout@v6
@@ -66,6 +67,17 @@ jobs:
         with:
           apiKey: ${{ env.HAWK_API_KEY }}
           codeScanningAlerts: true
+
+  debug_deployment_status:
+    name: Debug deployment_status payload
+    if: github.event_name == 'deployment_status'
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "action=${{ github.event.action }}"
+          echo "state=${{ github.event.deployment_status.state }}"
+          echo "environment=${{ github.event.deployment.environment }}"
+          echo "environment_url=${{ github.event.deployment_status.environment_url }}"
 
   hawkscan_main_weekly:
     name: HawkScan (Weekly on main/prod)
