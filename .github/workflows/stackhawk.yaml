@@ -23,7 +23,7 @@ env:
   HAWK_API_KEY: ${{ secrets.HAWK_API_KEY }}
   STACKHAWK_APPLICATION_ID: ${{ vars.STACKHAWK_APPLICATION_ID }}
   STACKHAWK_HOST: ${{ github.event.deployment_status.environment_url }}
-  
+  SARIF_ARTIFACT: "true"
 
 jobs:
   hawkscan_preview:
@@ -65,7 +65,7 @@ jobs:
             env: Preview
             host: ${{env.STACKHAWK_HOST}}
           hawk:
-            failureThreshold: high 
+            failureThreshold: high
             spider:
               base: true
               ajax: true
@@ -81,7 +81,7 @@ jobs:
                 - "/api/admin"
                 - "/api/admin/login"
                 - "/api/admin/logout"
-            config: 
+            config:
               - "spider.processform=false"
               - "spider.postform=false"
           YAML
@@ -92,7 +92,7 @@ jobs:
           apiKey: ${{ env.HAWK_API_KEY }}
           codeScanningAlerts: false
           githubToken: ${{ github.token }}
-      
+
       - name: Upload SARIF to GitHub Code Scanning
         if: always() && hashFiles('results/*.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
@@ -170,7 +170,7 @@ jobs:
                 - "/api/admin"
                 - "/api/admin/login"
                 - "/api/admin/logout"
-            config: 
+            config:
               - "spider.processform=false"
               - "spider.postform=false"
           YAML
@@ -190,4 +190,3 @@ jobs:
           ref: ${{ startsWith(github.event.deployment.ref, 'refs/') && github.event.deployment.ref || format('refs/heads/{0}', github.event.deployment.ref) }}
           sha: ${{ github.event.deployment.sha }}
           category: stackhawk
-
