@@ -2,9 +2,9 @@ name: Snyk Security
 
 on:
   pull_request:
-    branches: ["main", "staging"]
-  push:
     branches: ["main"]
+  push:
+    branches: ["main", "staging"]
   # Runs on the default branch only (GitHub behavior).
   # 00:17 UTC = 03:17 Europe/Istanbul (Monday)
   schedule:

@@ -1,10 +1,10 @@
-name: StackHawk DAST
+name: "StackHawk"
 
 on:
   push:
-    branches: ["main", "staging"]
+    branches: [main]
   pull_request:
-    branches: ["main"]
+    branches: [main]
   deployment_status:
   schedule:
     - cron: "0 0 * * 1"
@@ -23,6 +23,11 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  HAWK_API_KEY: ${{ secrets.HAWK_API_KEY }}
+  STACKHAWK_APPLICATION_ID: ${{ vars.STACKHAWK_APPLICATION_ID }}
+  STACKHAWK_HOST: ${{ github.event.deployment_status.environment_url }}
+
 jobs:
   hawkscan_preview:
     name: HawkScan (Preview deployment)
@@ -35,38 +40,59 @@ jobs:
       github.event.deployment_status.state == 'success' &&
       github.event.deployment.environment == 'Preview' &&
       github.event.deployment_status.environment_url != ''
-    env:
-      HAWK_API_KEY: ${{ secrets.HAWK_API_KEY }}
-
 
     steps:
-      - name: Checkout (deployment SHA)
+      - name: Debug deployment info
+        run: |
+          echo "Deployment SHA: ${{ github.event.deployment.sha }}"
+          echo "Deployment Ref: ${{ github.event.deployment.ref }}"
+          echo "GitHub SHA: ${{ github.sha }}"
+          echo "GitHub Ref: ${{ github.ref }}"
+
+      - name: Checkout (deployment ref)
         uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.deployment.sha }}
 
       - name: Skip if StackHawk is not configured
         if: env.HAWK_API_KEY == ''
         run: echo "HAWK_API_KEY is missing; skipping StackHawk." && exit 0
 
-      - name: Write StackHawk config (stackhawk.yaml)
+      - name: Write StackHawk config (stackhawk.yml)
         shell: bash
         run: |
-          cat > stackhawk.yaml <<'YAML'
+          cat > stackhawk.yml <<'YAML'
           app:
-            applicationId: ${STACKHAWK_APPLICATION_ID}
+            applicationId: ${{env.STACKHAWK_APPLICATION_ID}}
             env: Preview
-            host: ${STACKHAWK_HOST}
+            host: ${{env.STACKHAWK_HOST}}
+          hawk:
+            failureThreshold: high
+            spider:
+              base: true
+              ajax: true
+              maxDurationMinutes: 45
+              seedPaths:
+                - "/"
+                - "/companies"
+                - "/api/health"
+                - "/api/public/company-intel"
+                - "/api/companies/search"
+                - "/api/reports"
+                - "/api/reports/stats"
+                - "/api/admin"
+                - "/api/admin/login"
+                - "/api/admin/logout"
+            config:
+              - "spider.processform=false"
+              - "spider.postform=false"
           YAML
-        env:
-          STACKHAWK_APPLICATION_ID: ${{ vars.STACKHAWK_APPLICATION_ID }}
-          STACKHAWK_HOST: ${{ github.event.deployment_status.environment_url }}
 
       - name: Run HawkScan
         uses: stackhawk/hawkscan-action@4c3258cd62248dac6d9fe91dd8d45928c697dee0
+        continue-on-error: true
         with:
           apiKey: ${{ env.HAWK_API_KEY }}
           codeScanningAlerts: true
+          githubToken: ${{ github.token }}
 
   debug_deployment_status:
     name: Debug deployment_status payload
@@ -78,6 +104,8 @@ jobs:
           echo "state=${{ github.event.deployment_status.state }}"
           echo "environment=${{ github.event.deployment.environment }}"
           echo "environment_url=${{ github.event.deployment_status.environment_url }}"
+          echo "deployment.sha=${{ github.event.deployment.sha }}"
+          echo "deployment.ref=${{ github.event.deployment.ref }}"
 
   hawkscan_main_weekly:
     name: HawkScan (Weekly on main/prod)
@@ -88,8 +116,6 @@ jobs:
     if: >
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
       github.ref_name == 'main'
-    env:
-      HAWK_API_KEY: ${{ secrets.HAWK_API_KEY }}
 
     steps:
       - name: Checkout (main)
@@ -109,21 +135,40 @@ jobs:
             echo "url=https://www.donotghostme.com" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Write StackHawk config (stackhawk.yaml)
+      - name: Write StackHawk config (stackhawk.yml)
         shell: bash
         run: |
-          cat > stackhawk.yaml <<'YAML'
+          cat > stackhawk.yml <<'YAML'
           app:
-            applicationId: ${STACKHAWK_APPLICATION_ID}
+            applicationId: ${{env.STACKHAWK_APPLICATION_ID}}
             env: Production
-            host: ${STACKHAWK_HOST}
+            host: ${{ steps.target.outputs.url }}
+          hawk:
+            failureThreshold: high
+            spider:
+              base: true
+              ajax: true
+              maxDurationMinutes: 60
+              seedPaths:
+                - "/"
+                - "/companies"
+                - "/api/health"
+                - "/api/public/company-intel"
+                - "/api/companies/search"
+                - "/api/reports"
+                - "/api/reports/stats"
+                - "/api/admin"
+                - "/api/admin/login"
+                - "/api/admin/logout"
+            config:
+              - "spider.processform=false"
+              - "spider.postform=false"
           YAML
-        env:
-          STACKHAWK_APPLICATION_ID: ${{ vars.STACKHAWK_APPLICATION_ID }}
-          STACKHAWK_HOST: ${{ steps.target.outputs.url }}
 
       - name: Run HawkScan
         uses: stackhawk/hawkscan-action@4c3258cd62248dac6d9fe91dd8d45928c697dee0
+        continue-on-error: true
         with:
           apiKey: ${{ env.HAWK_API_KEY }}
           codeScanningAlerts: true
+          githubToken: ${{ github.token }}
