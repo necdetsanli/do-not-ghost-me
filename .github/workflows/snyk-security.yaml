@@ -5,13 +5,21 @@ on:
     branches: ["main", "staging"]
   push:
     branches: ["main"]
+  # Runs on the default branch only (GitHub behavior).
+  # 00:17 UTC = 03:17 Europe/Istanbul (Monday)
+  schedule:
+    - cron: "17 0 * * 1"
+  workflow_dispatch: {}
 
 concurrency:
-  group: snyk-${{ github.workflow }}-${{ github.ref }}
+  group: snyk-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 permissions:
   contents: read
+
+env:
+  SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
 jobs:
   snyk_main_required:
@@ -40,16 +48,16 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Set up Snyk CLI
+        if: env.SNYK_TOKEN != ''
         uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
         env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
 
-      # SAST (Code) -> GitHub Code Scanning
       - name: Snyk Code (SARIF)
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         id: snyk_code
         if: env.SNYK_TOKEN != ''
+        env:
+          SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
         run: |
           set +e
           snyk code test -d --sarif-file-output=snyk-code.sarif
@@ -58,29 +66,23 @@ jobs:
           set -e
 
       - name: Upload SARIF to GitHub Code Scanning
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         if: always() && env.SNYK_TOKEN != '' && hashFiles('snyk-code.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: snyk-code.sarif
 
       - name: Fail if Snyk Code did not pass
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         if: env.SNYK_TOKEN != '' && steps.snyk_code.outputs.exit_code == '2'
         run: exit 1
 
       - name: Debug Snyk Code exit code
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         if: env.SNYK_TOKEN != ''
         run: echo "Snyk Code exit_code=${{ steps.snyk_code.outputs.exit_code }}"
 
-      # SCA (Open Source)
       - name: Snyk Open Source (test)
+        if: env.SNYK_TOKEN != ''
         env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
         run: snyk test --all-projects
 
   snyk_staging_optional:
@@ -107,31 +109,33 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Set up Snyk CLI (optional)
+        if: env.SNYK_TOKEN != ''
         uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
         env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
         continue-on-error: true
 
       - name: Snyk Open Source (test) (optional)
+        if: env.SNYK_TOKEN != ''
         env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
         run: snyk test --all-projects
         continue-on-error: true
 
   snyk_main_monitor:
-    name: Snyk (monitor on main push)
-    if: github.event_name == 'push' && github.ref_name == 'main'
+    name: Snyk (monitor + code scanning on main push/schedule)
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       security-events: write
       actions: read
-    env:
-      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
     steps:
-      - name: Checkout
+      - name: Checkout main
         uses: actions/checkout@v6
+        with:
+          ref: main
 
       - name: Setup Node (from .nvmrc)
         uses: actions/setup-node@v6
@@ -146,31 +150,30 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Set up Snyk CLI
+        if: env.SNYK_TOKEN != ''
         uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
         env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
 
       - name: Snyk Code (SARIF) on main
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         if: env.SNYK_TOKEN != ''
+        env:
+          SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
         run: |
           set +e
           snyk code test -d --sarif-file-output=snyk-code.sarif
           exit_code=$?
           echo "Snyk Code exit_code=$exit_code"
-          # main push'ta sadece raporla; istersen exit_code==2'de fail ettirebilirsin.
           set -e
 
       - name: Upload SARIF to GitHub Code Scanning (main)
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         if: always() && env.SNYK_TOKEN != '' && hashFiles('snyk-code.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: snyk-code.sarif
 
       - name: Snyk Open Source (monitor)
+        if: env.SNYK_TOKEN != ''
         env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
         run: snyk monitor --all-projects

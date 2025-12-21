@@ -6,7 +6,6 @@
   <img alt="necdetsanli profile card" src="public/favicon-light.png" />
 </picture>
 </p>
-
 <p align="center">
   <img alt="GitHub package.json version" src="https://img.shields.io/github/package-json/v/necdetsanli/do-not-ghost-me">
   <a href="https://www.donotghostme.com">
