@@ -1,6 +1,8 @@
 name: StackHawk DAST
 
 on:
+  push:
+  pull_request:
   deployment_status:
   schedule:
     - cron: "0 0 * * 1"
@@ -83,7 +85,7 @@ jobs:
       - name: Write StackHawk config (stackhawk.yaml)
         shell: bash
         run: |
-          cat > stackhawk.yml <<'YAML'
+          cat > stackhawk.yaml <<'YAML'
           app:
             applicationId: ${STACKHAWK_APPLICATION_ID}
             env: Production
