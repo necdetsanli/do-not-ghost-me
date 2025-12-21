@@ -90,8 +90,17 @@ jobs:
         uses: stackhawk/hawkscan-action@4c3258cd62248dac6d9fe91dd8d45928c697dee0
         with:
           apiKey: ${{ env.HAWK_API_KEY }}
-          codeScanningAlerts: true
+          codeScanningAlerts: false
           githubToken: ${{ github.token }}
+      
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always() && hashFiles('results/*.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results/
+          ref: ${{ startsWith(github.event.deployment.ref, 'refs/') && github.event.deployment.ref || format('refs/heads/{0}', github.event.deployment.ref) }}
+          sha: ${{ github.event.deployment.sha }}
+          category: stackhawk
 
   debug_deployment_status:
     name: Debug deployment_status payload
@@ -172,4 +181,13 @@ jobs:
           apiKey: ${{ env.HAWK_API_KEY }}
           codeScanningAlerts: true
           githubToken: ${{ github.token }}
+
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always() && hashFiles('results/*.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results/
+          ref: ${{ startsWith(github.event.deployment.ref, 'refs/') && github.event.deployment.ref || format('refs/heads/{0}', github.event.deployment.ref) }}
+          sha: ${{ github.event.deployment.sha }}
+          category: stackhawk
 
