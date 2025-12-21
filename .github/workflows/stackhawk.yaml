@@ -2,7 +2,9 @@ name: StackHawk DAST
 
 on:
   push:
+    branches: ["main", "staging"]
   pull_request:
+    branches: ["main"]
   deployment_status:
   schedule:
     - cron: "0 0 * * 1"
@@ -27,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      security-events: write
     if: >
       github.event_name == 'deployment_status' &&
       github.event.deployment_status.state == 'success' &&
@@ -63,6 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      security-events: write
     if: >
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
       github.ref_name == 'main' &&
@@ -99,3 +103,4 @@ jobs:
         uses: stackhawk/hawkscan-action@v2
         with:
           apiKey: ${{ secrets.HAWK_API_KEY }}
+          codeScanningAlerts: true
