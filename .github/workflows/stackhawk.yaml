@@ -100,7 +100,7 @@ jobs:
           STACKHAWK_HOST: ${{ steps.target.outputs.url }}
 
       - name: Run HawkScan
-        uses: stackhawk/hawkscan-action@v2
+        uses: stackhawk/hawkscan-action@4c3258cd62248dac6d9fe91dd8d45928c697dee0
         with:
           apiKey: ${{ secrets.HAWK_API_KEY }}
           codeScanningAlerts: true
