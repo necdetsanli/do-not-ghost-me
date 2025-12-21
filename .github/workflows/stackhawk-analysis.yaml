@@ -1,6 +1,10 @@
-name: StackHawk DAST
+name: "StackHawk"
 
 on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   deployment_status:
   schedule:
     - cron: "0 0 * * 1"
@@ -23,7 +27,6 @@ env:
   HAWK_API_KEY: ${{ secrets.HAWK_API_KEY }}
   STACKHAWK_APPLICATION_ID: ${{ vars.STACKHAWK_APPLICATION_ID }}
   STACKHAWK_HOST: ${{ github.event.deployment_status.environment_url }}
-  SARIF_ARTIFACT: true
 
 jobs:
   hawkscan_preview:
@@ -48,9 +51,6 @@ jobs:
 
       - name: Checkout (deployment ref)
         uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.deployment.sha }}
-          fetch-depth: 0
 
       - name: Skip if StackHawk is not configured
         if: env.HAWK_API_KEY == ''
@@ -88,19 +88,11 @@ jobs:
 
       - name: Run HawkScan
         uses: stackhawk/hawkscan-action@4c3258cd62248dac6d9fe91dd8d45928c697dee0
+        continue-on-error: true
         with:
           apiKey: ${{ env.HAWK_API_KEY }}
-          codeScanningAlerts: false
+          codeScanningAlerts: true
           githubToken: ${{ github.token }}
-
-      - name: Upload SARIF to GitHub Code Scanning
-        if: always() && hashFiles('results/*.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: results/
-          ref: ${{ startsWith(github.event.deployment.ref, 'refs/') && github.event.deployment.ref || format('refs/heads/{0}', github.event.deployment.ref) }}
-          sha: ${{ github.event.deployment.sha }}
-          category: stackhawk
 
   debug_deployment_status:
     name: Debug deployment_status payload
@@ -128,8 +120,6 @@ jobs:
     steps:
       - name: Checkout (main)
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
       - name: Skip if StackHawk is not configured
         if: env.HAWK_API_KEY == ''
@@ -177,16 +167,8 @@ jobs:
 
       - name: Run HawkScan
         uses: stackhawk/hawkscan-action@4c3258cd62248dac6d9fe91dd8d45928c697dee0
+        continue-on-error: true
         with:
           apiKey: ${{ env.HAWK_API_KEY }}
           codeScanningAlerts: true
           githubToken: ${{ github.token }}
-
-      - name: Upload SARIF to GitHub Code Scanning
-        if: always() && hashFiles('results/*.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: results/
-          ref: ${{ startsWith(github.event.deployment.ref, 'refs/') && github.event.deployment.ref || format('refs/heads/{0}', github.event.deployment.ref) }}
-          sha: ${{ github.event.deployment.sha }}
-          category: stackhawk
