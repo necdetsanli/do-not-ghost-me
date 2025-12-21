@@ -69,8 +69,8 @@ jobs:
                 - "/api/reports"
                 - "/api/admin"
             config: 
-              - "spider.processform: false"
-              - "spider.postform: false"
+              - "spider.processform=false"
+              - "spider.postform=false"
           YAML
 
       - name: Run HawkScan
@@ -142,8 +142,8 @@ jobs:
                 - "/api/reports"
                 - "/api/admin"
             config: 
-              - "spider.processform: false"
-              - "spider.postform: false"
+              - "spider.processform=false"
+              - "spider.postform=false"
           YAML
 
       - name: Run HawkScan
