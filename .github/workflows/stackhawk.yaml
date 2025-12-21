@@ -38,7 +38,6 @@ jobs:
     env:
       HAWK_API_KEY: ${{ secrets.HAWK_API_KEY }}
 
-
     steps:
       - name: Checkout (deployment SHA)
         uses: actions/checkout@v6
@@ -54,9 +53,9 @@ jobs:
         run: |
           cat > stackhawk.yml <<'YAML'
           app:
-            applicationId: ${STACKHAWK_APPLICATION_ID}
+            applicationId: ${{env.STACKHAWK_APPLICATION_ID}}
             env: Preview
-            host: ${STACKHAWK_HOST}
+            host: ${{env.STACKHAWK_HOST}}
           YAML
         env:
           STACKHAWK_APPLICATION_ID: ${{ vars.STACKHAWK_APPLICATION_ID }}
@@ -114,9 +113,9 @@ jobs:
         run: |
           cat > stackhawk.yml <<'YAML'
           app:
-            applicationId: ${STACKHAWK_APPLICATION_ID}
+            applicationId: ${{env.STACKHAWK_APPLICATION_ID}}
             env: Production
-            host: ${STACKHAWK_HOST}
+            host: ${{env.STACKHAWK_HOST}}
           YAML
         env:
           STACKHAWK_APPLICATION_ID: ${{ vars.STACKHAWK_APPLICATION_ID }}
