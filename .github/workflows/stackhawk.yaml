@@ -46,7 +46,6 @@ jobs:
           echo "GitHub SHA: ${{ github.sha }}"
           echo "GitHub Ref: ${{ github.ref }}"
 
-    steps:
       - name: Checkout (deployment ref)
         uses: actions/checkout@v6
         with:
