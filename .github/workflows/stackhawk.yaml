@@ -59,7 +59,8 @@ jobs:
       - name: Run HawkScan
         uses: stackhawk/hawkscan-action@v2
         with:
-          apiKey: ${{ secrets.HAWK_API_KEY }}
+          apiKey: ${{ secrets.HAWK_API_KEY }},
+          codeScanningAlerts: true
 
   hawkscan_main_weekly:
     name: HawkScan (Weekly on main/prod)
