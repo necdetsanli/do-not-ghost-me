@@ -1,0 +1,107 @@
+name: StackHawk DAST
+
+on:
+  push:
+    branches: ["main", "staging"]
+  pull_request:
+    branches: ["main"]
+  deployment_status:
+  schedule:
+    - cron: "0 0 * * 1"
+
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: "Optional override target URL (e.g. https://your-preview-url)"
+        required: false
+        type: string
+
+concurrency:
+  group: stackhawk-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  hawkscan_preview:
+    name: HawkScan (Preview deployment)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    if: >
+      github.event_name == 'deployment_status' &&
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment == 'Preview' &&
+      github.event.deployment_status.environment_url != '' &&
+      secrets.HAWK_API_KEY != ''
+
+    steps:
+      - name: Checkout (deployment SHA)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.deployment.sha }}
+
+      - name: Write StackHawk config (stackhawk.yaml)
+        shell: bash
+        run: |
+          cat > stackhawk.yaml <<'YAML'
+          app:
+            applicationId: ${STACKHAWK_APPLICATION_ID}
+            env: Preview
+            host: ${STACKHAWK_HOST}
+          YAML
+        env:
+          STACKHAWK_APPLICATION_ID: ${{ vars.STACKHAWK_APPLICATION_ID }}
+          STACKHAWK_HOST: ${{ github.event.deployment_status.environment_url }}
+
+      - name: Run HawkScan
+        uses: stackhawk/hawkscan-action@v2
+        with:
+          apiKey: ${{ secrets.HAWK_API_KEY }},
+          codeScanningAlerts: true
+
+  hawkscan_main_weekly:
+    name: HawkScan (Weekly on main/prod)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    if: >
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+      github.ref_name == 'main' &&
+      secrets.HAWK_API_KEY != ''
+
+    steps:
+      - name: Checkout (main)
+        uses: actions/checkout@v6
+
+      - name: Resolve target URL
+        id: target
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.target_url }}" ]; then
+            echo "url=${{ github.event.inputs.target_url }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=https://www.donotghostme.com" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write StackHawk config (stackhawk.yaml)
+        shell: bash
+        run: |
+          cat > stackhawk.yaml <<'YAML'
+          app:
+            applicationId: ${STACKHAWK_APPLICATION_ID}
+            env: Production
+            host: ${STACKHAWK_HOST}
+          YAML
+        env:
+          STACKHAWK_APPLICATION_ID: ${{ vars.STACKHAWK_APPLICATION_ID }}
+          STACKHAWK_HOST: ${{ steps.target.outputs.url }}
+
+      - name: Run HawkScan
+        uses: stackhawk/hawkscan-action@4c3258cd62248dac6d9fe91dd8d45928c697dee0
+        with:
+          apiKey: ${{ secrets.HAWK_API_KEY }}
+          codeScanningAlerts: true
