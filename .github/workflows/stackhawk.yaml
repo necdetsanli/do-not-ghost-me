@@ -1,10 +1,6 @@
 name: StackHawk DAST
 
 on:
-  push:
-    branches: ["main", "staging"]
-  pull_request:
-    branches: ["main"]
   deployment_status:
   schedule:
     - cron: "0 0 * * 1"
@@ -23,6 +19,11 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  HAWK_API_KEY: ${{ secrets.HAWK_API_KEY }}
+  STACKHAWK_APPLICATION_ID: ${{ vars.STACKHAWK_APPLICATION_ID }}
+  STACKHAWK_HOST: ${{ github.event.deployment_status.environment_url }}
+
 jobs:
   hawkscan_preview:
     name: HawkScan (Preview deployment)
@@ -35,8 +36,7 @@ jobs:
       github.event.deployment_status.state == 'success' &&
       github.event.deployment.environment == 'Preview' &&
       github.event.deployment_status.environment_url != ''
-    env:
-      HAWK_API_KEY: ${{ secrets.HAWK_API_KEY }}
+    
 
     steps:
       - name: Checkout (deployment SHA)
@@ -56,16 +56,17 @@ jobs:
             applicationId: ${{env.STACKHAWK_APPLICATION_ID}}
             env: Preview
             host: ${{env.STACKHAWK_HOST}}
+          hawk: 
+            spider:
+              base: true
           YAML
-        env:
-          STACKHAWK_APPLICATION_ID: ${{ vars.STACKHAWK_APPLICATION_ID }}
-          STACKHAWK_HOST: ${{ github.event.deployment_status.environment_url }}
-
+         
       - name: Run HawkScan
         uses: stackhawk/hawkscan-action@4c3258cd62248dac6d9fe91dd8d45928c697dee0
         with:
           apiKey: ${{ env.HAWK_API_KEY }}
           codeScanningAlerts: true
+          githubToken: ${{secrets.GITHUB_TOKEN}}
 
   debug_deployment_status:
     name: Debug deployment_status payload
@@ -87,8 +88,6 @@ jobs:
     if: >
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
       github.ref_name == 'main'
-    env:
-      HAWK_API_KEY: ${{ secrets.HAWK_API_KEY }}
 
     steps:
       - name: Checkout (main)
@@ -116,13 +115,14 @@ jobs:
             applicationId: ${{env.STACKHAWK_APPLICATION_ID}}
             env: Production
             host: ${{env.STACKHAWK_HOST}}
+          hawk: 
+            spider:
+              base: true
           YAML
-        env:
-          STACKHAWK_APPLICATION_ID: ${{ vars.STACKHAWK_APPLICATION_ID }}
-          STACKHAWK_HOST: ${{ steps.target.outputs.url }}
 
       - name: Run HawkScan
         uses: stackhawk/hawkscan-action@4c3258cd62248dac6d9fe91dd8d45928c697dee0
         with:
           apiKey: ${{ env.HAWK_API_KEY }}
           codeScanningAlerts: true
+          githubToken: ${{secrets.GITHUB_TOKEN}}
