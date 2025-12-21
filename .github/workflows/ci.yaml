@@ -97,6 +97,16 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: HawkScan
+        uses: stackhawk/hawkscan-action@v2
+        with:
+          # Provide this as a GitHub Actions Secret
+          apiKey: ${{ secrets.HAWK_API_KEY }}
+        env:
+          # Use GitHub Actions workflow variables to populate these environment variables
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+          BRANCH_NAME: ${{ github.head_ref }}
+
       - name: Upload Playwright artifacts
         if: always()
         uses: actions/upload-artifact@v6

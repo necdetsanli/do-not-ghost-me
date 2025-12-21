@@ -1,8 +1,8 @@
-name: "StackHawk"
+name: HawkScan
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
   pull_request:
     branches: [main]
   deployment_status:
@@ -29,25 +29,23 @@ env:
   STACKHAWK_HOST: ${{ github.event.deployment_status.environment_url }}
 
 jobs:
-  hawkscan_preview:
-    name: HawkScan (Preview deployment)
+  hawkscan_push_pr:
+    name: HawkScan (Push/PR)
     runs-on: ubuntu-latest
     permissions:
       contents: read
       security-events: write
     if: >
-      github.event_name == 'deployment_status' &&
-      github.event.deployment_status.state == 'success' &&
-      github.event.deployment.environment == 'Preview' &&
-      github.event.deployment_status.environment_url != ''
+      (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'staging')) ||
+      (github.event_name == 'pull_request' && github.base_ref == 'main')
 
     steps:
       - name: Debug deployment info
         run: |
-          echo "Deployment SHA: ${{ github.event.deployment.sha }}"
-          echo "Deployment Ref: ${{ github.event.deployment.ref }}"
+          echo "Event: ${{ github.event_name }}"
           echo "GitHub SHA: ${{ github.sha }}"
           echo "GitHub Ref: ${{ github.ref }}"
+          echo "Branch: ${{ github.ref_name }}"
 
       - name: Checkout (deployment ref)
         uses: actions/checkout@v6
@@ -56,14 +54,30 @@ jobs:
         if: env.HAWK_API_KEY == ''
         run: echo "HAWK_API_KEY is missing; skipping StackHawk." && exit 0
 
+      - name: Determine environment and host
+        id: env
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "env_name=Production" >> "$GITHUB_OUTPUT"
+            echo "host=https://www.donotghostme.com" >> "$GITHUB_OUTPUT"
+          else
+            echo "env_name=Staging" >> "$GITHUB_OUTPUT"
+            echo "host=https://staging.donotghostme.com" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Write StackHawk config (stackhawk.yml)
         shell: bash
         run: |
           cat > stackhawk.yml <<'YAML'
           app:
             applicationId: ${{env.STACKHAWK_APPLICATION_ID}}
-            env: Preview
-            host: ${{env.STACKHAWK_HOST}}
+            env: ${{ steps.env.outputs.env_name }}
+            host: ${{ steps.env.outputs.host }}
+          tags:
+            - name: _STACKHAWK_GIT_COMMIT_SHA
+              value: ${COMMIT_SHA}
+            - name: _STACKHAWK_GIT_BRANCH
+              value: ${BRANCH_NAME}
           hawk:
             failureThreshold: high
             spider:
