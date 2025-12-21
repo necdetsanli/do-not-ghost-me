@@ -49,10 +49,10 @@ jobs:
         if: env.HAWK_API_KEY == ''
         run: echo "HAWK_API_KEY is missing; skipping StackHawk." && exit 0
 
-      - name: Write StackHawk config (stackhawk.yaml)
+      - name: Write StackHawk config (stackhawk.yml)
         shell: bash
         run: |
-          cat > stackhawk.yaml <<'YAML'
+          cat > stackhawk.yml <<'YAML'
           app:
             applicationId: ${STACKHAWK_APPLICATION_ID}
             env: Preview
@@ -109,10 +109,10 @@ jobs:
             echo "url=https://www.donotghostme.com" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Write StackHawk config (stackhawk.yaml)
+      - name: Write StackHawk config (stackhawk.yml)
         shell: bash
         run: |
-          cat > stackhawk.yaml <<'YAML'
+          cat > stackhawk.yml <<'YAML'
           app:
             applicationId: ${STACKHAWK_APPLICATION_ID}
             env: Production
