@@ -23,7 +23,7 @@ env:
   HAWK_API_KEY: ${{ secrets.HAWK_API_KEY }}
   STACKHAWK_APPLICATION_ID: ${{ vars.STACKHAWK_APPLICATION_ID }}
   STACKHAWK_HOST: ${{ github.event.deployment_status.environment_url }}
-  SARIF_ARTIFACT: "true"
+  SARIF_ARTIFACT: true
 
 jobs:
   hawkscan_preview:
