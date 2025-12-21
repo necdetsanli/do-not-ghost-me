@@ -34,14 +34,19 @@ jobs:
       github.event_name == 'deployment_status' &&
       github.event.deployment_status.state == 'success' &&
       github.event.deployment.environment == 'Preview' &&
-      github.event.deployment_status.environment_url != '' &&
-      secrets.HAWK_API_KEY != ''
+      github.event.deployment_status.environment_url != ''
+    env:
+      HAWK_API_KEY: ${{ secrets.HAWK_API_KEY }}
 
     steps:
       - name: Checkout (deployment SHA)
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.deployment.sha }}
+
+      - name: Skip if StackHawk is not configured
+        if: env.HAWK_API_KEY == ''
+        run: echo "HAWK_API_KEY is missing; skipping StackHawk." && exit 0
 
       - name: Write StackHawk config (stackhawk.yaml)
         shell: bash
@@ -57,9 +62,9 @@ jobs:
           STACKHAWK_HOST: ${{ github.event.deployment_status.environment_url }}
 
       - name: Run HawkScan
-        uses: stackhawk/hawkscan-action@v2
+        uses: stackhawk/hawkscan-action@4c3258cd62248dac6d9fe91dd8d45928c697dee0
         with:
-          apiKey: ${{ secrets.HAWK_API_KEY }},
+          apiKey: ${{ env.HAWK_API_KEY }}
           codeScanningAlerts: true
 
   hawkscan_main_weekly:
@@ -70,12 +75,17 @@ jobs:
       security-events: write
     if: >
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
-      github.ref_name == 'main' &&
-      secrets.HAWK_API_KEY != ''
+      github.ref_name == 'main'
+    env:
+      HAWK_API_KEY: ${{ secrets.HAWK_API_KEY }}
 
     steps:
       - name: Checkout (main)
         uses: actions/checkout@v6
+
+      - name: Skip if StackHawk is not configured
+        if: env.HAWK_API_KEY == ''
+        run: echo "HAWK_API_KEY is missing; skipping StackHawk." && exit 0
 
       - name: Resolve target URL
         id: target
@@ -103,5 +113,5 @@ jobs:
       - name: Run HawkScan
         uses: stackhawk/hawkscan-action@4c3258cd62248dac6d9fe91dd8d45928c697dee0
         with:
-          apiKey: ${{ secrets.HAWK_API_KEY }}
+          apiKey: ${{ env.HAWK_API_KEY }}
           codeScanningAlerts: true
