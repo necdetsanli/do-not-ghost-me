@@ -39,10 +39,11 @@ jobs:
     
 
     steps:
-      - name: Checkout (deployment SHA)
+      - name: Checkout (deployment ref)
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.deployment.sha }}
+          ref: ${{ github.event.deployment.ref }}
+          fetch-dept: 0
 
       - name: Skip if StackHawk is not configured
         if: env.HAWK_API_KEY == ''
@@ -59,6 +60,18 @@ jobs:
           hawk: 
             spider:
               base: true
+              ajax: true
+              maxDurationMinutes: 15
+              seedPaths:
+                - "/"
+                - "/companies"
+                - "/api/health"
+                - "/api/company-intel"
+                - "/api/reports"
+                - "/api/admin"
+            config: 
+              spider.processform: false
+              spider.postform: false
           YAML
          
       - name: Run HawkScan
@@ -66,7 +79,7 @@ jobs:
         with:
           apiKey: ${{ env.HAWK_API_KEY }}
           codeScanningAlerts: true
-          githubToken: ${{secrets.GITHUB_TOKEN}}
+          githubToken: ${{ github.token }}
 
   debug_deployment_status:
     name: Debug deployment_status payload
@@ -92,6 +105,8 @@ jobs:
     steps:
       - name: Checkout (main)
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Skip if StackHawk is not configured
         if: env.HAWK_API_KEY == ''
@@ -113,11 +128,23 @@ jobs:
           cat > stackhawk.yml <<'YAML'
           app:
             applicationId: ${{env.STACKHAWK_APPLICATION_ID}}
-            env: Production
+            env: Preview
             host: ${{env.STACKHAWK_HOST}}
           hawk: 
             spider:
               base: true
+              ajax: true
+              maxDurationMinutes: 15
+              seedPaths:
+                - "/"
+                - "/companies"
+                - "/api/health"
+                - "/api/company-intel"
+                - "/api/reports"
+                - "/api/admin"
+            config: 
+              spider.processform: false
+              spider.postform: false
           YAML
 
       - name: Run HawkScan
@@ -125,4 +152,4 @@ jobs:
         with:
           apiKey: ${{ env.HAWK_API_KEY }}
           codeScanningAlerts: true
-          githubToken: ${{secrets.GITHUB_TOKEN}}
+          githubToken: ${{ github.token }}
