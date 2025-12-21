@@ -42,7 +42,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.deployment.ref }}
-          fetch-dept: 0
+          fetch-depth: 0
 
       - name: Skip if StackHawk is not configured
         if: env.HAWK_API_KEY == ''
