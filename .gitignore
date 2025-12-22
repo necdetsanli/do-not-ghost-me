@@ -52,7 +52,7 @@ next-env.d.ts
 # Turborepo / build caches (if used)
 .turbo/
 
-# Editor / IDE 
+# Editor / IDE
 .idea/
 .vscode/*
 !.vscode/extensions.json
@@ -62,3 +62,6 @@ next-env.d.ts
 
 # DB Backups
 *.dump
+
+# Developer Notes
+/notes
