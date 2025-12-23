@@ -3,7 +3,7 @@
 <p align="center">
   <picture>
   <source media="(prefers-color-scheme: dark)" srcset="public/favicon-dark.png" />
-  <img alt="necdetsanli profile card" src="public/favicon-light.png" />
+  <img alt="Do Not Ghost Me Logo" src="public/favicon-light.png" />
 </picture>
 </p>
 <p align="center">
@@ -13,7 +13,7 @@
   <a href="https://codecov.io/gh/necdetsanli/do-not-ghost-me" >
     <img src="https://codecov.io/gh/necdetsanli/do-not-ghost-me/branch/main/graph/badge.svg?token=MDWHKIGFDV"/></a>
   <a href="LICENSE">
-    <img alt="License: AGPL-3.0-or-later" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg"></a> 
+    <img alt="License: AGPL-3.0-or-later" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg"></a>
   <a href="https://github.com/necdetsanli/do-not-ghost-me/pulls">
     <img alt="PRs Welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg"></a>
   <a href="https://github.com/necdetsanli/do-not-ghost-me/issues">
@@ -203,6 +203,13 @@ Optional (public API / browser extension):
 
 - `COMPANY_INTEL_ENFORCE_K_ANONYMITY` (true/false)
 - `COMPANY_INTEL_K_ANONYMITY` (number, default: 5)
+
+Optional (rate limiting configuration):
+
+- `RATE_LIMIT_COMPANY_SEARCH_MAX_REQUESTS` (number, default: 60 req/min)
+- `RATE_LIMIT_COMPANY_SEARCH_WINDOW_MS` (number, default: 60000ms)
+- `RATE_LIMIT_REPORTS_STATS_MAX_REQUESTS` (number, default: 30 req/min)
+- `RATE_LIMIT_REPORTS_STATS_WINDOW_MS` (number, default: 60000ms)
 
 > Never point `DATABASE_URL` at a production database while developing locally.
 

@@ -10,6 +10,15 @@ This project follows **Semantic Versioning** (`MAJOR.MINOR.PATCH`).
 
 - Test suite refresh + coverage hardening (unit/integration/e2e) is in progress. Some test updates have landed, but the effort is not complete yet.
 
+### Added
+
+- Comprehensive security regression test suite (`tests/unit/security.regression.test.ts`):
+  - **CSRF Security** (6 tests): Timing attack resistance, token replay prevention, purpose binding, malformed token handling
+  - **Session Security** (4 tests): Token tampering detection, constant-time password comparison
+  - **Cookie Security** (5 tests): \_\_Host- prefix validation, Path/HttpOnly/SameSite/Secure attribute verification
+  - **Rate Limiting** (8 tests): IP validation, scope isolation, window expiry, IP hashing verification
+  - **Host/Origin Validation** (5 tests): Host header attacks, origin spoofing, referer fallback validation
+
 ---
 
 ## [1.3.0] - 2025-12-19
