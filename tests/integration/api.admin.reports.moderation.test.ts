@@ -1,11 +1,11 @@
 // tests/integration/api.admin.reports.moderation.test.ts
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  TEST_RATE_LIMIT_IP_SALT,
+  TEST_ADMIN_CSRF_SECRET,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_SESSION_SECRET,
-  TEST_ADMIN_CSRF_SECRET,
+  TEST_RATE_LIMIT_IP_SALT,
 } from "../testUtils/testSecrets";
 
 type EnvKey =
@@ -134,6 +134,21 @@ async function importAdminAuthHelpers(): Promise<{
   return {
     createAdminSessionToken: mod.createAdminSessionToken as () => string,
     ADMIN_SESSION_COOKIE_NAME: mod.ADMIN_SESSION_COOKIE_NAME as string,
+  };
+}
+
+/**
+ * Imports CSRF helpers after env is applied.
+ *
+ * @returns CSRF helpers.
+ */
+async function importCsrfHelpers(): Promise<{
+  createCsrfToken: (purpose: "admin-login" | "admin-moderation") => string;
+}> {
+  vi.resetModules();
+  const mod = await import("@/lib/csrf");
+  return {
+    createCsrfToken: mod.createCsrfToken as (purpose: "admin-login" | "admin-moderation") => string,
   };
 }
 
@@ -314,18 +329,20 @@ describe("POST /api/admin/reports/[id] moderation", () => {
     prisma.report.update.mockResolvedValue({});
 
     const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
+    const { createCsrfToken } = await importCsrfHelpers();
 
     const { POST } = await importModerationPost();
 
     const headers = buildAllowedHeaders("admin.test");
     const token = createAdminSessionToken();
     const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+    const csrfToken = createCsrfToken("admin-moderation");
 
     const req = buildAdminModerationRequest(
       "https://admin.test/api/admin/reports/r1",
       headers,
       cookie,
-      { action: "nope" },
+      { action: "nope", csrf_token: csrfToken },
     );
 
     const res = await POST(req, { params: Promise.resolve({ id: "r1" }) });
@@ -342,12 +359,14 @@ describe("POST /api/admin/reports/[id] moderation", () => {
     prisma.report.update.mockResolvedValue({});
 
     const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
+    const { createCsrfToken } = await importCsrfHelpers();
 
     const { POST } = await importModerationPost();
 
     const headers = buildAllowedHeaders("admin.test");
     const token = createAdminSessionToken();
     const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+    const csrfToken = createCsrfToken("admin-moderation");
 
     const longReason = `   ${"x".repeat(400)}   `;
     const expectedReason = "x".repeat(255);
@@ -356,7 +375,7 @@ describe("POST /api/admin/reports/[id] moderation", () => {
       "https://admin.test/api/admin/reports/r1",
       headers,
       cookie,
-      { action: "flag", reason: longReason },
+      { action: "flag", reason: longReason, csrf_token: csrfToken },
     );
 
     const res = await POST(req, { params: Promise.resolve({ id: "r1" }) });
@@ -390,18 +409,20 @@ describe("POST /api/admin/reports/[id] moderation", () => {
     prisma.report.update.mockResolvedValue({});
 
     const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
+    const { createCsrfToken } = await importCsrfHelpers();
 
     const { POST } = await importModerationPost();
 
     const headers = buildAllowedHeaders("admin.test");
     const token = createAdminSessionToken();
     const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+    const csrfToken = createCsrfToken("admin-moderation");
 
     const req = buildAdminModerationRequest(
       "https://admin.test/api/admin/reports/r2",
       headers,
       cookie,
-      { action: "restore" },
+      { action: "restore", csrf_token: csrfToken },
     );
 
     const res = await POST(req, { params: Promise.resolve({ id: "r2" }) });
@@ -434,18 +455,20 @@ describe("POST /api/admin/reports/[id] moderation", () => {
     prisma.report.update.mockResolvedValue({});
 
     const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
+    const { createCsrfToken } = await importCsrfHelpers();
 
     const { POST } = await importModerationPost();
 
     const headers = buildAllowedHeaders("admin.test");
     const token = createAdminSessionToken();
     const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+    const csrfToken = createCsrfToken("admin-moderation");
 
     const req = buildAdminModerationRequest(
       "https://admin.test/api/admin/reports/r3",
       headers,
       cookie,
-      { action: "delete" },
+      { action: "delete", csrf_token: csrfToken },
     );
 
     const res = await POST(req, { params: Promise.resolve({ id: "r3" }) });
@@ -471,18 +494,20 @@ describe("POST /api/admin/reports/[id] moderation", () => {
     prisma.report.delete.mockResolvedValue({});
 
     const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
+    const { createCsrfToken } = await importCsrfHelpers();
 
     const { POST } = await importModerationPost();
 
     const headers = buildAllowedHeaders("admin.test");
     const token = createAdminSessionToken();
     const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+    const csrfToken = createCsrfToken("admin-moderation");
 
     const req = buildAdminModerationRequest(
       "https://admin.test/api/admin/reports/r4",
       headers,
       cookie,
-      { action: "hard-delete" },
+      { action: "hard-delete", csrf_token: csrfToken },
     );
 
     const res = await POST(req, { params: Promise.resolve({ id: "r4" }) });
@@ -501,18 +526,20 @@ describe("POST /api/admin/reports/[id] moderation", () => {
     prisma.report.update.mockRejectedValue(new Error("db failure"));
 
     const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
+    const { createCsrfToken } = await importCsrfHelpers();
 
     const { POST } = await importModerationPost();
 
     const headers = buildAllowedHeaders("admin.test");
     const token = createAdminSessionToken();
     const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+    const csrfToken = createCsrfToken("admin-moderation");
 
     const req = buildAdminModerationRequest(
       "https://admin.test/api/admin/reports/r5",
       headers,
       cookie,
-      { action: "flag", reason: "test" },
+      { action: "flag", reason: "test", csrf_token: csrfToken },
     );
 
     const res = await POST(req, { params: Promise.resolve({ id: "r5" }) });
@@ -520,5 +547,69 @@ describe("POST /api/admin/reports/[id] moderation", () => {
 
     const json = (await res.json()) as { error?: string };
     expect(json.error).toBe("Failed to apply moderation action");
+  });
+
+  it("returns 400 JSON when action is missing from form data", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "admin.test" });
+
+    installPrismaMock();
+
+    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
+    const { createCsrfToken } = await importCsrfHelpers();
+
+    const { POST } = await importModerationPost();
+
+    const headers = buildAllowedHeaders("admin.test");
+    const token = createAdminSessionToken();
+    const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+    const csrfToken = createCsrfToken("admin-moderation");
+
+    // Note: no action field in form data
+    const req = buildAdminModerationRequest(
+      "https://admin.test/api/admin/reports/r6",
+      headers,
+      cookie,
+      { csrf_token: csrfToken },
+    );
+
+    const res = await POST(req, { params: Promise.resolve({ id: "r6" }) });
+    expect(res.status).toBe(400);
+
+    const json = (await res.json()) as { error?: string };
+    expect(json.error).toBe("Missing moderation action");
+  });
+
+  it("trims and truncates reason field via parseReasonFromFormData (empty string → null)", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "admin.test" });
+
+    const { prisma } = installPrismaMock();
+    prisma.report.update.mockResolvedValue({});
+
+    const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
+    const { createCsrfToken } = await importCsrfHelpers();
+
+    const { POST } = await importModerationPost();
+
+    const headers = buildAllowedHeaders("admin.test");
+    const token = createAdminSessionToken();
+    const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+    const csrfToken = createCsrfToken("admin-moderation");
+
+    // Reason is whitespace only, should be trimmed to empty string → null
+    const req = buildAdminModerationRequest(
+      "https://admin.test/api/admin/reports/r7",
+      headers,
+      cookie,
+      { action: "flag", reason: "   ", csrf_token: csrfToken },
+    );
+
+    const res = await POST(req, { params: Promise.resolve({ id: "r7" }) });
+    expect(res.status).toBe(303);
+
+    expect(prisma.report.update).toHaveBeenCalledTimes(1);
+    const call = prisma.report.update.mock.calls[0]?.[0] as {
+      data?: { flaggedReason?: string | null };
+    };
+    expect(call?.data?.flaggedReason).toBeNull();
   });
 });

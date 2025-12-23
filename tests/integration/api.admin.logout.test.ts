@@ -1,6 +1,6 @@
 // tests/integration/api.admin.logout.test.ts
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type MockEnv = {
   /**
@@ -113,7 +113,7 @@ function makeLogoutRequest(args?: {
  */
 function cookieOpts(overrides?: Partial<CookieOptions>): CookieOptions {
   return {
-    name: "dg_admin",
+    name: "__Host-dg_admin",
     httpOnly: true,
     secure: true,
     sameSite: "strict",
@@ -204,7 +204,7 @@ describe("POST /api/admin/logout", () => {
     expect(logInfoMock).toHaveBeenCalledTimes(1);
 
     const setCookie = res.headers.get("set-cookie") ?? "";
-    expect(setCookie).toContain("dg_admin=");
+    expect(setCookie).toContain("__Host-dg_admin=");
     expect(setCookie.toLowerCase()).toContain("max-age=0");
     expect(setCookie).toContain("Path=/");
   });
@@ -255,7 +255,7 @@ describe("POST /api/admin/logout", () => {
 
     adminSessionCookieOptionsMock.mockReturnValue(
       cookieOpts({
-        name: "dg_admin",
+        name: "__Host-dg_admin",
         httpOnly: true,
         secure: true,
         sameSite: "strict",
@@ -280,7 +280,7 @@ describe("POST /api/admin/logout", () => {
     const setCookie = res.headers.get("set-cookie") ?? "";
 
     // Cookie name/value cleared.
-    expect(setCookie).toContain("dg_admin=");
+    expect(setCookie).toContain("__Host-dg_admin=");
 
     // Explicitly expire the cookie.
     expect(setCookie.toLowerCase()).toContain("max-age=0");

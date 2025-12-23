@@ -1,5 +1,5 @@
 // tests/integration/api.reports.test.ts
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   getClientIpMock,
@@ -33,10 +33,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import type { NextRequest } from "next/server";
 import { POST } from "@/app/api/reports/route";
 import { ReportRateLimitError } from "@/lib/rateLimitError";
 import { CountryCode, JobLevel, PositionCategory, Stage } from "@prisma/client";
+import type { NextRequest } from "next/server";
 
 /**
  * Creates a minimal NextRequest-like object that supports req.json() for route handler testing.
@@ -258,5 +258,55 @@ describe("POST /api/reports", () => {
 
     const json = (await res.json()) as { error?: string };
     expect(json.error).toBe("Internal server error");
+  });
+
+  /**
+   * Ensures empty client IP after trim is rejected with 429.
+   */
+  it("returns 429 when client IP is empty after trim", async () => {
+    getClientIpMock.mockReturnValue("   ");
+
+    const body = {
+      companyName: "Empty IP Corp",
+      stage: Stage.TECHNICAL,
+      jobLevel: JobLevel.JUNIOR,
+      positionCategory: PositionCategory.ENGINEERING,
+      positionDetail: "Backend Dev",
+      daysWithoutReply: 15,
+      country: CountryCode.DE,
+      honeypot: "",
+    };
+
+    const req = createJsonRequest(body);
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(429);
+
+    const json = (await res.json()) as { error?: string };
+    expect(json.error?.toLowerCase()).toContain("ip");
+    expect(prismaReportCreateMock).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Ensures invalid JSON payload returns 400 error.
+   */
+  it("returns 400 when JSON parsing fails", async () => {
+    const req = {
+      url: "https://example.test/api/reports",
+      method: "POST",
+      nextUrl: { pathname: "/api/reports" },
+      headers: new Headers(),
+      json: async () => {
+        throw new SyntaxError("Unexpected token");
+      },
+    } as unknown as NextRequest;
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(400);
+
+    const json = (await res.json()) as { error?: string };
+    expect(json.error).toBe("Invalid JSON payload");
   });
 });
