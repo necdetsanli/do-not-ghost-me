@@ -32,7 +32,7 @@ function buildCspHeaderValue() {
     // Next.js App Router currently relies on some inline scripts. Without a
     // nonce-based strict-dynamic setup in middleware, we must allow
     // 'unsafe-inline' here. Do NOT add 'unsafe-eval' in production.
-    "script-src 'self' 'unsafe-inline'",
+    "script-src 'self' 'unsafe-inline' https://vercel.live",
 
     // All styles are served from this origin. UI libraries still inject small
     // inline styles (e.g. visually hidden native elements), so we keep
@@ -47,7 +47,7 @@ function buildCspHeaderValue() {
     "img-src 'self' data:",
 
     // XHR / fetch / WebSocket endpoints. At the moment we only talk to our own origin.
-    "connect-src 'self'",
+    "connect-src 'self' https://vercel.live",
 
     // Web fonts from this origin and data: URLs.
     "font-src 'self' data:",

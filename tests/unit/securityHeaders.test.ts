@@ -206,11 +206,11 @@ describe("Security Headers Configuration", () => {
     it("matches the exact production CSP string (drift guard)", async () => {
       const expectedCsp =
         "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline'; " +
+        "script-src 'self' 'unsafe-inline' https://vercel.live; " +
         "style-src 'self' 'unsafe-inline'; " +
         "object-src 'none'; " +
         "img-src 'self' data:; " +
-        "connect-src 'self'; " +
+        "connect-src 'self' https://vercel.live; " +
         "font-src 'self' data:; " +
         "frame-ancestors 'none'; " +
         "frame-src 'none'; " +
