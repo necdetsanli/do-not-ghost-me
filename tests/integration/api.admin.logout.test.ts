@@ -60,6 +60,35 @@ vi.mock("@/env", () => ({
 
 vi.mock("@/lib/adminAuth", () => ({
   adminSessionCookieOptions: adminSessionCookieOptionsMock,
+  isOriginAllowed: (req: NextRequest) => {
+    const required = envMock.ADMIN_ALLOWED_HOST;
+    if (required === undefined || required === null || required.trim().length === 0) {
+      return true;
+    }
+
+    const origin = req.headers.get("origin");
+    const referer = req.headers.get("referer");
+    const expectedOrigin = `http://${required.trim()}`;
+
+    if (origin !== null && origin.trim().length > 0) {
+      try {
+        return new URL(origin).origin === expectedOrigin;
+      } catch {
+        return false;
+      }
+    }
+
+    if (referer !== null && referer.trim().length > 0) {
+      try {
+        return new URL(referer).origin === expectedOrigin;
+      } catch {
+        return false;
+      }
+    }
+
+    // Non-safe method without origin/referer → reject
+    return false;
+  },
   isAllowedAdminHost: (req: NextRequest) => {
     const required = envMock.ADMIN_ALLOWED_HOST;
     if (required === undefined || required === null || required.trim().length === 0) {
@@ -95,6 +124,7 @@ function makeLogoutRequest(args?: {
   url?: string;
   hostHeader?: string;
   originHeader?: string;
+  refererHeader?: string;
 }): NextRequest {
   const url: string = args?.url ?? LOGOUT_URL;
 
@@ -106,6 +136,10 @@ function makeLogoutRequest(args?: {
 
   if (typeof args?.originHeader === "string") {
     headers.set("origin", args.originHeader);
+  }
+
+  if (typeof args?.refererHeader === "string") {
+    headers.set("referer", args.refererHeader);
   }
 
   return new NextRequest(url, {
@@ -154,6 +188,7 @@ describe("POST /api/admin/logout", () => {
       url: "http://example.test/api/admin/logout",
       hostHeader: "evil.example.com",
       originHeader: "http://evil.example.com",
+      refererHeader: "http://evil.example.com/page",
     });
 
     const res = POST(req);
@@ -177,6 +212,7 @@ describe("POST /api/admin/logout", () => {
       url: "http://example.test/api/admin/logout",
       // Intentionally omit host header.
       originHeader: "http://example.test",
+      refererHeader: "http://example.test/page",
     });
 
     const res = POST(req);
@@ -200,6 +236,8 @@ describe("POST /api/admin/logout", () => {
     const req = makeLogoutRequest({
       url: "http://example.test/api/admin/logout",
       hostHeader: "evil.example.com",
+      originHeader: "http://example.test",
+      refererHeader: "http://example.test/page",
     });
 
     const res = POST(req);
@@ -228,6 +266,8 @@ describe("POST /api/admin/logout", () => {
     const req = makeLogoutRequest({
       url: "http://example.test/api/admin/logout",
       hostHeader: "example.test",
+      originHeader: "http://example.test",
+      refererHeader: "http://example.test/page",
     });
 
     const res = POST(req);
@@ -242,6 +282,8 @@ describe("POST /api/admin/logout", () => {
       const req = makeLogoutRequest({
         url: "http://example.test/api/admin/logout",
         hostHeader: "example.test",
+        originHeader: "http://example.test",
+        refererHeader: "http://example.test/page",
       });
 
       const res = POST(req);
@@ -256,6 +298,8 @@ describe("POST /api/admin/logout", () => {
       const req = makeLogoutRequest({
         url: "http://example.test/api/admin/logout",
         hostHeader: "evil.test",
+        originHeader: "http://example.test",
+        refererHeader: "http://example.test/page",
       });
 
       const res = POST(req);
@@ -270,12 +314,44 @@ describe("POST /api/admin/logout", () => {
       const req = makeLogoutRequest({
         url: "http://example.test/api/admin/logout",
         hostHeader: "evil.test",
+        originHeader: "http://example.test",
+        refererHeader: "http://example.test/page",
       });
 
       const res = POST(req);
       expect(res.status).toBe(200);
       const json = (await res.json()) as { success?: boolean };
       expect(json.success).toBe(true);
+    });
+
+    it("denies logout when origin/referer do not match ADMIN_ALLOWED_HOST", async () => {
+      envMock.ADMIN_ALLOWED_HOST = "example.test";
+
+      const req = makeLogoutRequest({
+        url: "http://example.test/api/admin/logout",
+        hostHeader: "example.test",
+        originHeader: "http://evil.test",
+        refererHeader: "http://evil.test/page",
+      });
+
+      const res = POST(req);
+      expect(res.status).toBe(403);
+      const json = (await res.json()) as { error?: string };
+      expect(json.error).toBe("Admin access is not allowed from this host.");
+    });
+
+    it("denies logout when origin/referer are missing for POST and ADMIN_ALLOWED_HOST is set", async () => {
+      envMock.ADMIN_ALLOWED_HOST = "example.test";
+
+      const req = makeLogoutRequest({
+        url: "http://example.test/api/admin/logout",
+        hostHeader: "example.test",
+      });
+
+      const res = POST(req);
+      expect(res.status).toBe(403);
+      const json = (await res.json()) as { error?: string };
+      expect(json.error).toBe("Admin access is not allowed from this host.");
     });
   });
 
@@ -377,6 +453,8 @@ describe("POST /api/admin/logout", () => {
     const req = makeLogoutRequest({
       url: LOGOUT_URL,
       hostHeader: "localhost:3000",
+      originHeader: "http://localhost:3000",
+      refererHeader: "http://localhost:3000/admin",
     });
 
     const res = POST(req);
