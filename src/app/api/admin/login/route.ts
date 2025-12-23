@@ -354,6 +354,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const clientIp = typeof clientIpRaw === "string" ? clientIpRaw.trim() : "";
   const now = Date.now();
 
+  // Fail closed: missing/blank/unknown IP is not allowed to proceed.
+  if (clientIp.length === 0 || clientIp.toLowerCase() === "unknown") {
+    return NextResponse.json(
+      {
+        error: "Bad request",
+      },
+      { status: 400 },
+    );
+  }
+
   if (clientIp.length > 0 && isIpLocked(clientIp, now) === true) {
     return buildRateLimitResponse();
   }

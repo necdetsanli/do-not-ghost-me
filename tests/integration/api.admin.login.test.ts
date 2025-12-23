@@ -539,6 +539,31 @@ describe("POST /api/admin/login", () => {
     expect(json.error).toBe("Admin access is not allowed from this host.");
   });
 
+  it("returns 400 when client IP is missing", async () => {
+    // Missing/blank IP should fail closed with generic 400.
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
+
+    const { validCsrf } = await getCsrfTokens();
+    const { POST } = await importLoginPost();
+
+    const req = buildLoginPostRequest(
+      "https://allowed.test/api/admin/login",
+      {
+        host: "allowed.test",
+        origin: "https://allowed.test",
+        // No X-Forwarded-For / client IP headers
+      },
+      { password: TEST_ADMIN_PASSWORD, _csrf: validCsrf },
+    );
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as { error?: string };
+    expect(json.error).toBe("Bad request");
+    expect(getSetCookie(res)).toBeNull();
+  });
+
   it("returns 500 JSON when CSRF verification throws unexpectedly", async () => {
     applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
 
