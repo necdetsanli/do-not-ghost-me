@@ -1,16 +1,17 @@
 import type { Locator, Page } from "@playwright/test";
-import { test, expect } from "./fixtures";
-import { TEST_ADMIN_PASSWORD, TEST_ADMIN_PASSWORD_WRONG } from "../testUtils/testSecrets";
+import { TEST_ADMIN_PASSWORD_WRONG } from "../testUtils/testSecrets";
+import { expect, test } from "./fixtures";
 
 /**
  * Returns an admin password for E2E tests.
  *
- * We prefer the injected environment variable. If missing (local misconfig),
- * we fall back to a runtime-generated test secret so we never hardcode passwords.
- *
- * IMPORTANT: Ensure your Playwright webServer uses the same ADMIN_PASSWORD.
+ * This MUST return the same password that was passed to the webServer
+ * via the Playwright config. Since testSecrets.ts generates random values
+ * per-process, we must always prefer process.env.ADMIN_PASSWORD which
+ * is set by the config and inherited by test workers.
  *
  * @returns Admin password string.
+ * @throws Error if ADMIN_PASSWORD is not set (indicates misconfiguration).
  */
 function getAdminPassword(): string {
   const raw = process.env.ADMIN_PASSWORD;
@@ -18,7 +19,10 @@ function getAdminPassword(): string {
     return raw.trim();
   }
 
-  return TEST_ADMIN_PASSWORD;
+  throw new Error(
+    "ADMIN_PASSWORD not set in environment. " +
+      "Ensure playwright.config.ts sets process.env.ADMIN_PASSWORD before tests run.",
+  );
 }
 
 /**
