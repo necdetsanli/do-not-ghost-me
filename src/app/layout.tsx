@@ -1,10 +1,11 @@
 // src/app/layout.tsx
-import type { JSX, ReactNode } from "react";
-import type { Metadata, Viewport } from "next";
-import "./globals.css";
 import { Navigation } from "@/components/Navigation";
 import { ThemeProvider } from "@/components/ui/theme-provider";
+import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import type { Metadata, Viewport } from "next";
+import type { JSX, ReactNode } from "react";
+import "./globals.css";
 
 const SITE_NAME = "Do Not Ghost Me";
 const SITE_DESCRIPTION = "A privacy-aware way to track and surface ghosting in hiring processes.";
@@ -173,6 +174,7 @@ export default function RootLayout({ children }: RootLayoutProps): JSX.Element {
           {children}
         </ThemeProvider>
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
