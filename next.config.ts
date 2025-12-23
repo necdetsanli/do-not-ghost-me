@@ -73,10 +73,27 @@ function buildCspHeaderValue() {
   return directives.join("; ");
 }
 
+/**
+ * Build a report-only CSP that mirrors the enforced CSP and adds a report target.
+ *
+ * Note: This is intended for visibility only and should be kept in sync with the
+ * enforced CSP above.
+ *
+ * @returns {string} Serialized CSP directives joined by "; ".
+ */
+function buildCspReportOnlyHeaderValue() {
+  const directives = [
+    ...buildCspHeaderValue().split("; "),
+    "report-uri /api/security/csp-report",
+  ];
+
+  return directives.join("; ");
+}
+
 const isProd = process.env.NODE_ENV === "production";
 const isE2ECoverage = process.env.PW_COLLECT_V8_COVERAGE === "1";
 
-const securityHeaders = (() => {
+function getSecurityHeaders(): { key: string; value: string }[] {
   /** @type {{ key: string; value: string }[]} */
   const headers = [
     // Basic MIME-type sniffing protection.
@@ -123,23 +140,24 @@ const securityHeaders = (() => {
   ];
 
   if (isProd) {
-    // Only enable HSTS and CSP in production. Setting this on HTTP / localhost
-    // is not desirable.
     headers.push(
       {
         key: "Strict-Transport-Security",
-        // 1 years, include subdomains, and opt-in for browser preload lists.
         value: "max-age=31536000; includeSubDomains; preload",
       },
       {
         key: "Content-Security-Policy",
         value: buildCspHeaderValue(),
       },
+      {
+        key: "Content-Security-Policy-Report-Only",
+        value: buildCspReportOnlyHeaderValue(),
+      },
     );
   }
 
   return headers;
-})();
+}
 
 /**
  * Root Next.js configuration.
@@ -172,7 +190,7 @@ const nextConfig = {
     return [
       {
         source: "/(.*)",
-        headers: securityHeaders,
+        headers: getSecurityHeaders(),
       },
     ];
   },

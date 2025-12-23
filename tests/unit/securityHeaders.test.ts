@@ -159,10 +159,10 @@ describe("Security Headers Configuration", () => {
       expect(header?.value).toContain("preload");
     });
 
-    it("includes Content-Security-Policy with required directives", async () => {
-      const config = await importConfigFresh();
-      const headerConfigs = await config.default.headers();
-      const globalHeaders = headerConfigs.find((h) => h.source === "/(.*)")?.headers ?? [];
+  it("includes Content-Security-Policy with required directives", async () => {
+    const config = await importConfigFresh();
+    const headerConfigs = await config.default.headers();
+    const globalHeaders = headerConfigs.find((h) => h.source === "/(.*)")?.headers ?? [];
 
       const header = globalHeaders.find((h) => h.key === "Content-Security-Policy");
       expect(header).toBeDefined();
@@ -174,8 +174,8 @@ describe("Security Headers Configuration", () => {
       expect(csp).toContain("script-src 'self'");
       expect(csp).toContain("style-src 'self'");
       expect(csp).toContain("img-src 'self' data:");
-      expect(csp).toContain("connect-src 'self'");
-      expect(csp).toContain("font-src 'self' data:");
+    expect(csp).toContain("connect-src 'self'");
+    expect(csp).toContain("font-src 'self' data:");
 
       // Anti-clickjacking
       expect(csp).toContain("frame-ancestors 'none'");
@@ -203,22 +203,22 @@ describe("Security Headers Configuration", () => {
       expect(csp).not.toContain("unsafe-eval");
     });
 
-    it("matches the exact production CSP string (drift guard)", async () => {
-      const expectedCsp =
-        "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline' https://vercel.live; " +
-        "style-src 'self' 'unsafe-inline'; " +
-        "object-src 'none'; " +
-        "img-src 'self' data:; " +
-        "connect-src 'self' https://vercel.live; " +
-        "font-src 'self' data:; " +
-        "frame-ancestors 'none'; " +
-        "frame-src 'none'; " +
-        "form-action 'self'; " +
-        "base-uri 'self'; " +
-        "media-src 'self'; " +
-        "manifest-src 'self'; " +
-        "worker-src 'self' blob:";
+  it("matches the exact production CSP string (drift guard)", async () => {
+    const expectedCsp =
+      "default-src 'self'; " +
+      "script-src 'self' 'unsafe-inline' https://vercel.live; " +
+      "style-src 'self' 'unsafe-inline'; " +
+      "object-src 'none'; " +
+      "img-src 'self' data:; " +
+      "connect-src 'self' https://vercel.live; " +
+      "font-src 'self' data:; " +
+      "frame-ancestors 'none'; " +
+      "frame-src 'none'; " +
+      "form-action 'self'; " +
+      "base-uri 'self'; " +
+      "media-src 'self'; " +
+      "manifest-src 'self'; " +
+      "worker-src 'self' blob:";
 
       const config = await importConfigFresh();
       const headerConfigs = await config.default.headers();
@@ -227,6 +227,25 @@ describe("Security Headers Configuration", () => {
       const header = globalHeaders.find((h) => h.key === "Content-Security-Policy");
       expect(header).toBeDefined();
       expect(header?.value).toBe(expectedCsp);
+    });
+  });
+
+  describe("report-only CSP", () => {
+    beforeEach(() => {
+      vi.stubEnv("NODE_ENV", "production");
+    });
+
+    it("includes Content-Security-Policy-Report-Only mirroring the enforced CSP with report-uri", async () => {
+      const config = await importConfigFresh();
+      const headerConfigs = await config.default.headers();
+      const globalHeaders = headerConfigs.find((h) => h.source === "/(.*)")?.headers ?? [];
+
+      const header = globalHeaders.find((h) => h.key === "Content-Security-Policy-Report-Only");
+      expect(header).toBeDefined();
+
+      const csp = header?.value ?? "";
+      expect(csp).toContain("report-uri /api/security/csp-report");
+      expect(csp).toContain("script-src 'self' 'unsafe-inline' https://vercel.live");
     });
   });
 
