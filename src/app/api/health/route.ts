@@ -2,6 +2,7 @@
 import type { NextRequest } from "next/server";
 import { enforcePublicIpRateLimit, PublicRateLimitError } from "@/lib/publicRateLimit";
 import { getClientIp } from "@/lib/ip";
+import { CORRELATION_ID_HEADER, deriveCorrelationId } from "@/lib/correlation";
 
 export const runtime = "nodejs";
 
@@ -17,13 +18,14 @@ const FALLBACK_IP = "0.0.0.0";
  * @param status - HTTP status code.
  * @returns Response instance.
  */
-function json(body: unknown, status: number): Response {
+function json(body: unknown, status: number, correlationId: string): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
       "x-content-type-options": "nosniff",
+      [CORRELATION_ID_HEADER]: correlationId,
     },
   });
 }
@@ -67,6 +69,7 @@ function getIpForRateLimit(req: NextRequest): string {
  * @returns Health JSON response.
  */
 export function GET(req: NextRequest): Response {
+  const correlationId = deriveCorrelationId(req);
   const ip: string = getIpForRateLimit(req);
 
   try {
@@ -78,14 +81,14 @@ export function GET(req: NextRequest): Response {
     });
   } catch (error: unknown) {
     if (error instanceof PublicRateLimitError) {
-      return json({ error: "Too many requests" }, error.statusCode);
+      return json({ error: "Too many requests" }, error.statusCode, correlationId);
     }
 
     // Fail open for health: do not break uptime checks due to unexpected RL errors.
-    return json({ status: "ok" }, 200);
+    return json({ status: "ok" }, 200, correlationId);
   }
 
-  return json({ status: "ok" }, 200);
+  return json({ status: "ok" }, 200, correlationId);
 }
 
 /**

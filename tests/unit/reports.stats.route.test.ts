@@ -1,5 +1,6 @@
 // tests/unit/reports.stats.route.test.ts
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { UUID_V4_REGEX } from "@/lib/validation/patterns";
 
 const { prismaMock, logErrorMock, logWarnMock, getUtcWeekStartMock, applyPublicRateLimitMock } =
   vi.hoisted(() => ({
@@ -67,8 +68,11 @@ async function importGet(): Promise<(req: Request) => Promise<Response>> {
   return mod.GET as unknown as (req: Request) => Promise<Response>;
 }
 
-function createMockRequest(): Request {
-  return new Request("http://localhost/api/reports/stats", { method: "GET" });
+function createMockRequest(headers?: Record<string, string>): Request {
+  return new Request("http://localhost/api/reports/stats", {
+    method: "GET",
+    headers,
+  });
 }
 
 async function readJson(res: Response): Promise<JsonResponse> {
@@ -301,6 +305,33 @@ describe("GET /api/reports/stats", () => {
           logContext: "[GET /api/reports/stats]",
         }),
       );
+    });
+  });
+
+  describe("correlation id header", () => {
+    it("generates correlation id when header is missing", async () => {
+      const GET = await importGet();
+      const res = await GET(createMockRequest());
+      const header = res.headers.get("x-correlation-id");
+      expect(header).not.toBeNull();
+      expect(UUID_V4_REGEX.test(header as string)).toBe(true);
+    });
+
+    it("echoes valid incoming correlation id (lowercased)", async () => {
+      const GET = await importGet();
+      const incoming = "123E4567-E89B-42D3-A456-426614174000";
+      const res = await GET(createMockRequest({ "x-correlation-id": incoming }));
+      expect(res.headers.get("x-correlation-id")).toBe(incoming.toLowerCase());
+    });
+
+    it("replaces invalid correlation id values with a new UUIDv4", async () => {
+      const GET = await importGet();
+      const invalid = "not-a-uuid";
+      const res = await GET(createMockRequest({ "x-correlation-id": invalid }));
+      const header = res.headers.get("x-correlation-id");
+      expect(header).not.toBeNull();
+      expect(header).not.toBe(invalid);
+      expect(UUID_V4_REGEX.test(header as string)).toBe(true);
     });
   });
 });

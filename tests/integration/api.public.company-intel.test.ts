@@ -19,17 +19,21 @@ vi.mock("@/lib/companyIntelService", () => ({
 
 import { GET } from "@/app/api/public/company-intel/route";
 import { companyIntelErrorResponseSchema } from "@/lib/contracts/companyIntel";
+import { UUID_V4_REGEX } from "@/lib/validation/patterns";
 import type { NextRequest } from "next/server";
 
 function createRequest(
   url = "https://example.test/api/public/company-intel?source=linkedin&key=acme",
+  headers?: Record<string, string>,
 ): NextRequest {
   const nextUrl = new URL(url);
+
+  const h = new Headers(headers ?? {});
 
   return {
     url,
     method: "GET",
-    headers: new Headers(),
+    headers: h,
     nextUrl,
   } as unknown as NextRequest;
 }
@@ -144,6 +148,62 @@ describe("GET /api/public/company-intel", () => {
 
     const body = (await res.json()) as { error?: string };
     expect(body.error).toBe("Internal server error");
+  });
+
+  describe("correlation id header", () => {
+    it("generates correlation id when header is missing", async () => {
+      fetchCompanyIntelMock.mockResolvedValue({
+        companyId: "c1",
+        displayName: "Acme",
+        signals: { reportCountTotal: 1, reportCount90d: 1, riskScore: null, confidence: "low" },
+        updatedAt: new Date(),
+      });
+
+      const res = await GET(createRequest());
+      const header = res.headers.get("x-correlation-id");
+      expect(typeof header).toBe("string");
+      expect(UUID_V4_REGEX.test(header as string)).toBe(true);
+    });
+
+    it("echoes valid incoming correlation id (lowercased)", async () => {
+      fetchCompanyIntelMock.mockResolvedValue({
+        companyId: "c1",
+        displayName: "Acme",
+        signals: { reportCountTotal: 1, reportCount90d: 1, riskScore: null, confidence: "low" },
+        updatedAt: new Date(),
+      });
+
+      const incoming = "123E4567-E89B-42D3-A456-426614174000";
+      const res = await GET(createRequest(undefined, { "x-correlation-id": incoming }));
+
+      expect(res.headers.get("x-correlation-id")).toBe(incoming.toLowerCase());
+    });
+
+    it("replaces invalid correlation id values with a new UUIDv4", async () => {
+      fetchCompanyIntelMock.mockResolvedValue({
+        companyId: "c1",
+        displayName: "Acme",
+        signals: { reportCountTotal: 1, reportCount90d: 1, riskScore: null, confidence: "low" },
+        updatedAt: new Date(),
+      });
+
+      const invalidValues = [
+        "",
+        "not-a-uuid",
+        "123e4567-e89b-12d3-a456-426614174000", // wrong version
+        "123e4567-e89b-42d3-6456-426614174000", // wrong variant
+        "123e4567-e89b-42d3-a456-426614174000,123",
+        " 123e4567-e89b-42d3-a456-426614174000 ",
+      ];
+
+      for (const invalid of invalidValues) {
+        const res = await GET(createRequest(undefined, { "x-correlation-id": invalid }));
+        const header = res.headers.get("x-correlation-id");
+        expect(header).not.toBeNull();
+        expect(header).not.toBe(invalid.toLowerCase());
+        expect(UUID_V4_REGEX.test(header as string)).toBe(true);
+      }
+    });
   });
 });
 

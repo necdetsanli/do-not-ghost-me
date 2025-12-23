@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { formatUnknownError } from "@/lib/errorUtils";
 import { logError, logWarn } from "@/lib/logger";
 import { applyPublicRateLimit } from "@/lib/publicRateLimit";
+import { deriveCorrelationId, setCorrelationIdHeader } from "@/lib/correlation";
 import { ReportStatus } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 
@@ -70,6 +71,7 @@ function addDaysUtc(date: Date, days: number): Date {
  */
 async function pickMostReportedCompanyThisWeek(
   candidates: Array<{ companyId: string; reportCount: number }>,
+  correlationId: string,
 ): Promise<MostReportedCompanyPayload | null> {
   if (candidates.length === 0) {
     return null;
@@ -108,6 +110,7 @@ async function pickMostReportedCompanyThisWeek(
     logWarn("[GET /api/reports/stats] No company records found for top groups", {
       companyIds: ids,
       maxCount,
+      correlationId,
     });
     return null;
   }
@@ -145,6 +148,12 @@ async function pickMostReportedCompanyThisWeek(
  * @returns A JSON response with total reports and most reported company metadata.
  */
 export async function GET(req: NextRequest): Promise<NextResponse> {
+  const correlationId = deriveCorrelationId(req);
+  const withCorrelation = (res: NextResponse): NextResponse => {
+    setCorrelationIdHeader(res, correlationId);
+    return res;
+  };
+
   // --- Rate Limiting (fail-closed) ---
   const rateLimitResult = applyPublicRateLimit(req, {
     scope: RATE_LIMIT_SCOPE,
@@ -154,7 +163,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   });
 
   if (!rateLimitResult.allowed) {
-    return rateLimitResult.response;
+    return withCorrelation(rateLimitResult.response);
   }
 
   // --- Business Logic ---
@@ -198,25 +207,26 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       reportCount: g._count.companyId,
     }));
 
-    const mostReportedCompany = await pickMostReportedCompanyThisWeek(candidates);
+    const mostReportedCompany = await pickMostReportedCompanyThisWeek(candidates, correlationId);
 
     const body: ReportsStatsResponseBody = {
       totalReports,
       mostReportedCompany,
     };
 
-    return NextResponse.json(body, {
+    return withCorrelation(NextResponse.json(body, {
       status: 200,
       headers: {
         "cache-control": "no-store",
       },
-    });
+    }));
   } catch (error: unknown) {
     logError("[GET /api/reports/stats] Unexpected error", {
       error: formatUnknownError(error),
+      correlationId,
     });
 
-    return NextResponse.json(
+    return withCorrelation(NextResponse.json(
       { error: "Internal server error" },
       {
         status: 500,
@@ -224,6 +234,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           "cache-control": "no-store",
         },
       },
-    );
+    ));
   }
 }

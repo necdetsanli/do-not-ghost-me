@@ -1,6 +1,7 @@
 // tests/unit/api.companies.search.route.test.ts
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { UUID_V4_REGEX } from "@/lib/validation/patterns";
 
 type PrismaCompanyFindManyArgs = {
   where: {
@@ -204,6 +205,55 @@ describe("GET /api/companies/search", () => {
       expect(res.status).toBe(500);
       expect(await res.json()).toEqual({ error: "Internal server error" });
       expect(mocks.logErrorMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("correlation id header", () => {
+    beforeEach(() => {
+      mocks.prismaMock.company.findMany.mockResolvedValue([]);
+    });
+
+    it("generates correlation id when header is missing", async () => {
+      const req = makeReq("http://localhost:3000/api/companies/search?q=Test");
+      const res = await GET(req);
+      const header = res.headers.get("x-correlation-id");
+      expect(header).not.toBeNull();
+      expect(UUID_V4_REGEX.test(header as string)).toBe(true);
+    });
+
+    it("echoes valid incoming correlation id (lowercased)", async () => {
+      const incoming = "123E4567-E89B-42D3-A456-426614174000";
+      const req = new NextRequest("http://localhost:3000/api/companies/search?q=Test", {
+        method: "GET",
+        headers: {
+          "x-correlation-id": incoming,
+        },
+      });
+      const res = await GET(req);
+      expect(res.headers.get("x-correlation-id")).toBe(incoming.toLowerCase());
+    });
+
+    it("replaces invalid correlation id values with a new UUIDv4", async () => {
+      const invalidValues = [
+        "",
+        "not-a-uuid",
+        "123e4567-e89b-12d3-a456-426614174000", // wrong version
+        "123e4567-e89b-42d3-6456-426614174000", // wrong variant
+        "123e4567-e89b-42d3-a456-426614174000,123",
+        " 123e4567-e89b-42d3-a456-426614174000 ",
+      ];
+
+      for (const invalid of invalidValues) {
+        const req = new NextRequest("http://localhost:3000/api/companies/search?q=Test", {
+          method: "GET",
+          headers: { "x-correlation-id": invalid },
+        });
+        const res = await GET(req);
+        const header = res.headers.get("x-correlation-id");
+        expect(header).not.toBeNull();
+        expect(header).not.toBe(invalid.toLowerCase());
+        expect(UUID_V4_REGEX.test(header as string)).toBe(true);
+      }
     });
   });
 });
