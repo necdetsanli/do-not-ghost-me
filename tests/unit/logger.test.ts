@@ -400,4 +400,12 @@ describe("lib/logger", () => {
       "stream write error",
     );
   });
+
+  describe("correlation id (planned behavior)", () => {
+    it.todo("generates a server-side UUID correlationId when header is absent");
+    it.todo(
+      "accepts an incoming correlationId header only if it matches strict format/length, otherwise generates a new one",
+    );
+    it.todo("echoes correlationId in response headers and includes it in structured log context");
+  });
 });
