@@ -25,6 +25,27 @@ export const NAME_LIKE_REGEX: RegExp = /^[\p{L}\p{N} _\-\/&()'",.+#]+$/u;
 export const containsAtLeastOneLetter = (value: string): boolean => /\p{L}/u.test(value);
 
 /**
+ * RFC4122-compliant UUID v4 pattern:
+ * - Version nibble is "4"
+ * - Variant nibble is one of 8,9,a,b
+ * - Accepts upper/lowercase hex
+ */
+export const UUID_V4_REGEX: RegExp =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+
+/**
+ * Validates a UUID v4 string.
+ *
+ * Note: Input is expected to be already trimmed and single-valued.
+ *
+ * @param value - Candidate UUID string (36 chars, hyphenated).
+ * @returns True when the value matches UUID v4 format, false otherwise.
+ */
+export function isUuidV4(value: string): boolean {
+  return UUID_V4_REGEX.test(value);
+}
+
+/**
  * Convenience helper for "name-like" strings:
  * - Trims the value.
  * - Enforces min/max length.

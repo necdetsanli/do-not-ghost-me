@@ -9,6 +9,7 @@ import {
   isAllowedAdminHost,
   isOriginAllowed,
 } from "@/lib/adminAuth";
+import { deriveCorrelationId, setCorrelationIdHeader } from "@/lib/correlation";
 import { getClientIp } from "@/lib/ip";
 import { verifyCsrfToken } from "@/lib/csrf";
 import { logWarn, logError } from "@/lib/logger";
@@ -295,14 +296,26 @@ function buildRateLimitResponse(): NextResponse {
  * @returns {Promise<NextResponse>} The HTTP response for the login attempt.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const correlationId = deriveCorrelationId(req);
+
+  const withCorrelation = (res: NextResponse): NextResponse => {
+    setCorrelationIdHeader(res, correlationId);
+    return res;
+  };
+
+  const logCtx = (ctx?: Record<string, unknown>): Record<string, unknown> => ({
+    correlationId,
+    ...ctx,
+  });
+
   // 1) Host and origin checks (shared host logic with other admin endpoints).
   if (isAllowedAdminHost(req) !== true || isOriginAllowed(req) !== true) {
-    logWarn("[POST /api/admin/login] Blocked by host/origin check", {
+    logWarn("[POST /api/admin/login] Blocked by host/origin check", logCtx({
       host: req.headers.get("host") ?? null,
       origin: req.headers.get("origin") ?? null,
-    });
+    }));
 
-    return buildHostForbiddenResponse();
+    return withCorrelation(buildHostForbiddenResponse());
   }
 
   // 2) IP-based rate limiting.
@@ -312,16 +325,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // Fail closed: missing/blank/unknown IP is not allowed to proceed.
   if (clientIp.length === 0 || clientIp.toLowerCase() === "unknown") {
-    return NextResponse.json(
-      {
-        error: "Bad request",
-      },
-      { status: 400 },
+    return withCorrelation(
+      NextResponse.json(
+        {
+          error: "Bad request",
+        },
+        { status: 400 },
+      ),
     );
   }
 
   if (clientIp.length > 0 && isIpLocked(clientIp, now) === true) {
-    return buildRateLimitResponse();
+    return withCorrelation(buildRateLimitResponse());
   }
 
   try {
@@ -335,7 +350,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         registerFailedLoginAttempt(clientIp, now);
       }
 
-      return buildErrorRedirectResponse(req);
+      return withCorrelation(buildErrorRedirectResponse(req));
     }
 
     // 5) Password validation.
@@ -344,7 +359,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         registerFailedLoginAttempt(clientIp, now);
       }
 
-      return buildErrorRedirectResponse(req);
+      return withCorrelation(buildErrorRedirectResponse(req));
     }
 
     const isValidPassword = verifyAdminPassword(password);
@@ -354,7 +369,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         registerFailedLoginAttempt(clientIp, now);
       }
 
-      return buildErrorRedirectResponse(req);
+      return withCorrelation(buildErrorRedirectResponse(req));
     }
 
     // 6) Successful login → reset rate limit state and create session.
@@ -364,18 +379,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const sessionToken = createAdminSessionToken();
 
-    return buildSuccessRedirectResponse(req, sessionToken);
+    return withCorrelation(buildSuccessRedirectResponse(req, sessionToken));
   } catch (error: unknown) {
-    logError("[POST /api/admin/login] Unexpected error during admin login", {
+    logError("[POST /api/admin/login] Unexpected error during admin login", logCtx({
       error,
       ip: clientIp,
-    });
+    }));
 
-    return NextResponse.json(
-      {
-        error: "Internal server error",
-      },
-      { status: 500 },
+    return withCorrelation(
+      NextResponse.json(
+        {
+          error: "Internal server error",
+        },
+        { status: 500 },
+      ),
     );
   }
 }

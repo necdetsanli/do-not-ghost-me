@@ -1,4 +1,5 @@
 // tests/integration/api.admin.logout.test.ts
+import crypto from "node:crypto";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -142,6 +143,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 
 describe("POST /api/admin/logout", () => {
@@ -215,6 +217,22 @@ describe("POST /api/admin/logout", () => {
     expect(setCookie).toContain("__Host-dg_admin=");
     expect(setCookie.toLowerCase()).toContain("max-age=0");
     expect(setCookie).toContain("Path=/");
+  });
+
+  it("sets a server-generated correlation id header when none is provided", async () => {
+    envMock.ADMIN_ALLOWED_HOST = "example.test";
+
+    const generated = "123e4567-e89b-42d3-a456-426614174000";
+    vi.spyOn(crypto, "randomUUID").mockReturnValue(generated);
+
+    const req = makeLogoutRequest({
+      url: "http://example.test/api/admin/logout",
+      hostHeader: "example.test",
+    });
+
+    const res = POST(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-correlation-id")).toBe(generated);
   });
 
   describe("host matrix (current behavior)", () => {

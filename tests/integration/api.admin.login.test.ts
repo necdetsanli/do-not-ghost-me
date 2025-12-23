@@ -1,4 +1,5 @@
 // tests/integration/api.admin.login.test.ts
+import crypto from "node:crypto";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -561,6 +562,56 @@ describe("POST /api/admin/login", () => {
     const json = (await res.json()) as { error?: string };
     expect(json.error).toBe("Bad request");
     expect(getSetCookie(res)).toBeNull();
+  });
+
+  describe("correlation id header", () => {
+    it("echoes a valid incoming correlation id (lowercased) on the response", async () => {
+      applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
+
+      const { validCsrf } = await getCsrfTokens();
+      const { POST } = await importLoginPost();
+
+      const incoming = "123E4567-E89B-42D3-A456-426614174000";
+
+      const req = buildLoginPostRequest(
+        "https://allowed.test/api/admin/login",
+        {
+          host: "allowed.test",
+          origin: "https://allowed.test",
+          "x-forwarded-for": "203.0.113.34",
+          "x-correlation-id": incoming,
+        },
+        { password: TEST_ADMIN_PASSWORD, _csrf: validCsrf },
+      );
+
+      const res = await POST(req);
+      expect(res.headers.get("x-correlation-id")).toBe(incoming.toLowerCase());
+    });
+
+    it("generates a new correlation id when header is invalid", async () => {
+      applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
+
+      const { validCsrf } = await getCsrfTokens();
+      const { POST } = await importLoginPost();
+
+      const generated = "123e4567-e89b-42d3-a456-426614174000";
+      const randomSpy = vi.spyOn(crypto, "randomUUID").mockReturnValue(generated);
+
+      const req = buildLoginPostRequest(
+        "https://allowed.test/api/admin/login",
+        {
+          host: "allowed.test",
+          origin: "https://allowed.test",
+          "x-forwarded-for": "203.0.113.35",
+          "x-correlation-id": "invalid-header",
+        },
+        { password: TEST_ADMIN_PASSWORD, _csrf: validCsrf },
+      );
+
+      const res = await POST(req);
+      expect(res.headers.get("x-correlation-id")).toBe(generated);
+      expect(randomSpy).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("host/origin matrix (current behavior)", () => {

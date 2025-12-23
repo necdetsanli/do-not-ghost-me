@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { env } from "@/env";
 import { adminSessionCookieOptions, isAllowedAdminHost } from "@/lib/adminAuth";
+import { deriveCorrelationId, setCorrelationIdHeader } from "@/lib/correlation";
 import { logInfo, logWarn } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -28,23 +29,33 @@ function buildHostForbiddenResponse(): NextResponse {
  * - Clients are responsible for navigation after a successful logout.
  */
 export function POST(req: NextRequest): NextResponse {
+  const correlationId = deriveCorrelationId(req);
+
+  const withCorrelation = (res: NextResponse): NextResponse => {
+    setCorrelationIdHeader(res, correlationId);
+    return res;
+  };
+
   if (!isAllowedAdminHost(req)) {
     logWarn("[POST /api/admin/logout] Logout blocked due to disallowed host", {
       host: req.headers.get("host"),
       allowedHost: env.ADMIN_ALLOWED_HOST ?? null,
+      correlationId,
     });
 
-    return buildHostForbiddenResponse();
+    return withCorrelation(buildHostForbiddenResponse());
   }
 
   const cookieOpts = adminSessionCookieOptions();
 
   // API-only response: 200 + JSON body
-  const response = NextResponse.json(
-    {
-      success: true,
-    },
-    { status: 200 },
+  const response = withCorrelation(
+    NextResponse.json(
+      {
+        success: true,
+      },
+      { status: 200 },
+    ),
   );
 
   response.cookies.set({
@@ -60,6 +71,7 @@ export function POST(req: NextRequest): NextResponse {
   logInfo("[POST /api/admin/logout] Admin logout successful, session cookie cleared", {
     host: req.headers.get("host"),
     cookieName: cookieOpts.name,
+    correlationId,
   });
 
   return response;

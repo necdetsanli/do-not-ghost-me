@@ -1,4 +1,5 @@
 // tests/integration/api.admin.reports.moderation.test.ts
+import crypto from "node:crypto";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -246,6 +247,27 @@ describe("POST /api/admin/reports/[id] moderation", () => {
 
     const json = (await res.json()) as { error?: string };
     expect(json.error).toBe("Admin access is not allowed from this host.");
+  });
+
+  it("echoes the incoming correlation id header (lowercased) on responses", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "admin.test" });
+
+    installPrismaMock();
+    const { POST } = await importModerationPost();
+
+    const req = buildAdminModerationRequest(
+      "https://admin.test/api/admin/reports/r1",
+      {
+        host: "evil.test",
+        "x-correlation-id": "123E4567-E89B-42D3-A456-426614174000",
+      },
+      null,
+      { action: "flag" },
+    );
+
+    const res = await POST(req, { params: Promise.resolve({ id: "r1" }) });
+    expect(res.status).toBe(403);
+    expect(res.headers.get("x-correlation-id")).toBe("123e4567-e89b-42d3-a456-426614174000");
   });
 
   describe("host/origin matrix (current behavior)", () => {
