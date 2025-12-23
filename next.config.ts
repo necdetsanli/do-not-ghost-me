@@ -100,6 +100,26 @@ const securityHeaders = (() => {
       key: "Permissions-Policy",
       value: "geolocation=(), microphone=(), camera=(), interest-cohort=()",
     },
+    // Prevent cross-origin popups from accessing window.opener.
+    {
+      key: "Cross-Origin-Opener-Policy",
+      value: "same-origin",
+    },
+    // Prevent resources from being loaded cross-origin (Spectre mitigation).
+    {
+      key: "Cross-Origin-Resource-Policy",
+      value: "same-origin",
+    },
+    // Request browser to isolate this origin in its own process.
+    {
+      key: "Origin-Agent-Cluster",
+      value: "?1",
+    },
+    // Disable DNS prefetching for privacy.
+    {
+      key: "X-DNS-Prefetch-Control",
+      value: "off",
+    },
   ];
 
   if (isProd) {
