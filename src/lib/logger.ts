@@ -217,9 +217,44 @@ function log(level: LogLevel, message: string, context?: LogContext): void {
 
   const timestamp: string = new Date().toISOString();
   const upperLevel: string = level.toUpperCase();
-  const suffix: string = formatContext(context);
+  const redactedContext = redactContext(context ?? {});
+  const hasContext: boolean = Object.keys(redactedContext).length > 0;
+  const isProductionJson: boolean = process.env.NODE_ENV === "production";
 
-  const line: string = `[${timestamp}] [${upperLevel}] ${message}${suffix}`;
+  let line: string;
+
+  if (isProductionJson) {
+    try {
+      line = JSON.stringify(
+        hasContext
+          ? { timestamp, level, message, context: redactedContext }
+          : { timestamp, level, message },
+      );
+    } catch (err: unknown) {
+      console.error(
+        "[LOGGER] Failed to serialize log payload",
+        err instanceof Error ? err.message : err,
+      );
+      line = `[${timestamp}] [${upperLevel}] ${message}`;
+    }
+  } else {
+    let contextString = "";
+    if (hasContext) {
+      try {
+        contextString = JSON.stringify(redactedContext);
+      } catch (err: unknown) {
+        console.error(
+          "[LOGGER] Failed to JSON.stringify log context",
+          err instanceof Error ? err.message : err,
+        );
+        contextString = "";
+      }
+    }
+
+    line = `[${timestamp}] [${upperLevel}] ${message}${
+      contextString.length > 0 ? ` ${contextString}` : ""
+    }`;
+  }
 
   // Console logging: this is the primary sink for most deployments.
   if (level === "error" || level === "warn") {

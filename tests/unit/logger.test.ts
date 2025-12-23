@@ -401,6 +401,59 @@ describe("lib/logger", () => {
     );
   });
 
+  describe("production json format + redaction", () => {
+    it("formats logs as JSON with redacted sensitive fields and correlationId preserved", async () => {
+      const stream = makeStream();
+      fsMock.existsSync.mockReturnValue(true);
+      fsMock.createWriteStream.mockReturnValue(stream);
+
+      setEnv({
+        NODE_ENV: "production",
+        APP_LOG_TO_FILE: "true",
+        APP_LOG_FILE: "logs/test.log",
+        APP_LOG_LEVEL: "info",
+      });
+
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const consoleLog = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+      const { logInfo } = await loadLogger();
+      logInfo("hello", {
+        correlationId: "123e4567-e89b-42d3-a456-426614174000",
+        token: "secret",
+        safe: "ok",
+      });
+
+      expect(consoleLog).toHaveBeenCalledTimes(1);
+      const payload = JSON.parse(consoleLog.mock.calls[0]?.[0] as string) as Record<
+        string,
+        unknown
+      >;
+      expect(payload.level).toBe("info");
+      expect(payload.message).toBe("hello");
+      expect(payload.context).toEqual({
+        correlationId: "123e4567-e89b-42d3-a456-426614174000",
+        token: "[REDACTED]",
+        safe: "ok",
+      });
+      expect(typeof payload.timestamp).toBe("string");
+
+      expect(stream.write).toHaveBeenCalledTimes(1);
+      const filePayload = JSON.parse(stream.write.mock.calls[0]?.[0] as string) as Record<
+        string,
+        unknown
+      >;
+      expect(filePayload.context).toEqual({
+        correlationId: "123e4567-e89b-42d3-a456-426614174000",
+        token: "[REDACTED]",
+        safe: "ok",
+      });
+
+      consoleError.mockRestore();
+      consoleLog.mockRestore();
+    });
+  });
+
   describe("correlation id (planned behavior)", () => {
     it.todo("generates a server-side UUID correlationId when header is absent");
     it.todo(
