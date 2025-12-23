@@ -69,10 +69,15 @@ async function importGet(): Promise<(req: Request) => Promise<Response>> {
 }
 
 function createMockRequest(headers?: Record<string, string>): Request {
-  return new Request("http://localhost/api/reports/stats", {
+  const init: RequestInit = {
     method: "GET",
-    headers,
-  });
+  };
+
+  if (headers !== undefined) {
+    init.headers = headers;
+  }
+
+  return new Request("http://localhost/api/reports/stats", init);
 }
 
 async function readJson(res: Response): Promise<JsonResponse> {
