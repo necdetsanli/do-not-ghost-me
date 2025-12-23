@@ -1,17 +1,18 @@
 // src/app/admin/_components/AdminReportsTable.tsx
 import type { JSX } from "react";
 
-import { labelForCategory, labelForCountry, labelForJobLevel, labelForStage } from "@/lib/enums";
-import type { AdminReportRow } from "@/app/admin/_lib/adminTypes";
 import {
   formatDateTime,
   formatDaysWithoutReply,
   formatReportStatus,
 } from "@/app/admin/_lib/adminFormatters";
+import type { AdminReportRow } from "@/app/admin/_lib/adminTypes";
 import { cn } from "@/components/ui/utils";
+import { labelForCategory, labelForCountry, labelForJobLevel, labelForStage } from "@/lib/enums";
 
 export interface AdminReportsTableProps {
   reports: AdminReportRow[];
+  csrfToken: string;
 }
 
 /**
@@ -19,7 +20,7 @@ export interface AdminReportsTableProps {
  * Renders rows with status styling and action forms.
  */
 export function AdminReportsTable(props: AdminReportsTableProps): JSX.Element {
-  const { reports } = props;
+  const { reports, csrfToken } = props;
 
   return (
     <div className="overflow-hidden rounded-xl border border-primary bg-surface shadow-sm">
@@ -122,6 +123,7 @@ export function AdminReportsTable(props: AdminReportsTableProps): JSX.Element {
                           action={`/api/admin/reports/${report.id}`}
                           className="inline"
                         >
+                          <input type="hidden" name="csrf_token" value={csrfToken} />
                           <input type="hidden" name="action" value="flag" />
                           <button
                             type="submit"
@@ -139,6 +141,7 @@ export function AdminReportsTable(props: AdminReportsTableProps): JSX.Element {
                           action={`/api/admin/reports/${report.id}`}
                           className="inline"
                         >
+                          <input type="hidden" name="csrf_token" value={csrfToken} />
                           <input type="hidden" name="action" value="restore" />
                           <button
                             type="submit"
@@ -156,6 +159,7 @@ export function AdminReportsTable(props: AdminReportsTableProps): JSX.Element {
                           action={`/api/admin/reports/${report.id}`}
                           className="inline"
                         >
+                          <input type="hidden" name="csrf_token" value={csrfToken} />
                           <input type="hidden" name="action" value="delete" />
                           <button
                             type="submit"
@@ -173,6 +177,7 @@ export function AdminReportsTable(props: AdminReportsTableProps): JSX.Element {
                           action={`/api/admin/reports/${report.id}`}
                           className="inline"
                         >
+                          <input type="hidden" name="csrf_token" value={csrfToken} />
                           <input type="hidden" name="action" value="hard-delete" />
                           <button
                             type="submit"

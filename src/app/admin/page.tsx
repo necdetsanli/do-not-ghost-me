@@ -1,14 +1,15 @@
 // src/app/admin/page.tsx
-import type { JSX } from "react";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import type { JSX } from "react";
 
+import { AdminEmptyState } from "@/app/admin/_components/AdminEmptyState";
+import { AdminHeader } from "@/app/admin/_components/AdminHeader";
+import { AdminReportsTable } from "@/app/admin/_components/AdminReportsTable";
+import { fetchAdminReports } from "@/app/admin/_lib/adminData";
 import { env } from "@/env";
 import { ADMIN_SESSION_COOKIE_NAME, verifyAdminSessionToken } from "@/lib/adminAuth";
-import { fetchAdminReports } from "@/app/admin/_lib/adminData";
-import { AdminHeader } from "@/app/admin/_components/AdminHeader";
-import { AdminEmptyState } from "@/app/admin/_components/AdminEmptyState";
-import { AdminReportsTable } from "@/app/admin/_components/AdminReportsTable";
+import { createCsrfToken } from "@/lib/csrf";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,12 @@ export default async function AdminPage(): Promise<JSX.Element> {
   const hasReports = reports.length > 0;
 
   // ---------------------------------------------------------------------------
-  // 4) Render dashboard (layout only)
+  // 4) Generate CSRF token for moderation actions
+  // ---------------------------------------------------------------------------
+  const csrfToken: string = createCsrfToken("admin-moderation");
+
+  // ---------------------------------------------------------------------------
+  // 5) Render dashboard (layout only)
   // ---------------------------------------------------------------------------
   return (
     <div className="min-h-screen bg-base">
@@ -76,7 +82,7 @@ export default async function AdminPage(): Promise<JSX.Element> {
           <AdminEmptyState />
         ) : (
           <section aria-label="Latest reports for moderation" className="mt-4">
-            <AdminReportsTable reports={reports} />
+            <AdminReportsTable reports={reports} csrfToken={csrfToken} />
           </section>
         )}
       </section>
