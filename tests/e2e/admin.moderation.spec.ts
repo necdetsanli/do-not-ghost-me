@@ -1,16 +1,16 @@
-import type { Page, Locator, APIResponse } from "@playwright/test";
-import { test, expect } from "./fixtures";
-import { TEST_ADMIN_PASSWORD } from "../testUtils/testSecrets";
+import type { APIResponse, Locator, Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 /**
  * Returns an admin password for E2E tests.
  *
- * We prefer the injected environment variable. If missing (local misconfig),
- * we fall back to a runtime-generated test secret so we never hardcode passwords.
- *
- * IMPORTANT: Ensure your Playwright webServer uses the same ADMIN_PASSWORD.
+ * This MUST return the same password that was passed to the webServer
+ * via the Playwright config. Since testSecrets.ts generates random values
+ * per-process, we must always prefer process.env.ADMIN_PASSWORD which
+ * is set by the config and inherited by test workers.
  *
  * @returns Admin password string.
+ * @throws Error if ADMIN_PASSWORD is not set (indicates misconfiguration).
  */
 function getAdminPassword(): string {
   const raw = process.env.ADMIN_PASSWORD;
@@ -18,7 +18,10 @@ function getAdminPassword(): string {
     return raw.trim();
   }
 
-  return TEST_ADMIN_PASSWORD;
+  throw new Error(
+    "ADMIN_PASSWORD not set in environment. " +
+      "Ensure playwright.config.ts sets process.env.ADMIN_PASSWORD before tests run.",
+  );
 }
 
 /**
@@ -259,6 +262,19 @@ async function expectCompanyInCompaniesSearch(
 }
 
 /**
+ * Extracts the CSRF token from a hidden input on the current admin page.
+ *
+ * @param {Page} page - Playwright page (should be on /admin with forms).
+ * @returns {Promise<string>} The CSRF token value.
+ */
+async function getCsrfTokenFromPage(page: Page): Promise<string> {
+  const csrfInput = page.locator('input[type="hidden"][name="csrf_token"]').first();
+  await expect(csrfInput).toBeAttached();
+  const token = await csrfInput.inputValue();
+  return token;
+}
+
+/**
  * Sends an admin moderation POST via APIRequestContext with explicit Origin/Referer
  * so that isOriginAllowed() can be exercised deterministically.
  *
@@ -313,8 +329,11 @@ test.describe("admin dashboard moderation", () => {
     const positionDetail = `Junior Backend Developer (admin e2e) ${runId}`;
 
     {
+      // Test unauthenticated request to admin moderation endpoint.
+      // Note: We retry a few times to handle cold-start (Next.js JIT compilation) where
+      // the first request might return 404 while the route is being compiled.
       const unauthUrl = new URL("/api/admin/reports/dummy-id", origin).toString();
-      const res = await page.request.post(unauthUrl, {
+      let res = await page.request.post(unauthUrl, {
         form: { action: "flag" },
         headers: {
           origin,
@@ -322,6 +341,20 @@ test.describe("admin dashboard moderation", () => {
         },
         maxRedirects: 0,
       });
+
+      // Retry up to 2 more times if we get 404 (cold start)
+      for (let retry = 0; retry < 2 && res.status() === 404; retry++) {
+        await page.waitForTimeout(1000);
+        res = await page.request.post(unauthUrl, {
+          form: { action: "flag" },
+          headers: {
+            origin,
+            referer: `${origin}/admin`,
+          },
+          maxRedirects: 0,
+        });
+      }
+
       expect(res.status()).toBe(401);
     }
 
@@ -331,6 +364,9 @@ test.describe("admin dashboard moderation", () => {
 
     await loginAsAdmin(page, adminPassword);
 
+    // Extract CSRF token from the admin page forms
+    const csrfToken = await getCsrfTokenFromPage(page);
+
     const row = await getAdminRowByPositionDetail(page, positionDetail);
     await expect(row.getByText(/^Active$/i)).toBeVisible();
 
@@ -338,25 +374,32 @@ test.describe("admin dashboard moderation", () => {
     const actionUrl = new URL(actionPath, origin).toString();
 
     {
+      // Test origin mismatch - should fail at origin check (401)
       const res = await postAdminForm(
         page,
         actionUrl,
         origin,
-        { action: "flag" },
+        { action: "flag", csrf_token: csrfToken },
         "https://evil.example",
       );
       expect(res.status()).toBe(401);
     }
 
     {
-      const res = await postAdminForm(page, actionUrl, origin, { action: "nope" });
+      // Test invalid action with valid CSRF - should fail at action validation (400)
+      const res = await postAdminForm(page, actionUrl, origin, {
+        action: "nope",
+        csrf_token: csrfToken,
+      });
       expect(res.status()).toBe(400);
     }
 
     {
+      // Test valid flag action - should succeed with redirect (303)
       const res = await postAdminForm(page, actionUrl, origin, {
         action: "flag",
         reason: "E2E: suspected spam",
+        csrf_token: csrfToken,
       });
       expect(res.status()).toBe(303);
     }

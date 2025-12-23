@@ -1,11 +1,18 @@
 // src/app/api/companies/search/route.ts
+import { env } from "@/env";
+import { prisma } from "@/lib/db";
+import { formatUnknownError } from "@/lib/errorUtils";
+import { logError } from "@/lib/logger";
+import { applyPublicRateLimit } from "@/lib/publicRateLimit";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { logError } from "@/lib/logger";
-import { formatUnknownError } from "@/lib/errorUtils";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Rate limit scope for company search requests.
+ */
+const RATE_LIMIT_SCOPE = "company-search";
 
 /**
  * Lightweight payload returned to the client for company name suggestions.
@@ -29,8 +36,7 @@ const MAX_QUERY_LENGTH: number = 120;
  * This endpoint is **best-effort**:
  * - It never writes to the database.
  * - It returns at most a small list of suggestions.
- * - It does not enforce rate limiting yet; abuse protection is expected to be
- *   handled at the infrastructure (WAF / edge) layer if necessary.
+ * - IP-based rate limiting prevents enumeration and scraping attacks.
  *
  * Query params:
  * - q: partial company name typed by the user.
@@ -43,6 +49,19 @@ const MAX_QUERY_LENGTH: number = 120;
  * @returns A JSON array of suggestions or an error payload on failure.
  */
 export async function GET(req: NextRequest): Promise<NextResponse> {
+  // 1. Rate limiting - fail closed on missing IP
+  const rateLimitResult = applyPublicRateLimit(req, {
+    scope: RATE_LIMIT_SCOPE,
+    maxRequests: env.RATE_LIMIT_COMPANY_SEARCH_MAX_REQUESTS,
+    windowMs: env.RATE_LIMIT_COMPANY_SEARCH_WINDOW_MS,
+    logContext: "[GET /api/companies/search]",
+  });
+
+  if (!rateLimitResult.allowed) {
+    return rateLimitResult.response;
+  }
+
+  // 2. Process search request
   try {
     const searchParams: URLSearchParams = req.nextUrl.searchParams;
     const rawQuery: string | null = searchParams.get("q");

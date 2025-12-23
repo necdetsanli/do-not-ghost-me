@@ -1,6 +1,11 @@
 // src/lib/publicRateLimit.ts
-import net from "node:net";
+import { formatUnknownError } from "@/lib/errorUtils";
+import { getClientIp } from "@/lib/ip";
+import { logError } from "@/lib/logger";
 import { hashIp } from "@/lib/rateLimit";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import net from "node:net";
 
 const DEFAULT_MAX_REQUESTS_PER_WINDOW = 20;
 const DEFAULT_WINDOW_MS = 60_000;
@@ -173,4 +178,114 @@ export function enforcePublicIpRateLimit(args: EnforceArgs): void {
   if (nextCount > maxRequests) {
     throw new PublicRateLimitError("Too many requests");
   }
+}
+
+/**
+ * Options for the public rate limit wrapper.
+ */
+type WithPublicRateLimitOptions = {
+  /** Rate limit scope identifier (e.g., "company-search"). */
+  scope: string;
+  /** Maximum requests allowed per window. */
+  maxRequests: number;
+  /** Window duration in milliseconds. */
+  windowMs: number;
+  /** Log context prefix for error messages (e.g., "[GET /api/foo]"). */
+  logContext?: string;
+  /** Custom headers to include in error responses. Defaults to Cache-Control: no-store. */
+  errorHeaders?: HeadersInit;
+};
+
+const DEFAULT_ERROR_HEADERS: HeadersInit = { "Cache-Control": "no-store" };
+
+/**
+ * Result of attempting to enforce public rate limiting.
+ *
+ * - If `allowed` is true, `clientIp` contains the validated IP string.
+ * - If `allowed` is false, `response` contains the pre-built error response.
+ */
+export type RateLimitResult =
+  | { allowed: true; clientIp: string }
+  | { allowed: false; response: NextResponse };
+
+/**
+ * Enforces public IP-based rate limiting for a request.
+ *
+ * This function consolidates the common pattern of:
+ * 1. Extracting client IP (fail-closed on null)
+ * 2. Enforcing rate limits
+ * 3. Handling rate limit errors with appropriate responses
+ *
+ * @param req - The Next.js request object.
+ * @param options - Rate limit configuration.
+ * @returns A result indicating success with the client IP, or failure with a response.
+ *
+ * @example
+ * ```typescript
+ * export async function GET(req: NextRequest): Promise<NextResponse> {
+ *   const result = applyPublicRateLimit(req, {
+ *     scope: "company-search",
+ *     maxRequests: 60,
+ *     windowMs: 60_000,
+ *     logContext: "[GET /api/companies/search]",
+ *   });
+ *
+ *   if (!result.allowed) {
+ *     return result.response;
+ *   }
+ *
+ *   // result.clientIp is available for use
+ *   // ... business logic
+ * }
+ * ```
+ */
+export function applyPublicRateLimit(
+  req: NextRequest,
+  options: WithPublicRateLimitOptions,
+): RateLimitResult {
+  const { scope, maxRequests, windowMs, logContext, errorHeaders } = options;
+  const headers = errorHeaders ?? DEFAULT_ERROR_HEADERS;
+
+  // Step 1: Extract client IP (fail-closed)
+  const clientIp: string | null = getClientIp(req);
+
+  if (clientIp === null) {
+    return {
+      allowed: false,
+      response: NextResponse.json({ error: "Rate limit unavailable" }, { status: 429, headers }),
+    };
+  }
+
+  // Step 2: Enforce rate limit
+  try {
+    enforcePublicIpRateLimit({
+      ip: clientIp,
+      scope,
+      maxRequests,
+      windowMs,
+    });
+  } catch (error: unknown) {
+    if (error instanceof PublicRateLimitError) {
+      return {
+        allowed: false,
+        response: NextResponse.json(
+          { error: "Too many requests" },
+          { status: error.statusCode, headers },
+        ),
+      };
+    }
+
+    // Log unexpected errors
+    const context = logContext ?? `[applyPublicRateLimit:${scope}]`;
+    logError(`${context} Rate limit failure`, {
+      error: formatUnknownError(error),
+    });
+
+    return {
+      allowed: false,
+      response: NextResponse.json({ error: "Internal server error" }, { status: 500, headers }),
+    };
+  }
+
+  return { allowed: true, clientIp };
 }

@@ -1,6 +1,6 @@
 // tests/unit/companies.data.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Prisma } from "@prisma/client";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type GroupedRow = {
   companyId: string;
@@ -160,5 +160,83 @@ describe("getCompaniesPage", () => {
     expect(result.totalCompanies).toBe(0);
     expect(result.totalPages).toBe(1);
     expect(prismaMock.company.findMany).not.toHaveBeenCalled();
+  });
+
+  it("applies positionCategory, seniority, and stage filters to where clause", async () => {
+    vi.mocked(prismaMock.report.groupBy).mockResolvedValue([
+      { companyId: "c1", _count: { _all: 3 } },
+    ] satisfies GroupedRow[]);
+
+    vi.mocked(prismaMock.company.findMany).mockResolvedValue([
+      { id: "c1", name: "Test Corp", country: "US" },
+    ]);
+
+    const filters = makeFilters({
+      positionCategory: "IT",
+      seniority: "SENIOR",
+      stage: "CV_SCREEN",
+    });
+
+    await getCompaniesPage(filters);
+
+    expect(prismaMock.report.groupBy).toHaveBeenCalledTimes(1);
+
+    const callArg = prismaMock.report.groupBy.mock.calls[0]?.[0] as unknown as {
+      where?: Prisma.ReportWhereInput;
+    };
+
+    expect(callArg.where?.positionCategory).toBe("IT");
+    expect(callArg.where?.jobLevel).toBe("SENIOR");
+    expect(callArg.where?.stage).toBe("CV_SCREEN");
+  });
+
+  it("throws error when company record is missing for a grouped companyId", async () => {
+    vi.mocked(prismaMock.report.groupBy).mockResolvedValue([
+      { companyId: "missing-company", _count: { _all: 5 } },
+    ] satisfies GroupedRow[]);
+
+    // Return empty array - no company found for the grouped companyId
+    vi.mocked(prismaMock.company.findMany).mockResolvedValue([]);
+
+    await expect(getCompaniesPage(makeFilters())).rejects.toThrow(
+      "Company record not found for companyId=missing-company while building companies page.",
+    );
+  });
+
+  it("sorts ties with identical normalized names by id (a.id < b.id branch)", async () => {
+    vi.mocked(prismaMock.report.groupBy).mockResolvedValue([
+      { companyId: "c2", _count: { _all: 5 } },
+      { companyId: "c1", _count: { _all: 5 } },
+    ] satisfies GroupedRow[]);
+
+    // Same exact normalized name after normalization
+    vi.mocked(prismaMock.company.findMany).mockResolvedValue([
+      { id: "c2", name: "Acme", country: "US" },
+      { id: "c1", name: "Acme", country: "US" }, // Same name
+    ]);
+
+    const result = await getCompaniesPage(makeFilters());
+
+    // Same count, same normalized name → sort by id ASC
+    expect(result.items[0]?.id).toBe("c1");
+    expect(result.items[1]?.id).toBe("c2");
+  });
+
+  it("returns 0 when comparing items with identical id (a.id === b.id branch)", async () => {
+    // This tests the edge case where the same item is compared against itself
+    // which can happen in some sorting algorithms
+    vi.mocked(prismaMock.report.groupBy).mockResolvedValue([
+      { companyId: "c1", _count: { _all: 5 } },
+    ] satisfies GroupedRow[]);
+
+    vi.mocked(prismaMock.company.findMany).mockResolvedValue([
+      { id: "c1", name: "Acme", country: "US" },
+    ]);
+
+    const result = await getCompaniesPage(makeFilters());
+
+    // Single item, verifying stable sort doesn't error
+    expect(result.items.length).toBe(1);
+    expect(result.items[0]?.id).toBe("c1");
   });
 });

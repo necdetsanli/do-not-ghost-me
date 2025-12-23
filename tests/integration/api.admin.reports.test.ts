@@ -1,16 +1,24 @@
 // tests/integration/api.admin.reports.test.ts
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { requireAdminRequestMock, prismaReportUpdateMock, prismaReportDeleteMock } = vi.hoisted(
-  () => ({
-    requireAdminRequestMock: vi.fn(),
-    prismaReportUpdateMock: vi.fn(),
-    prismaReportDeleteMock: vi.fn(),
-  }),
-);
+const {
+  requireAdminRequestMock,
+  prismaReportUpdateMock,
+  prismaReportDeleteMock,
+  verifyCsrfTokenMock,
+} = vi.hoisted(() => ({
+  requireAdminRequestMock: vi.fn(),
+  prismaReportUpdateMock: vi.fn(),
+  prismaReportDeleteMock: vi.fn(),
+  verifyCsrfTokenMock: vi.fn(),
+}));
 
 vi.mock("@/lib/adminAuth", () => ({
   requireAdminRequest: requireAdminRequestMock,
+}));
+
+vi.mock("@/lib/csrf", () => ({
+  verifyCsrfToken: verifyCsrfTokenMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -22,8 +30,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import type { NextRequest } from "next/server";
 import { POST } from "@/app/api/admin/reports/[id]/route";
+import type { NextRequest } from "next/server";
 
 /**
  * Creates a minimal NextRequest-like object that supports req.formData() for route handler testing.
@@ -32,6 +40,7 @@ import { POST } from "@/app/api/admin/reports/[id]/route";
  * - Only the members accessed by the handler are implemented.
  * - The returned FormData-like object only implements get(name).
  * - nextUrl.pathname is derived from the provided url to mirror NextRequest behavior.
+ * - csrf_token is included by default (valid-csrf-token) unless overridden in fields.
  *
  * @param fields - Form fields (string values) keyed by field name.
  * @param url - Request URL containing the report id segment.
@@ -43,9 +52,15 @@ function createFormRequest(
   url = "https://example.test/api/admin/reports/report-123",
   method = "POST",
 ): NextRequest {
+  // Include csrf_token by default unless explicitly set to null
+  const fieldsWithCsrf = {
+    csrf_token: "valid-csrf-token",
+    ...fields,
+  };
+
   const fakeFormData = {
     get(name: string): FormDataEntryValue | null {
-      const value = fields[name];
+      const value = fieldsWithCsrf[name as keyof typeof fieldsWithCsrf];
       return value === undefined ? null : value;
     },
   } as unknown as FormData;
@@ -83,6 +98,9 @@ function createContext(id: string): AdminReportsHandlerContext {
 describe("POST /api/admin/reports/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Default: CSRF validation passes
+    verifyCsrfTokenMock.mockReturnValue(true);
   });
 
   /**
@@ -234,5 +252,65 @@ describe("POST /api/admin/reports/[id]", () => {
 
     const body = (await res.json()) as { error?: string };
     expect(body.error).toBe("Failed to apply moderation action");
+  });
+
+  // --- CSRF Validation Tests ---
+  describe("CSRF protection", () => {
+    /**
+     * Ensures requests without a CSRF token are rejected.
+     */
+    it("returns 403 when CSRF token is missing", async () => {
+      verifyCsrfTokenMock.mockReturnValue(false);
+
+      const req = createFormRequest({ action: "flag", csrf_token: null });
+      const ctx = createContext("report-csrf-1");
+
+      const res = await POST(req, ctx);
+
+      expect(res.status).toBe(403);
+
+      const body = (await res.json()) as { error?: string };
+      expect(body.error).toBe("Invalid CSRF token");
+
+      expect(verifyCsrfTokenMock).toHaveBeenCalledWith("admin-moderation", null);
+      expect(prismaReportUpdateMock).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Ensures requests with an invalid CSRF token are rejected.
+     */
+    it("returns 403 when CSRF token is invalid", async () => {
+      verifyCsrfTokenMock.mockReturnValue(false);
+
+      const req = createFormRequest({ action: "delete", csrf_token: "tampered-token" });
+      const ctx = createContext("report-csrf-2");
+
+      const res = await POST(req, ctx);
+
+      expect(res.status).toBe(403);
+
+      const body = (await res.json()) as { error?: string };
+      expect(body.error).toBe("Invalid CSRF token");
+
+      expect(verifyCsrfTokenMock).toHaveBeenCalledWith("admin-moderation", "tampered-token");
+      expect(prismaReportUpdateMock).not.toHaveBeenCalled();
+      expect(prismaReportDeleteMock).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Ensures valid CSRF tokens are accepted with correct purpose.
+     */
+    it("passes CSRF validation to verifyCsrfToken with admin-moderation purpose", async () => {
+      verifyCsrfTokenMock.mockReturnValue(true);
+      prismaReportUpdateMock.mockResolvedValueOnce({ id: "report-csrf-3" });
+
+      const req = createFormRequest({ action: "flag", csrf_token: "valid-token" });
+      const ctx = createContext("report-csrf-3");
+
+      const res = await POST(req, ctx);
+
+      expect(res.status).toBe(303);
+      expect(verifyCsrfTokenMock).toHaveBeenCalledWith("admin-moderation", "valid-token");
+    });
   });
 });

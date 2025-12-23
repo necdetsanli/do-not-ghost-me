@@ -1,6 +1,6 @@
 // playwright.config.ts
-import { randomBytes } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
+import { randomBytes } from "node:crypto";
 import { TEST_ADMIN_PASSWORD } from "./tests/testUtils/testSecrets";
 
 const DEFAULT_PORT = 3000;
@@ -73,7 +73,10 @@ function resolveAdminE2eAuthEnv(): {
   return { adminPassword, adminSessionSecret, adminCsrfSecret };
 }
 
-const { adminSessionSecret, adminCsrfSecret } = resolveAdminE2eAuthEnv();
+const { adminPassword, adminSessionSecret, adminCsrfSecret } = resolveAdminE2eAuthEnv();
+
+// Ensure ADMIN_PASSWORD is available in test workers
+process.env.ADMIN_PASSWORD = adminPassword;
 
 /**
  * Converts NodeJS.ProcessEnv into a Record<string, string> compatible with

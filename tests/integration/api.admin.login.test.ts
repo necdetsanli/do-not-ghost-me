@@ -1,11 +1,11 @@
 // tests/integration/api.admin.login.test.ts
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  TEST_ADMIN_CSRF_SECRET,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_PASSWORD_WRONG,
   TEST_ADMIN_SESSION_SECRET,
-  TEST_ADMIN_CSRF_SECRET,
   TEST_RATE_LIMIT_IP_SALT,
 } from "../testUtils/testSecrets";
 
@@ -156,6 +156,53 @@ describe("POST /api/admin/login", () => {
     vi.resetModules();
   });
 
+  it("allows request when Origin header is absent (covers isOriginAllowed return true)", async () => {
+    // This covers line 181: return true when originHeader === null
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "" });
+
+    const { validCsrf } = await getCsrfTokens();
+    const { POST } = await importLoginPost();
+
+    // Request WITHOUT origin header
+    const req = buildLoginPostRequest(
+      "https://example.test/api/admin/login",
+      {
+        host: "example.test",
+        // Note: no origin header
+        "x-forwarded-for": "203.0.113.180",
+      },
+      { password: TEST_ADMIN_PASSWORD, _csrf: validCsrf },
+    );
+
+    const res = await POST(req);
+    // Should proceed to authentication (not blocked by origin check)
+    // May succeed or fail auth, but not 403 for host/origin mismatch
+    expect(res.status).not.toBe(403);
+  });
+
+  it("compares origin host to request host when ADMIN_ALLOWED_HOST is empty", async () => {
+    // This covers line 208: return normalizedOriginHost === hostHeader
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "" });
+
+    const { validCsrf } = await getCsrfTokens();
+    const { POST } = await importLoginPost();
+
+    // Request with matching origin and host headers, no ADMIN_ALLOWED_HOST
+    const req = buildLoginPostRequest(
+      "https://example.test/api/admin/login",
+      {
+        host: "example.test",
+        origin: "https://example.test",
+        "x-forwarded-for": "203.0.113.181",
+      },
+      { password: TEST_ADMIN_PASSWORD, _csrf: validCsrf },
+    );
+
+    const res = await POST(req);
+    // Should proceed to authentication (origin matches host)
+    expect(res.status).not.toBe(403);
+  });
+
   it("returns 403 JSON when ADMIN_ALLOWED_HOST is set and Host header mismatches", async () => {
     applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
 
@@ -286,7 +333,7 @@ describe("POST /api/admin/login", () => {
 
     const setCookie = getSetCookie(res);
     expect(typeof setCookie).toBe("string");
-    expect(setCookie as string).toContain("dg_admin=");
+    expect(setCookie as string).toContain("__Host-dg_admin=");
     expect(setCookie as string).toContain("HttpOnly");
     expect(setCookie as string).toMatch(/SameSite=strict/i);
     expect(setCookie as string).toContain("Path=/");
@@ -392,6 +439,104 @@ describe("POST /api/admin/login", () => {
     await expectErrorRedirect(afterLockRes);
 
     vi.useRealTimers();
+  });
+
+  it("resets attempts when first attempt is outside the rate limit window", async () => {
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2025-01-01T00:00:00.000Z"));
+
+    const { validCsrf } = await getCsrfTokens();
+    const { POST } = await importLoginPost();
+
+    const url = "https://allowed.test/api/admin/login";
+    const headers = {
+      host: "allowed.test",
+      origin: "https://allowed.test",
+      "x-forwarded-for": "203.0.113.99",
+    } satisfies Record<string, string>;
+
+    // Make 4 failed attempts (one shy of lock)
+    for (let i = 0; i < 4; i += 1) {
+      const req = buildLoginPostRequest(url, headers, {
+        password: TEST_ADMIN_PASSWORD_WRONG,
+        _csrf: validCsrf,
+      });
+      const res = await POST(req);
+      await expectErrorRedirect(res);
+    }
+
+    // Jump 6 minutes (LOGIN_RATE_LIMIT_WINDOW_MS is 5 minutes)
+    vi.setSystemTime(new Date("2025-01-01T00:06:00.000Z"));
+
+    // This should reset the window and start fresh count
+    const afterWindowReq = buildLoginPostRequest(url, headers, {
+      password: TEST_ADMIN_PASSWORD_WRONG,
+      _csrf: validCsrf,
+    });
+    const afterWindowRes = await POST(afterWindowReq);
+    await expectErrorRedirect(afterWindowRes);
+
+    // We should be able to make more attempts without getting locked
+    const secondAttemptReq = buildLoginPostRequest(url, headers, {
+      password: TEST_ADMIN_PASSWORD_WRONG,
+      _csrf: validCsrf,
+    });
+    const secondAttemptRes = await POST(secondAttemptReq);
+    await expectErrorRedirect(secondAttemptRes);
+
+    vi.useRealTimers();
+  });
+
+  it("returns 403 JSON when Origin present but Host header is missing and ADMIN_ALLOWED_HOST not set", async () => {
+    // This test covers the hostHeader === null branch when no ADMIN_ALLOWED_HOST is set
+    // Apply base env first, then override ADMIN_ALLOWED_HOST to empty string (falsy)
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "" });
+
+    const { invalidCsrf } = await getCsrfTokens();
+    const { POST } = await importLoginPost();
+
+    // Request with Origin but no host header and no ADMIN_ALLOWED_HOST
+    const req = buildLoginPostRequest(
+      "https://example.test/api/admin/login",
+      {
+        origin: "https://example.test",
+        // Note: no host header
+      },
+      { password: TEST_ADMIN_PASSWORD_WRONG, _csrf: invalidCsrf },
+    );
+
+    const res = await POST(req);
+    expect(res.status).toBe(403);
+
+    const json = (await res.json()) as { error?: string };
+    expect(json.error).toBe("Admin access is not allowed from this host.");
+  });
+
+  it("returns 403 JSON when Origin header has invalid URL format", async () => {
+    // This test covers the catch block at line 181 for invalid origin URL
+    applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
+
+    const { invalidCsrf } = await getCsrfTokens();
+    const { POST } = await importLoginPost();
+
+    // Request with an invalid origin URL that can't be parsed
+    const req = buildLoginPostRequest(
+      "https://allowed.test/api/admin/login",
+      {
+        host: "allowed.test",
+        origin: "not-a-valid-url",
+        "x-forwarded-for": "203.0.113.99",
+      },
+      { password: TEST_ADMIN_PASSWORD_WRONG, _csrf: invalidCsrf },
+    );
+
+    const res = await POST(req);
+    expect(res.status).toBe(403);
+
+    const json = (await res.json()) as { error?: string };
+    expect(json.error).toBe("Admin access is not allowed from this host.");
   });
 
   it("returns 500 JSON when CSRF verification throws unexpectedly", async () => {

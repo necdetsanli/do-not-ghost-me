@@ -1,11 +1,12 @@
 // src/app/api/admin/reports/[id]/route.ts
+import { requireAdminRequest } from "@/lib/adminAuth";
+import { verifyCsrfToken } from "@/lib/csrf";
+import { prisma } from "@/lib/db";
+import { formatUnknownError } from "@/lib/errorUtils";
+import { logError, logInfo, logWarn } from "@/lib/logger";
+import type { ReportStatus } from "@prisma/client";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import type { ReportStatus } from "@prisma/client";
-import { prisma } from "@/lib/db";
-import { requireAdminRequest } from "@/lib/adminAuth";
-import { logInfo, logWarn, logError } from "@/lib/logger";
-import { formatUnknownError } from "@/lib/errorUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +97,22 @@ export async function POST(
 
   // 3) Form data
   const formData: FormData = await request.formData();
+
+  // 4) CSRF validation
+  const csrfToken: FormDataEntryValue | null = formData.get("csrf_token");
+  const csrfTokenString: string | null = typeof csrfToken === "string" ? csrfToken : null;
+
+  if (!verifyCsrfToken("admin-moderation", csrfTokenString)) {
+    logWarn("[admin] Invalid or missing CSRF token in moderation request", {
+      reportId,
+      path: request.nextUrl.pathname,
+      method: request.method,
+    });
+
+    return NextResponse.json({ error: "Invalid CSRF token" }, { status: 403 });
+  }
+
+  // 5) Validate action
   const actionRaw = formData.get("action");
 
   if (typeof actionRaw !== "string") {

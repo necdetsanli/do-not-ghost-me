@@ -1,6 +1,6 @@
 // tests/unit/csrf.test.ts
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import crypto from "node:crypto";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { env } = vi.hoisted(() => ({
   env: {
@@ -243,5 +243,25 @@ describe("csrf", () => {
 
     const someToken: string = Buffer.from("{}", "utf8").toString("base64url");
     expect(verifyCsrfToken("admin-login", someToken)).toBe(false);
+  });
+
+  it("returns false when timingSafeEqual throws (catch block)", async () => {
+    const { createCsrfToken, verifyCsrfToken } = await loadCsrf();
+
+    // Create a valid token first
+    const token: string = createCsrfToken("admin-login");
+
+    // Mock timingSafeEqual to throw an error
+    const originalTimingSafeEqual = crypto.timingSafeEqual;
+    vi.spyOn(crypto, "timingSafeEqual").mockImplementation(() => {
+      throw new Error("Buffer comparison error");
+    });
+
+    // Should return false instead of throwing
+    const result: boolean = verifyCsrfToken("admin-login", token);
+    expect(result).toBe(false);
+
+    // Restore
+    vi.mocked(crypto.timingSafeEqual).mockImplementation(originalTimingSafeEqual);
   });
 });

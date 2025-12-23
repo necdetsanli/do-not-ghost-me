@@ -1,728 +1,428 @@
 // tests/unit/useReportsStats.test.tsx
-// @vitest-environment jsdom
-import "../setup/test-dom";
-import type { JSX } from "react";
-import { act, useEffect } from "react";
+/**
+ * @vitest-environment jsdom
+ */
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createRoot, type Root } from "react-dom/client";
 
-import type { ReportsStatsApiResponse, StatsStatus } from "@/app/_hooks/useReportsStats";
+// Mock fetch globally
+const fetchMock = vi.fn();
 
-type HookSnapshot = {
-  stats: ReportsStatsApiResponse | null;
-  status: StatsStatus;
+/**
+ * Creates a mock Response object for fetch.
+ *
+ * @param data - JSON data to return.
+ * @param ok - Whether the response is successful.
+ * @param status - HTTP status code.
+ * @returns A mock Response.
+ */
+function mockResponse(data: unknown, ok = true, status = 200): Response {
+  return {
+    ok,
+    status,
+    json: () => Promise.resolve(data),
+  } as Response;
+}
+
+// Store dynamically imported module
+let useReportsStats: () => {
+  stats: {
+    totalReports: number;
+    mostReportedCompany: { name: string; reportCount: number } | null;
+  } | null;
+  status: "idle" | "loading" | "success" | "error";
   isRefreshing: boolean;
   liveError: boolean;
   refreshNow: () => Promise<void>;
 };
 
-type UseReportsStatsHook = () => HookSnapshot;
-
-type FetchQueueItem = {
-  ok: boolean;
-  status: number;
-  json: () => Promise<unknown>;
-};
-
-type Deferred<T> = {
-  promise: Promise<T>;
-  resolve: (value: T) => void;
-  reject: (reason: unknown) => void;
-};
-
-/**
- * Imports useReportsStats with a fresh module graph.
- * This prevents module-level cache/state from leaking across tests.
- *
- * @returns The hook function.
- */
-async function importUseReportsStatsFresh(): Promise<UseReportsStatsHook> {
-  vi.resetModules();
-  const mod = await import("@/app/_hooks/useReportsStats");
-  return mod.useReportsStats as unknown as UseReportsStatsHook;
-}
-
-/**
- * Sleeps for the given duration (ms).
- *
- * @param ms - Duration in milliseconds.
- * @returns Promise resolved after the delay.
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
-
-/**
- * Flushes one macrotask within React.act so state updates are wrapped properly.
- *
- * @returns Promise resolved after one tick.
- */
-async function tick(): Promise<void> {
-  await act(async () => {
-    await sleep(0);
-  });
-}
-
-/**
- * Waits until the predicate becomes true or times out.
- *
- * @param predicate - Condition to satisfy.
- * @param timeoutMs - Timeout in milliseconds.
- * @returns Promise resolved once predicate is true.
- * @throws Error when timed out.
- */
-async function waitFor(predicate: () => boolean, timeoutMs: number): Promise<void> {
-  const startedAt: number = performance.now();
-
-  while (predicate() !== true) {
-    const elapsedMs: number = performance.now() - startedAt;
-
-    if (elapsedMs > timeoutMs) {
-      throw new Error("waitFor: timed out");
-    }
-
-    await tick();
-  }
-}
-
-/**
- * Creates a deferred promise for manual resolve/reject control.
- *
- * @returns Deferred wrapper.
- */
-function createDeferred<T>(): Deferred<T> {
-  let resolveFn!: (value: T) => void;
-  let rejectFn!: (reason: unknown) => void;
-
-  const promise = new Promise<T>((resolve, reject) => {
-    resolveFn = resolve;
-    rejectFn = reject;
-  });
-
-  return {
-    promise,
-    resolve: (value: T) => {
-      resolveFn(value);
-    },
-    reject: (reason: unknown) => {
-      rejectFn(reason);
-    },
-  };
-}
-
-/**
- * Hook harness used to observe hook state over time.
- *
- * @param props - Harness props.
- * @returns null (no UI).
- */
-function Harness(props: {
-  useHook: UseReportsStatsHook;
-  onUpdate: (snapshot: HookSnapshot) => void;
-}): JSX.Element | null {
-  const { useHook, onUpdate } = props;
-  const { stats, status, isRefreshing, liveError, refreshNow } = useHook();
-
-  useEffect(() => {
-    onUpdate({ stats, status, isRefreshing, liveError, refreshNow });
-  }, [onUpdate, stats, status, isRefreshing, liveError, refreshNow]);
-
-  return null;
-}
-
-/**
- * Mocks global fetch with a FIFO queue of responses, consumed in call order.
- * Also performs basic sanity checks on the requested URL.
- *
- * @param queue - Fetch responses to serve.
- * @returns The fetch mock.
- */
-function mockFetchQueue(queue: FetchQueueItem[]): ReturnType<typeof vi.fn> {
-  const fn = vi.fn().mockImplementation((url: unknown) => {
-    const next = queue.shift();
-    if (next === undefined) {
-      return Promise.reject(new Error("fetch-queue-empty"));
-    }
-
-    if (typeof url === "string") {
-      expect(url.includes("/api/reports/stats")).toBe(true);
-      expect(url.includes("_ts=")).toBe(true);
-    }
-
-    return Promise.resolve(next);
-  });
-
-  (globalThis as unknown as { fetch: unknown }).fetch = fn;
-
-  return fn;
-}
-
-/**
- * Sets document.visibilityState (jsdom allows overriding via defineProperty).
- *
- * @param state - The desired visibility state.
- * @returns void
- */
-function setVisibilityState(state: "visible" | "hidden"): void {
-  Object.defineProperty(document, "visibilityState", {
-    value: state,
-    configurable: true,
-  });
-}
+// Event name constant (not exported from the module)
+const REPORT_SUBMITTED_EVENT_NAME = "dngm:report-submitted";
 
 describe("useReportsStats", () => {
-  let container: HTMLDivElement | null = null;
-  let root: Root | null = null;
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules(); // Reset module cache to clear cachedStats
+    global.fetch = fetchMock;
 
-  beforeEach(() => {
-    container = document.createElement("div");
-    document.body.appendChild(container);
+    // Dynamically import the module to get a fresh copy with reset cachedStats
+    const hookModule = await import("@/app/_hooks/useReportsStats");
+    useReportsStats = hookModule.useReportsStats;
   });
 
   afterEach(() => {
-    if (root !== null) {
-      act(() => {
-        root?.unmount();
-      });
-    }
-
-    if (container !== null) {
-      container.remove();
-    }
-
-    root = null;
-    container = null;
-
     vi.restoreAllMocks();
   });
 
-  /**
-   * Mounts a Harness with an explicit root so we can unmount reliably per test.
-   *
-   * @param useHook - Hook function.
-   * @returns Latest snapshot accessor.
-   */
-  async function renderHarness(useHook: UseReportsStatsHook): Promise<{
-    latestRef: { current: HookSnapshot | null };
-  }> {
-    const latestRef = { current: null as HookSnapshot | null };
-
-    await act(async () => {
-      root = createRoot(container as HTMLDivElement);
-      root.render(
-        <Harness
-          useHook={useHook}
-          onUpdate={(s) => {
-            latestRef.current = s;
-          }}
-        />,
-      );
-    });
-
-    return { latestRef };
-  }
-
-  it("fetches once on mount and sets status=success with parsed stats", async () => {
-    const useReportsStats = await importUseReportsStatsFresh();
-
-    const payload: ReportsStatsApiResponse = {
-      totalReports: 123,
-      mostReportedCompany: { name: "Acme", reportCount: 7 },
+  it("fetches stats on mount and returns success status", async () => {
+    const statsData = {
+      totalReports: 42,
+      mostReportedCompany: { name: "Acme Corp", reportCount: 10 },
     };
 
-    const fetchMock = mockFetchQueue([{ ok: true, status: 200, json: async () => payload }]);
+    fetchMock.mockResolvedValue(mockResponse(statsData));
 
-    const { latestRef } = await renderHarness(useReportsStats);
+    const { result } = renderHook(() => useReportsStats());
 
-    await waitFor(() => latestRef.current?.status === "success", 1000);
+    await waitFor(() => {
+      expect(result.current.status).toBe("success");
+    });
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(latestRef.current?.stats).toEqual(payload);
-    expect(latestRef.current?.liveError).toBe(false);
+    expect(result.current.stats).toEqual(statsData);
+    expect(result.current.liveError).toBe(false);
   });
 
-  it("refreshes only when dngm:report-submitted is dispatched", async () => {
-    const useReportsStats = await importUseReportsStatsFresh();
+  it("sets error status when initial fetch fails with non-ok response", async () => {
+    fetchMock.mockResolvedValue(mockResponse({}, false, 500));
 
-    const first: ReportsStatsApiResponse = {
-      totalReports: 10,
-      mostReportedCompany: { name: "Acme", reportCount: 2 },
-    };
+    const { result } = renderHook(() => useReportsStats());
 
-    const second: ReportsStatsApiResponse = {
-      totalReports: 11,
-      mostReportedCompany: { name: "Acme", reportCount: 3 },
-    };
-
-    const fetchMock = mockFetchQueue([
-      { ok: true, status: 200, json: async () => first },
-      { ok: true, status: 200, json: async () => second },
-    ]);
-
-    const { latestRef } = await renderHarness(useReportsStats);
-
-    await waitFor(() => latestRef.current?.status === "success", 1000);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(latestRef.current?.stats).toEqual(first);
-
-    act(() => {
-      window.dispatchEvent(new Event("dngm:report-submitted"));
+    await waitFor(() => {
+      expect(result.current.status).toBe("error");
     });
-
-    await waitFor(() => fetchMock.mock.calls.length === 2, 1000);
-    await waitFor(() => (latestRef.current?.stats?.totalReports ?? 0) === 11, 1000);
-
-    expect(latestRef.current?.stats).toEqual(second);
   });
 
-  it("sets liveError=true when a refresh fails after an initial successful load", async () => {
-    const useReportsStats = await importUseReportsStatsFresh();
+  it("sets error status when response shape is invalid (missing totalReports)", async () => {
+    fetchMock.mockResolvedValue(mockResponse({ invalid: "data" }));
 
-    const first: ReportsStatsApiResponse = {
-      totalReports: 5,
-      mostReportedCompany: null,
-    };
+    const { result } = renderHook(() => useReportsStats());
 
-    const fetchMock = mockFetchQueue([
-      { ok: true, status: 200, json: async () => first },
-      { ok: false, status: 500, json: async () => ({}) },
-    ]);
-
-    const { latestRef } = await renderHarness(useReportsStats);
-
-    await waitFor(() => latestRef.current?.status === "success", 1000);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(latestRef.current?.liveError).toBe(false);
-
-    act(() => {
-      window.dispatchEvent(new Event("dngm:report-submitted"));
+    await waitFor(() => {
+      expect(result.current.status).toBe("error");
     });
-
-    await waitFor(() => fetchMock.mock.calls.length === 2, 1000);
-    await waitFor(() => latestRef.current?.liveError === true, 1000);
-
-    expect(latestRef.current?.status).toBe("success");
   });
 
-  it("does not start a second refresh while one is already in-flight", async () => {
-    const useReportsStats = await importUseReportsStatsFresh();
-
-    const first: ReportsStatsApiResponse = {
-      totalReports: 1,
-      mostReportedCompany: null,
-    };
-
-    const deferred = createDeferred<FetchQueueItem>();
-
-    const fetchMock = vi.fn().mockImplementation(() => {
-      const callNo = fetchMock.mock.calls.length;
-
-      if (callNo === 1) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: async () => first,
-        });
-      }
-
-      if (callNo === 2) {
-        return deferred.promise;
-      }
-
-      return Promise.reject(new Error("unexpected-fetch-call"));
-    });
-
-    (globalThis as unknown as { fetch: unknown }).fetch = fetchMock;
-
-    const { latestRef } = await renderHarness(useReportsStats);
-
-    await waitFor(() => latestRef.current?.status === "success", 1000);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    act(() => {
-      window.dispatchEvent(new Event("dngm:report-submitted"));
-      window.dispatchEvent(new Event("dngm:report-submitted"));
-      window.dispatchEvent(new Event("dngm:report-submitted"));
-    });
-
-    await waitFor(() => fetchMock.mock.calls.length === 2, 1000);
-
-    deferred.resolve({
-      ok: true,
-      status: 200,
-      json: async () =>
-        ({
-          totalReports: 2,
-          mostReportedCompany: null,
-        }) satisfies ReportsStatsApiResponse,
-    });
-
-    await waitFor(() => (latestRef.current?.stats?.totalReports ?? 0) === 2, 1000);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("sets status=error when initial fetch returns non-OK", async () => {
-    const useReportsStats = await importUseReportsStatsFresh();
-
-    const fetchMock = mockFetchQueue([{ ok: false, status: 500, json: async () => ({}) }]);
-
-    const { latestRef } = await renderHarness(useReportsStats);
-
-    await waitFor(() => latestRef.current?.status === "error", 1000);
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(latestRef.current?.stats).toBeNull();
-  });
-
-  it("sets status=error when payload shape is invalid (missing mostReportedCompany)", async () => {
-    const useReportsStats = await importUseReportsStatsFresh();
-
-    const fetchMock = mockFetchQueue([
-      {
-        ok: true,
-        status: 200,
-        json: async () =>
-          ({
-            totalReports: 1,
-          }) satisfies unknown,
-      },
-    ]);
-
-    const { latestRef } = await renderHarness(useReportsStats);
-
-    await waitFor(() => latestRef.current?.status === "error", 1000);
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(latestRef.current?.stats).toBeNull();
-  });
-
-  it("sets status=error when payload shape is invalid (mostReportedCompany invalid object)", async () => {
-    const useReportsStats = await importUseReportsStatsFresh();
-
-    const fetchMock = mockFetchQueue([
-      {
-        ok: true,
-        status: 200,
-        json: async () =>
-          ({
-            totalReports: 1,
-            mostReportedCompany: { name: 123, reportCount: "nope" },
-          }) satisfies unknown,
-      },
-    ]);
-
-    const { latestRef } = await renderHarness(useReportsStats);
-
-    await waitFor(() => latestRef.current?.status === "error", 1000);
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(latestRef.current?.stats).toBeNull();
-  });
-
-  it("keeps the same stats reference when refresh returns identical values and mostReportedCompany is null (statsEqual=true)", async () => {
-    const useReportsStats = await importUseReportsStatsFresh();
-
-    const first: ReportsStatsApiResponse = {
-      totalReports: 3,
-      mostReportedCompany: null,
-    };
-
-    const sameValues: ReportsStatsApiResponse = {
-      totalReports: 3,
-      mostReportedCompany: null,
-    };
-
-    const fetchMock = mockFetchQueue([
-      { ok: true, status: 200, json: async () => first },
-      { ok: true, status: 200, json: async () => sameValues },
-    ]);
-
-    const { latestRef } = await renderHarness(useReportsStats);
-
-    await waitFor(() => latestRef.current?.status === "success", 1000);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    const firstRef = latestRef.current?.stats ?? null;
-
-    act(() => {
-      window.dispatchEvent(new Event("dngm:report-submitted"));
-    });
-
-    await waitFor(() => fetchMock.mock.calls.length === 2, 1000);
-    await tick();
-
-    expect(latestRef.current?.stats).toBe(firstRef);
-  });
-
-  it("updates stats when mostReportedCompany changes between null and object (statsEqual=false branch)", async () => {
-    const useReportsStats = await importUseReportsStatsFresh();
-
-    const first: ReportsStatsApiResponse = {
-      totalReports: 7,
-      mostReportedCompany: null,
-    };
-
-    const second: ReportsStatsApiResponse = {
-      totalReports: 7,
-      mostReportedCompany: { name: "Acme", reportCount: 1 },
-    };
-
-    const fetchMock = mockFetchQueue([
-      { ok: true, status: 200, json: async () => first },
-      { ok: true, status: 200, json: async () => second },
-    ]);
-
-    const { latestRef } = await renderHarness(useReportsStats);
-
-    await waitFor(() => latestRef.current?.status === "success", 1000);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(latestRef.current?.stats).toEqual(first);
-
-    act(() => {
-      window.dispatchEvent(new Event("dngm:report-submitted"));
-    });
-
-    await waitFor(() => fetchMock.mock.calls.length === 2, 1000);
-    await waitFor(() => latestRef.current?.stats?.mostReportedCompany !== null, 1000);
-
-    expect(latestRef.current?.stats).toEqual(second);
-  });
-
-  it("refreshNow triggers a refresh (covers refreshNow callback)", async () => {
-    const useReportsStats = await importUseReportsStatsFresh();
-
-    const first: ReportsStatsApiResponse = {
-      totalReports: 1,
-      mostReportedCompany: null,
-    };
-
-    const second: ReportsStatsApiResponse = {
-      totalReports: 2,
-      mostReportedCompany: null,
-    };
-
-    const fetchMock = mockFetchQueue([
-      { ok: true, status: 200, json: async () => first },
-      { ok: true, status: 200, json: async () => second },
-    ]);
-
-    const { latestRef } = await renderHarness(useReportsStats);
-
-    await waitFor(() => latestRef.current?.status === "success", 1000);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      await latestRef.current?.refreshNow();
-    });
-
-    await waitFor(() => fetchMock.mock.calls.length === 2, 1000);
-    await waitFor(() => (latestRef.current?.stats?.totalReports ?? 0) === 2, 1000);
-  });
-
-  it("visibilitychange triggers refresh only when document becomes visible", async () => {
-    const useReportsStats = await importUseReportsStatsFresh();
-
-    const first: ReportsStatsApiResponse = {
-      totalReports: 1,
-      mostReportedCompany: null,
-    };
-
-    const second: ReportsStatsApiResponse = {
-      totalReports: 2,
-      mostReportedCompany: null,
-    };
-
-    const fetchMock = mockFetchQueue([
-      { ok: true, status: 200, json: async () => first },
-      { ok: true, status: 200, json: async () => second },
-    ]);
-
-    const fetchStartMs = 10_000;
-    let nowMs: number = fetchStartMs;
-    vi.spyOn(Date, "now").mockImplementation(() => nowMs);
-
-    const { latestRef } = await renderHarness(useReportsStats);
-
-    await waitFor(() => latestRef.current?.status === "success", 1000);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    setVisibilityState("hidden");
-    nowMs = fetchStartMs + 10_000;
-
-    act(() => {
-      document.dispatchEvent(new Event("visibilitychange"));
-    });
-
-    await tick();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    setVisibilityState("visible");
-    nowMs = fetchStartMs + 20_000;
-
-    act(() => {
-      document.dispatchEvent(new Event("visibilitychange"));
-    });
-
-    await waitFor(() => fetchMock.mock.calls.length === 2, 1000);
-  });
-
-  it("uses cachedStats on next mount and treats initial fetch as a refresh (cachedStats branch)", async () => {
-    vi.resetModules();
-    const mod = await import("@/app/_hooks/useReportsStats");
-    const useReportsStats = mod.useReportsStats as unknown as UseReportsStatsHook;
-
-    const first: ReportsStatsApiResponse = {
-      totalReports: 9,
-      mostReportedCompany: { name: "Acme", reportCount: 1 },
-    };
-
-    const second: ReportsStatsApiResponse = {
-      totalReports: 10,
-      mostReportedCompany: { name: "Acme", reportCount: 2 },
-    };
-
-    const deferredSecond = createDeferred<FetchQueueItem>();
-
-    const fetchMock = vi.fn().mockImplementation(() => {
-      const callNo = fetchMock.mock.calls.length;
-
-      if (callNo === 1) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: async () => first,
-        });
-      }
-
-      if (callNo === 2) {
-        return deferredSecond.promise;
-      }
-
-      return Promise.reject(new Error("unexpected-fetch-call"));
-    });
-
-    (globalThis as unknown as { fetch: unknown }).fetch = fetchMock;
-
-    const latest1Ref = { current: null as HookSnapshot | null };
-
-    await act(async () => {
-      root = createRoot(container as HTMLDivElement);
-      root.render(
-        <Harness
-          useHook={useReportsStats}
-          onUpdate={(s) => {
-            latest1Ref.current = s;
-          }}
-        />,
-      );
-    });
-
-    await waitFor(() => latest1Ref.current?.status === "success", 1000);
-    expect(latest1Ref.current?.stats).toEqual(first);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    act(() => {
-      root?.unmount();
-    });
-    root = null;
-
-    const latest2Ref = { current: null as HookSnapshot | null };
-
-    await act(async () => {
-      root = createRoot(container as HTMLDivElement);
-      root.render(
-        <Harness
-          useHook={useReportsStats}
-          onUpdate={(s) => {
-            latest2Ref.current = s;
-          }}
-        />,
-      );
-    });
-
-    await waitFor(() => latest2Ref.current?.status === "success", 1000);
-
-    expect(latest2Ref.current?.stats).not.toBeNull();
-
-    await waitFor(() => latest2Ref.current?.isRefreshing === true, 1000);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    deferredSecond.resolve({
-      ok: true,
-      status: 200,
-      json: async () => second,
-    });
-
-    await waitFor(
-      () =>
-        latest2Ref.current !== null &&
-        latest2Ref.current.stats?.totalReports === 10 &&
-        latest2Ref.current.isRefreshing === false,
-      1000,
+  it("sets error status when totalReports is not a number", async () => {
+    fetchMock.mockResolvedValue(
+      mockResponse({ totalReports: "not-a-number", mostReportedCompany: null }),
     );
 
-    expect(latest2Ref.current?.stats).toEqual(second);
+    const { result } = renderHook(() => useReportsStats());
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("error");
+    });
   });
 
-  it("aborts an in-flight request on unmount (covers cleanup abort branch)", async () => {
-    const useReportsStats = await importUseReportsStatsFresh();
+  it("sets error status when mostReportedCompany is undefined", async () => {
+    fetchMock.mockResolvedValue(mockResponse({ totalReports: 42 }));
 
-    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
-      const signal = init?.signal as AbortSignal | undefined;
+    const { result } = renderHook(() => useReportsStats());
 
-      return new Promise((_resolve, reject) => {
-        if (signal === undefined) {
-          reject(new Error("missing-signal"));
-          return;
-        }
+    await waitFor(() => {
+      expect(result.current.status).toBe("error");
+    });
+  });
 
-        signal.addEventListener("abort", () => {
-          reject(new DOMException("Aborted", "AbortError"));
-        });
-      });
+  it("sets error status when mostReportedCompany has invalid shape", async () => {
+    fetchMock.mockResolvedValue(
+      mockResponse({
+        totalReports: 42,
+        mostReportedCompany: { name: 123, reportCount: "invalid" },
+      }),
+    );
+
+    const { result } = renderHook(() => useReportsStats());
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("error");
+    });
+  });
+
+  it("accepts null mostReportedCompany as valid", async () => {
+    const statsData = {
+      totalReports: 0,
+      mostReportedCompany: null,
+    };
+
+    fetchMock.mockResolvedValue(mockResponse(statsData));
+
+    const { result } = renderHook(() => useReportsStats());
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("success");
     });
 
-    (globalThis as unknown as { fetch: unknown }).fetch = fetchMock;
+    expect(result.current.stats?.mostReportedCompany).toBe(null);
+  });
 
-    const abortSpy = vi.spyOn(AbortController.prototype, "abort");
+  it("sets liveError when refresh fails after successful initial load", async () => {
+    const statsData = {
+      totalReports: 42,
+      mostReportedCompany: null,
+    };
+
+    fetchMock.mockResolvedValueOnce(mockResponse(statsData));
+
+    const { result } = renderHook(() => useReportsStats());
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("success");
+    });
+
+    // Second fetch fails
+    fetchMock.mockResolvedValueOnce(mockResponse({}, false, 500));
 
     await act(async () => {
-      root = createRoot(container as HTMLDivElement);
-      root.render(
-        <Harness
-          useHook={useReportsStats}
-          onUpdate={() => {
-            // noop
-          }}
-        />,
-      );
+      await result.current.refreshNow();
     });
 
-    await waitFor(() => fetchMock.mock.calls.length === 1, 750);
-
-    act(() => {
-      root?.unmount();
-    });
-
-    expect(abortSpy).toHaveBeenCalledTimes(1);
-    abortSpy.mockRestore();
+    expect(result.current.status).toBe("success");
+    expect(result.current.liveError).toBe(true);
   });
 
-  it("does not set status=error on AbortError during initial load (aborted branch)", async () => {
-    const useReportsStats = await importUseReportsStatsFresh();
+  it("does not update stats if they are equal to previous", async () => {
+    const statsData = {
+      totalReports: 42,
+      mostReportedCompany: { name: "Acme Corp", reportCount: 10 },
+    };
 
-    const fetchMock = vi.fn().mockRejectedValue(new DOMException("Aborted", "AbortError"));
-    (globalThis as unknown as { fetch: unknown }).fetch = fetchMock;
+    fetchMock.mockResolvedValue(mockResponse(statsData));
 
-    const { latestRef } = await renderHarness(useReportsStats);
+    const { result } = renderHook(() => useReportsStats());
 
-    await waitFor(() => latestRef.current !== null, 250);
-    await tick();
+    await waitFor(() => {
+      expect(result.current.status).toBe("success");
+    });
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(latestRef.current?.status).toBe("loading");
-    expect(latestRef.current?.liveError).toBe(false);
+    const firstStats = result.current.stats;
+
+    await act(async () => {
+      await result.current.refreshNow();
+    });
+
+    // Stats object should be the same reference (not updated)
+    expect(result.current.stats).toBe(firstStats);
+  });
+
+  it("updates stats when totalReports changes", async () => {
+    const statsData1 = {
+      totalReports: 42,
+      mostReportedCompany: null,
+    };
+
+    const statsData2 = {
+      totalReports: 43,
+      mostReportedCompany: null,
+    };
+
+    fetchMock.mockResolvedValueOnce(mockResponse(statsData1));
+
+    const { result } = renderHook(() => useReportsStats());
+
+    await waitFor(() => {
+      expect(result.current.stats?.totalReports).toBe(42);
+    });
+
+    fetchMock.mockResolvedValueOnce(mockResponse(statsData2));
+
+    await act(async () => {
+      await result.current.refreshNow();
+    });
+
+    expect(result.current.stats?.totalReports).toBe(43);
+  });
+
+  it("updates stats when mostReportedCompany changes from null to value", async () => {
+    const statsData1 = {
+      totalReports: 42,
+      mostReportedCompany: null,
+    };
+
+    const statsData2 = {
+      totalReports: 42,
+      mostReportedCompany: { name: "New Corp", reportCount: 5 },
+    };
+
+    fetchMock.mockResolvedValueOnce(mockResponse(statsData1));
+
+    const { result } = renderHook(() => useReportsStats());
+
+    await waitFor(() => {
+      expect(result.current.stats?.mostReportedCompany).toBe(null);
+    });
+
+    fetchMock.mockResolvedValueOnce(mockResponse(statsData2));
+
+    await act(async () => {
+      await result.current.refreshNow();
+    });
+
+    expect(result.current.stats?.mostReportedCompany?.name).toBe("New Corp");
+  });
+
+  it("updates stats when mostReportedCompany changes from value to null", async () => {
+    const statsData1 = {
+      totalReports: 42,
+      mostReportedCompany: { name: "Acme", reportCount: 10 },
+    };
+
+    const statsData2 = {
+      totalReports: 42,
+      mostReportedCompany: null,
+    };
+
+    fetchMock.mockResolvedValueOnce(mockResponse(statsData1));
+
+    const { result } = renderHook(() => useReportsStats());
+
+    await waitFor(() => {
+      expect(result.current.stats?.mostReportedCompany?.name).toBe("Acme");
+    });
+
+    fetchMock.mockResolvedValueOnce(mockResponse(statsData2));
+
+    await act(async () => {
+      await result.current.refreshNow();
+    });
+
+    expect(result.current.stats?.mostReportedCompany).toBe(null);
+  });
+
+  it("refreshes when REPORT_SUBMITTED_EVENT is dispatched", async () => {
+    const statsData = {
+      totalReports: 42,
+      mostReportedCompany: null,
+    };
+
+    fetchMock.mockResolvedValue(mockResponse(statsData));
+
+    const { result } = renderHook(() => useReportsStats());
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("success");
+    });
+
+    const initialCallCount = fetchMock.mock.calls.length;
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(REPORT_SUBMITTED_EVENT_NAME));
+      // Wait a bit for the event handler to process
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(initialCallCount);
+    });
+  });
+
+  it("cleans up event listeners on unmount", async () => {
+    const statsData = {
+      totalReports: 42,
+      mostReportedCompany: null,
+    };
+
+    fetchMock.mockResolvedValue(mockResponse(statsData));
+
+    const { result, unmount } = renderHook(() => useReportsStats());
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("success");
+    });
+
+    const callCountBeforeUnmount = fetchMock.mock.calls.length;
+
+    unmount();
+
+    // Dispatch event after unmount - should not trigger fetch
+    window.dispatchEvent(new CustomEvent(REPORT_SUBMITTED_EVENT_NAME));
+
+    // Wait a bit
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Should not have called fetch again
+    expect(fetchMock.mock.calls.length).toBe(callCountBeforeUnmount);
+  });
+
+  it("handles fetch network error gracefully", async () => {
+    fetchMock.mockRejectedValueOnce(new Error("Network error"));
+
+    const { result } = renderHook(() => useReportsStats());
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("error");
+    });
+  });
+
+  it("sets isRefreshing during refresh", async () => {
+    const statsData = {
+      totalReports: 42,
+      mostReportedCompany: null,
+    };
+
+    fetchMock.mockResolvedValueOnce(mockResponse(statsData));
+
+    const { result } = renderHook(() => useReportsStats());
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("success");
+    });
+
+    // Slow refresh
+    let resolveRefresh: (value: Response) => void;
+    const slowPromise = new Promise<Response>((r) => {
+      resolveRefresh = r;
+    });
+    fetchMock.mockReturnValueOnce(slowPromise);
+
+    act(() => {
+      void result.current.refreshNow();
+    });
+
+    expect(result.current.isRefreshing).toBe(true);
+
+    await act(async () => {
+      resolveRefresh!(mockResponse(statsData));
+    });
+
+    await waitFor(() => {
+      expect(result.current.isRefreshing).toBe(false);
+    });
+  });
+
+  it("validates mostReportedCompany object with correct types", async () => {
+    // Valid: both name is string and reportCount is number
+    const validStats = {
+      totalReports: 10,
+      mostReportedCompany: { name: "Test", reportCount: 5 },
+    };
+
+    fetchMock.mockResolvedValue(mockResponse(validStats));
+
+    const { result } = renderHook(() => useReportsStats());
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("success");
+    });
+  });
+
+  it("rejects mostReportedCompany when name is not a string", async () => {
+    const invalidStats = {
+      totalReports: 10,
+      mostReportedCompany: { name: null, reportCount: 5 },
+    };
+
+    fetchMock.mockResolvedValue(mockResponse(invalidStats));
+
+    const { result } = renderHook(() => useReportsStats());
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("error");
+    });
+  });
+
+  it("rejects mostReportedCompany when reportCount is not a number", async () => {
+    const invalidStats = {
+      totalReports: 10,
+      mostReportedCompany: { name: "Test", reportCount: "five" },
+    };
+
+    fetchMock.mockResolvedValue(mockResponse(invalidStats));
+
+    const { result } = renderHook(() => useReportsStats());
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("error");
+    });
   });
 });

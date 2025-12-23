@@ -1,6 +1,6 @@
 {
   "name": "do-not-ghost-me",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
   "license": "AGPL-3.0-or-later",
   "description": "Report recruitment ghosting in a privacy-safe way.",
@@ -22,7 +22,7 @@
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
-    "test:ci": "vitest --runInBand",
+    "test:ci": "vitest run --no-file-parallelism",
     "test:e2e": "playwright test",
     "test:e2e:coverage:to-nyc": "node scripts/coverage/playwright-to-nyc.mjs",
     "test:e2e:coverage:report": "nyc report --reporter=lcov --reporter=text --report-dir=coverage/e2e",
@@ -59,7 +59,7 @@
     "zod": "^4.2.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.57.0",
+    "@playwright/test": "1.57.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",

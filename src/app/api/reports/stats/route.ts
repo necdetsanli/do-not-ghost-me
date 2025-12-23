@@ -1,12 +1,19 @@
 // src/app/api/reports/stats/route.ts
-import { NextResponse } from "next/server";
-import { ReportStatus } from "@prisma/client";
-import { prisma } from "@/lib/db";
-import { logError, logWarn } from "@/lib/logger";
-import { formatUnknownError } from "@/lib/errorUtils";
+import { env } from "@/env";
 import { getUtcWeekStart } from "@/lib/dates";
+import { prisma } from "@/lib/db";
+import { formatUnknownError } from "@/lib/errorUtils";
+import { logError, logWarn } from "@/lib/logger";
+import { applyPublicRateLimit } from "@/lib/publicRateLimit";
+import { ReportStatus } from "@prisma/client";
+import { type NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Rate limit scope for reports stats requests.
+ */
+const RATE_LIMIT_SCOPE = "reports-stats";
 
 /**
  * Payload for the "most reported company" object returned by the stats endpoint.
@@ -68,16 +75,13 @@ async function pickMostReportedCompanyThisWeek(
     return null;
   }
 
+  // Invariant: candidates is non-empty, so maxCount is at least the max reportCount
+  // of some element, guaranteeing at least one candidate will match in the filter.
   const maxCount: number = candidates.reduce((max, cur) => {
     return cur.reportCount > max ? cur.reportCount : max;
   }, 0);
 
   const tied = candidates.filter((c) => c.reportCount === maxCount);
-
-  if (tied.length === 0) {
-    return null;
-  }
-
   const ids: string[] = tied.map((t) => t.companyId);
 
   const companies = await prisma.company.findMany({
@@ -120,8 +124,12 @@ async function pickMostReportedCompanyThisWeek(
     return a.companyId.localeCompare(b.companyId);
   });
 
-  const winner = resolved[0];
+  // Invariant: resolved.length > 0 is guaranteed by the early return above.
+  // Use at(0) with a fallback that will never trigger due to the invariant.
+  const winner = resolved.at(0);
   if (winner === undefined) {
+    // This branch is unreachable due to the length check above,
+    // but satisfies TypeScript's strict array access rules.
     return null;
   }
 
@@ -133,9 +141,23 @@ async function pickMostReportedCompanyThisWeek(
  * - total number of ACTIVE reports across all time
  * - most reported company in the current UTC week among ACTIVE reports (if any)
  *
+ * @param req - The incoming request (used for IP-based rate limiting).
  * @returns A JSON response with total reports and most reported company metadata.
  */
-export async function GET(): Promise<NextResponse> {
+export async function GET(req: NextRequest): Promise<NextResponse> {
+  // --- Rate Limiting (fail-closed) ---
+  const rateLimitResult = applyPublicRateLimit(req, {
+    scope: RATE_LIMIT_SCOPE,
+    maxRequests: env.RATE_LIMIT_REPORTS_STATS_MAX_REQUESTS,
+    windowMs: env.RATE_LIMIT_REPORTS_STATS_WINDOW_MS,
+    logContext: "[GET /api/reports/stats]",
+  });
+
+  if (!rateLimitResult.allowed) {
+    return rateLimitResult.response;
+  }
+
+  // --- Business Logic ---
   try {
     const now: Date = new Date();
     const weekStartUtc: Date = getUtcWeekStart(now);

@@ -1,6 +1,6 @@
 // tests/unit/logger.test.ts
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type StreamMock = {
   destroyed: boolean;
@@ -273,5 +273,131 @@ describe("lib/logger", () => {
 
     expect(() => logInfo("hello")).not.toThrow();
     expect(consoleErrorSpy).toHaveBeenCalled();
+  });
+
+  /**
+   * Ensures the logger uses info level as default in production when
+   * APP_LOG_LEVEL is set to an invalid value.
+   */
+  it("falls back to info in production when APP_LOG_LEVEL is invalid", async () => {
+    setEnv({ NODE_ENV: "production", APP_LOG_LEVEL: "invalid_level" });
+
+    const { logDebug, logInfo } = await loadLogger();
+
+    logDebug("debug message");
+    expect(consoleLogSpy).toHaveBeenCalledTimes(0);
+
+    logInfo("info message");
+    expect(consoleLogSpy).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Ensures the logger falls back to debug level in non-production when
+   * APP_LOG_LEVEL is set to an invalid value.
+   */
+  it("falls back to debug in non-production when APP_LOG_LEVEL is invalid", async () => {
+    setEnv({ NODE_ENV: "test", APP_LOG_LEVEL: "not_a_level" });
+
+    const { logDebug } = await loadLogger();
+
+    logDebug("debug message");
+    expect(consoleLogSpy).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Ensures error-level logs are routed to console.error.
+   */
+  it("routes error logs to console.error", async () => {
+    setEnv({ NODE_ENV: "test", APP_LOG_LEVEL: "debug" });
+
+    const { logError } = await loadLogger();
+
+    logError("error message");
+
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    expect(consoleLogSpy).toHaveBeenCalledTimes(0);
+  });
+
+  /**
+   * Ensures file stream write errors are caught and logged without throwing.
+   */
+  it("catches file stream write errors without throwing", async () => {
+    const stream = makeStream();
+    stream.write.mockImplementation(() => {
+      throw new Error("write failed");
+    });
+    fsMock.existsSync.mockReturnValue(true);
+    fsMock.createWriteStream.mockReturnValue(stream);
+
+    setEnv({
+      APP_LOG_TO_FILE: "true",
+      APP_LOG_FILE: "logs/test.log",
+      APP_LOG_LEVEL: "debug",
+    });
+
+    const { logInfo } = await loadLogger();
+
+    expect(() => logInfo("hello")).not.toThrow();
+    expect(consoleErrorSpy).toHaveBeenCalled();
+  });
+
+  /**
+   * Ensures the directory is not recreated if it already exists.
+   */
+  it("does not recreate directory if it already exists", async () => {
+    const stream = makeStream();
+    fsMock.existsSync.mockReturnValue(true);
+    fsMock.createWriteStream.mockReturnValue(stream);
+
+    setEnv({
+      APP_LOG_TO_FILE: "true",
+      APP_LOG_FILE: "logs/test.log",
+      APP_LOG_LEVEL: "debug",
+    });
+
+    const { logInfo } = await loadLogger();
+
+    logInfo("hello");
+
+    expect(fsMock.mkdirSync).toHaveBeenCalledTimes(0);
+    expect(fsMock.createWriteStream).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Ensures that when stream.on("error") is called, it logs to console.error without throwing.
+   */
+  it("handles file stream error events gracefully", async () => {
+    const stream = makeStream();
+    let errorCallback: ((err: Error) => void) | undefined;
+
+    // Capture the error callback when it's registered
+    stream.on.mockImplementation((event: string, cb: (err: Error) => void) => {
+      if (event === "error") {
+        errorCallback = cb;
+      }
+      return stream;
+    });
+
+    fsMock.existsSync.mockReturnValue(true);
+    fsMock.createWriteStream.mockReturnValue(stream);
+
+    setEnv({
+      APP_LOG_TO_FILE: "true",
+      APP_LOG_FILE: "logs/test.log",
+      APP_LOG_LEVEL: "debug",
+    });
+
+    const { logInfo } = await loadLogger();
+    logInfo("hello");
+
+    // Now trigger the error callback
+    expect(errorCallback).toBeDefined();
+    errorCallback!(new Error("stream write error"));
+
+    // The error should be logged to console.error
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "[LOGGER] Failed to write to log file",
+      "stream write error",
+    );
   });
 });

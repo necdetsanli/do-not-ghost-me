@@ -1,6 +1,6 @@
 // tests/unit/api.companies.search.route.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type PrismaCompanyFindManyArgs = {
   where: {
@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => {
   return {
     prismaMock,
     logErrorMock: vi.fn(),
+    applyPublicRateLimitMock: vi.fn(),
   };
 });
 
@@ -39,6 +40,10 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("@/lib/logger", () => ({
   logError: mocks.logErrorMock,
+}));
+
+vi.mock("@/lib/publicRateLimit", () => ({
+  applyPublicRateLimit: mocks.applyPublicRateLimitMock,
 }));
 
 import { GET } from "@/app/api/companies/search/route";
@@ -57,63 +62,148 @@ describe("GET /api/companies/search", () => {
   beforeEach(() => {
     vi.mocked(mocks.prismaMock.company.findMany).mockReset();
     vi.mocked(mocks.logErrorMock).mockReset();
+    vi.mocked(mocks.applyPublicRateLimitMock).mockReset();
+
+    // Default: rate limiting passes
+    mocks.applyPublicRateLimitMock.mockReturnValue({ allowed: true, clientIp: "192.0.2.1" });
   });
 
-  it("returns [] when q is missing and does not hit the DB", async () => {
-    const req = makeReq("http://localhost:3000/api/companies/search");
+  describe("Rate Limiting", () => {
+    it("returns 429 when client IP is null (fail-closed)", async () => {
+      mocks.applyPublicRateLimitMock.mockReturnValue({
+        allowed: false,
+        response: new Response(JSON.stringify({ error: "Rate limit unavailable" }), {
+          status: 429,
+          headers: { "Cache-Control": "no-store" },
+        }),
+      });
 
-    const res = await GET(req);
+      const req = makeReq("http://localhost:3000/api/companies/search?q=Test");
 
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual([]);
-    expect(mocks.prismaMock.company.findMany).not.toHaveBeenCalled();
+      const res = await GET(req);
+
+      expect(res.status).toBe(429);
+      expect(await res.json()).toEqual({ error: "Rate limit unavailable" });
+      expect(res.headers.get("cache-control")).toBe("no-store");
+      expect(mocks.prismaMock.company.findMany).not.toHaveBeenCalled();
+    });
+
+    it("returns 429 when rate limit is exceeded", async () => {
+      mocks.applyPublicRateLimitMock.mockReturnValue({
+        allowed: false,
+        response: new Response(JSON.stringify({ error: "Too many requests" }), {
+          status: 429,
+          headers: { "Cache-Control": "no-store" },
+        }),
+      });
+
+      const req = makeReq("http://localhost:3000/api/companies/search?q=Test");
+
+      const res = await GET(req);
+
+      expect(res.status).toBe(429);
+      expect(await res.json()).toEqual({ error: "Too many requests" });
+      expect(res.headers.get("cache-control")).toBe("no-store");
+      expect(mocks.prismaMock.company.findMany).not.toHaveBeenCalled();
+    });
+
+    it("returns 500 and logs when rate limit throws unexpected error", async () => {
+      mocks.applyPublicRateLimitMock.mockReturnValue({
+        allowed: false,
+        response: new Response(JSON.stringify({ error: "Internal server error" }), {
+          status: 500,
+          headers: { "Cache-Control": "no-store" },
+        }),
+      });
+
+      const req = makeReq("http://localhost:3000/api/companies/search?q=Test");
+
+      const res = await GET(req);
+
+      expect(res.status).toBe(500);
+      expect(await res.json()).toEqual({ error: "Internal server error" });
+      expect(res.headers.get("cache-control")).toBe("no-store");
+      expect(mocks.prismaMock.company.findMany).not.toHaveBeenCalled();
+    });
+
+    it("calls applyPublicRateLimit with correct scope and limits", async () => {
+      mocks.prismaMock.company.findMany.mockResolvedValue([]);
+
+      const req = makeReq("http://localhost:3000/api/companies/search?q=Test");
+
+      await GET(req);
+
+      expect(mocks.applyPublicRateLimitMock).toHaveBeenCalledTimes(1);
+      expect(mocks.applyPublicRateLimitMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          scope: "company-search",
+          maxRequests: 60,
+          windowMs: 60_000,
+          logContext: "[GET /api/companies/search]",
+        }),
+      );
+    });
   });
 
-  it("returns [] when q is empty/whitespace and does not hit the DB", async () => {
-    const req = makeReq("http://localhost:3000/api/companies/search?q=%20%20%20");
+  describe("Search Behavior", () => {
+    it("returns [] when q is missing and does not hit the DB", async () => {
+      const req = makeReq("http://localhost:3000/api/companies/search");
 
-    const res = await GET(req);
+      const res = await GET(req);
 
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual([]);
-    expect(mocks.prismaMock.company.findMany).not.toHaveBeenCalled();
-  });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual([]);
+      expect(mocks.prismaMock.company.findMany).not.toHaveBeenCalled();
+    });
 
-  it("trims q, queries with startsWith insensitive, orders by name asc then id asc, and returns mapped payload", async () => {
-    vi.mocked(mocks.prismaMock.company.findMany).mockResolvedValue([
-      { id: "c2", name: "Alpha", country: "TR" },
-      { id: "c1", name: "Alpha", country: "US" },
-    ]);
+    it("returns [] when q is empty/whitespace and does not hit the DB", async () => {
+      const req = makeReq("http://localhost:3000/api/companies/search?q=%20%20%20");
 
-    const req = makeReq("http://localhost:3000/api/companies/search?q=%20Alp%20");
+      const res = await GET(req);
 
-    const res = await GET(req);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual([]);
+      expect(mocks.prismaMock.company.findMany).not.toHaveBeenCalled();
+    });
 
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual([
-      { id: "c2", name: "Alpha", country: "TR" },
-      { id: "c1", name: "Alpha", country: "US" },
-    ]);
+    it("trims q, queries with startsWith insensitive, orders by name asc then id asc, and returns mapped payload", async () => {
+      vi.mocked(mocks.prismaMock.company.findMany).mockResolvedValue([
+        { id: "c2", name: "Alpha", country: "TR" },
+        { id: "c1", name: "Alpha", country: "US" },
+      ]);
 
-    expect(mocks.prismaMock.company.findMany).toHaveBeenCalledTimes(1);
+      const req = makeReq("http://localhost:3000/api/companies/search?q=%20Alp%20");
 
-    const args = mocks.prismaMock.company.findMany.mock.calls[0]?.[0] as PrismaCompanyFindManyArgs;
+      const res = await GET(req);
 
-    expect(args.where.name.startsWith).toBe("Alp");
-    expect(args.where.name.mode).toBe("insensitive");
-    expect(args.take).toBe(10);
-    expect(args.orderBy).toEqual([{ name: "asc" }, { id: "asc" }]);
-  });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual([
+        { id: "c2", name: "Alpha", country: "TR" },
+        { id: "c1", name: "Alpha", country: "US" },
+      ]);
 
-  it("returns 500 JSON on unexpected DB error and logs it", async () => {
-    vi.mocked(mocks.prismaMock.company.findMany).mockRejectedValue(new Error("db-down"));
+      expect(mocks.prismaMock.company.findMany).toHaveBeenCalledTimes(1);
 
-    const req = makeReq("http://localhost:3000/api/companies/search?q=Ac");
+      const args = mocks.prismaMock.company.findMany.mock
+        .calls[0]?.[0] as PrismaCompanyFindManyArgs;
 
-    const res = await GET(req);
+      expect(args.where.name.startsWith).toBe("Alp");
+      expect(args.where.name.mode).toBe("insensitive");
+      expect(args.take).toBe(10);
+      expect(args.orderBy).toEqual([{ name: "asc" }, { id: "asc" }]);
+    });
 
-    expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: "Internal server error" });
-    expect(mocks.logErrorMock).toHaveBeenCalledTimes(1);
+    it("returns 500 JSON on unexpected DB error and logs it", async () => {
+      vi.mocked(mocks.prismaMock.company.findMany).mockRejectedValue(new Error("db-down"));
+
+      const req = makeReq("http://localhost:3000/api/companies/search?q=Ac");
+
+      const res = await GET(req);
+
+      expect(res.status).toBe(500);
+      expect(await res.json()).toEqual({ error: "Internal server error" });
+      expect(mocks.logErrorMock).toHaveBeenCalledTimes(1);
+    });
   });
 });

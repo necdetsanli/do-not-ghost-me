@@ -1,13 +1,11 @@
 // src/app/api/public/company-intel/route.ts
+import { DEFAULT_COMPANY_INTEL_K_ANONYMITY, fetchCompanyIntel } from "@/lib/companyIntelService";
+import { companyIntelRequestSchema } from "@/lib/contracts/companyIntel";
+import { formatUnknownError } from "@/lib/errorUtils";
+import { logError } from "@/lib/logger";
+import { applyPublicRateLimit } from "@/lib/publicRateLimit";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import net from "node:net";
-import { companyIntelRequestSchema } from "@/lib/contracts/companyIntel";
-import { DEFAULT_COMPANY_INTEL_K_ANONYMITY, fetchCompanyIntel } from "@/lib/companyIntelService";
-import { getClientIp } from "@/lib/ip";
-import { PublicRateLimitError, enforcePublicIpRateLimit } from "@/lib/publicRateLimit";
-import { logError } from "@/lib/logger";
-import { formatUnknownError } from "@/lib/errorUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -49,36 +47,16 @@ const kAnonymityThreshold: number = parsePositiveIntEnv(
 );
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const clientIp: string | null = getClientIp(req);
+  const rateLimitResult = applyPublicRateLimit(req, {
+    scope: RATE_LIMIT_SCOPE,
+    maxRequests: 20,
+    windowMs: 60_000,
+    logContext: "[GET /api/public/company-intel]",
+    errorHeaders: NO_STORE_HEADERS,
+  });
 
-  if (clientIp === null || net.isIP(clientIp) === 0) {
-    return NextResponse.json(
-      { error: "Rate limit unavailable" },
-      { status: 429, headers: NO_STORE_HEADERS },
-    );
-  }
-
-  try {
-    enforcePublicIpRateLimit({
-      ip: clientIp,
-      scope: RATE_LIMIT_SCOPE,
-    });
-  } catch (error: unknown) {
-    if (error instanceof PublicRateLimitError) {
-      return NextResponse.json(
-        { error: "Too many requests" },
-        { status: error.statusCode, headers: NO_STORE_HEADERS },
-      );
-    }
-
-    logError("[GET /api/public/company-intel] Rate limit failure", {
-      error: formatUnknownError(error),
-    });
-
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500, headers: NO_STORE_HEADERS },
-    );
+  if (!rateLimitResult.allowed) {
+    return rateLimitResult.response;
   }
 
   const parsed = companyIntelRequestSchema.safeParse({

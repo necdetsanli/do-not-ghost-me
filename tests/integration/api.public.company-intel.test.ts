@@ -1,36 +1,15 @@
 // tests/integration/api.public.company-intel.test.ts
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const {
-  getClientIpMock,
-  enforcePublicIpRateLimitMock,
-  fetchCompanyIntelMock,
-  PublicRateLimitError,
-} = vi.hoisted(() => {
-  class MockPublicRateLimitError extends Error {
-    statusCode = 429;
-    constructor(message?: string) {
-      super(message);
-      this.name = "PublicRateLimitError";
-      this.statusCode = 429;
-    }
-  }
-
+const { applyPublicRateLimitMock, fetchCompanyIntelMock } = vi.hoisted(() => {
   return {
-    getClientIpMock: vi.fn(),
-    enforcePublicIpRateLimitMock: vi.fn(),
+    applyPublicRateLimitMock: vi.fn(),
     fetchCompanyIntelMock: vi.fn(),
-    PublicRateLimitError: MockPublicRateLimitError,
   };
 });
 
-vi.mock("@/lib/ip", () => ({
-  getClientIp: getClientIpMock,
-}));
-
 vi.mock("@/lib/publicRateLimit", () => ({
-  enforcePublicIpRateLimit: enforcePublicIpRateLimitMock,
-  PublicRateLimitError,
+  applyPublicRateLimit: applyPublicRateLimitMock,
 }));
 
 vi.mock("@/lib/companyIntelService", () => ({
@@ -38,9 +17,9 @@ vi.mock("@/lib/companyIntelService", () => ({
   DEFAULT_COMPANY_INTEL_K_ANONYMITY: 5,
 }));
 
-import type { NextRequest } from "next/server";
 import { GET } from "@/app/api/public/company-intel/route";
 import { companyIntelErrorResponseSchema } from "@/lib/contracts/companyIntel";
+import type { NextRequest } from "next/server";
 
 function createRequest(
   url = "https://example.test/api/public/company-intel?source=linkedin&key=acme",
@@ -58,8 +37,7 @@ function createRequest(
 describe("GET /api/public/company-intel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getClientIpMock.mockReturnValue("203.0.113.10");
-    enforcePublicIpRateLimitMock.mockReturnValue(undefined);
+    applyPublicRateLimitMock.mockReturnValue({ allowed: true, clientIp: "203.0.113.10" });
   });
 
   it("returns 400 when validation fails", async () => {
@@ -121,8 +99,12 @@ describe("GET /api/public/company-intel", () => {
   });
 
   it("maps rate-limit errors to 429 responses", async () => {
-    enforcePublicIpRateLimitMock.mockImplementation(() => {
-      throw new PublicRateLimitError("Too many");
+    applyPublicRateLimitMock.mockReturnValue({
+      allowed: false,
+      response: new Response(JSON.stringify({ error: "Too many requests" }), {
+        status: 429,
+        headers: { "cache-control": "no-store" },
+      }),
     });
 
     const res = await GET(createRequest());
@@ -136,7 +118,13 @@ describe("GET /api/public/company-intel", () => {
   });
 
   it("fails closed when client IP is missing", async () => {
-    getClientIpMock.mockReturnValue(null);
+    applyPublicRateLimitMock.mockReturnValue({
+      allowed: false,
+      response: new Response(JSON.stringify({ error: "Rate limit unavailable" }), {
+        status: 429,
+        headers: { "cache-control": "no-store" },
+      }),
+    });
 
     const res = await GET(createRequest());
 
@@ -156,5 +144,81 @@ describe("GET /api/public/company-intel", () => {
 
     const body = (await res.json()) as { error?: string };
     expect(body.error).toBe("Internal server error");
+  });
+});
+
+describe("parsePositiveIntEnv (module-level env parsing)", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("uses fallback when env var is not a valid number (NaN)", async () => {
+    vi.stubEnv("COMPANY_INTEL_K_ANONYMITY", "not-a-number");
+
+    // Re-import module to trigger parsePositiveIntEnv with the stub
+    const { GET: newGET } = await import("@/app/api/public/company-intel/route");
+
+    applyPublicRateLimitMock.mockReturnValue({ allowed: true, clientIp: "203.0.113.10" });
+    fetchCompanyIntelMock.mockResolvedValue({
+      companyId: "test",
+      displayName: "Test",
+      signals: { reportCountTotal: 1, reportCount90d: 0, riskScore: null, confidence: "low" },
+      updatedAt: new Date(),
+    });
+
+    const res = await newGET(createRequest());
+    expect(res.status).toBe(200);
+    // The module still works with fallback value
+  });
+
+  it("uses fallback when env var is less than 1", async () => {
+    vi.stubEnv("COMPANY_INTEL_K_ANONYMITY", "0");
+
+    const { GET: newGET } = await import("@/app/api/public/company-intel/route");
+
+    applyPublicRateLimitMock.mockReturnValue({ allowed: true, clientIp: "203.0.113.10" });
+    fetchCompanyIntelMock.mockResolvedValue({
+      companyId: "test",
+      displayName: "Test",
+      signals: { reportCountTotal: 1, reportCount90d: 0, riskScore: null, confidence: "low" },
+      updatedAt: new Date(),
+    });
+
+    const res = await newGET(createRequest());
+    expect(res.status).toBe(200);
+  });
+
+  it("uses fallback when env var is negative", async () => {
+    vi.stubEnv("COMPANY_INTEL_K_ANONYMITY", "-5");
+
+    const { GET: newGET } = await import("@/app/api/public/company-intel/route");
+
+    applyPublicRateLimitMock.mockReturnValue({ allowed: true, clientIp: "203.0.113.10" });
+    fetchCompanyIntelMock.mockResolvedValue({
+      companyId: "test",
+      displayName: "Test",
+      signals: { reportCountTotal: 1, reportCount90d: 0, riskScore: null, confidence: "low" },
+      updatedAt: new Date(),
+    });
+
+    const res = await newGET(createRequest());
+    expect(res.status).toBe(200);
+  });
+
+  it("uses parsed value when env var is a valid positive integer", async () => {
+    vi.stubEnv("COMPANY_INTEL_K_ANONYMITY", "10");
+
+    const { GET: newGET } = await import("@/app/api/public/company-intel/route");
+
+    applyPublicRateLimitMock.mockReturnValue({ allowed: true, clientIp: "203.0.113.10" });
+    fetchCompanyIntelMock.mockResolvedValue({
+      companyId: "test",
+      displayName: "Test",
+      signals: { reportCountTotal: 1, reportCount90d: 0, riskScore: null, confidence: "low" },
+      updatedAt: new Date(),
+    });
+
+    const res = await newGET(createRequest());
+    expect(res.status).toBe(200);
   });
 });
