@@ -248,6 +248,111 @@ describe("POST /api/admin/reports/[id] moderation", () => {
     expect(json.error).toBe("Admin access is not allowed from this host.");
   });
 
+  describe("host/origin matrix (current behavior)", () => {
+    it("allows when host matches ADMIN_ALLOWED_HOST and origin/referer match", async () => {
+      applyBaseEnv({ ADMIN_ALLOWED_HOST: "admin.test" });
+      installPrismaMock();
+      const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
+      const { createCsrfToken } = await importCsrfHelpers();
+      const { POST } = await importModerationPost();
+
+      const headers = buildAllowedHeaders("admin.test");
+      const token = createAdminSessionToken();
+      const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+      const csrf = createCsrfToken("admin-moderation");
+
+      const req = buildAdminModerationRequest(
+        "https://admin.test/api/admin/reports/r1",
+        headers,
+        cookie,
+        { action: "flag", csrf_token: csrf },
+      );
+
+      const res = await POST(req, { params: Promise.resolve({ id: "r1" }) });
+      expect(res.status).not.toBe(401);
+      expect(res.status).not.toBe(403);
+    });
+
+    it("denies when origin/referer do not match ADMIN_ALLOWED_HOST", async () => {
+      applyBaseEnv({ ADMIN_ALLOWED_HOST: "admin.test" });
+      installPrismaMock();
+      const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
+      const { POST } = await importModerationPost();
+
+      const token = createAdminSessionToken();
+      const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+
+      const req = buildAdminModerationRequest(
+        "https://admin.test/api/admin/reports/r1",
+        {
+          host: "admin.test",
+          origin: "https://evil.test",
+          referer: "https://evil.test/admin",
+        },
+        cookie,
+        { action: "flag" },
+      );
+
+      const res = await POST(req, { params: Promise.resolve({ id: "r1" }) });
+      expect(res.status).toBe(401);
+      const json = (await res.json()) as { error?: string };
+      expect(json.error).toBe("Admin access is not allowed from this origin.");
+    });
+
+    it("denies when host mismatches ADMIN_ALLOWED_HOST even if origin matches", async () => {
+      applyBaseEnv({ ADMIN_ALLOWED_HOST: "admin.test" });
+      installPrismaMock();
+      const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
+      const { POST } = await importModerationPost();
+
+      const token = createAdminSessionToken();
+      const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+
+      const req = buildAdminModerationRequest(
+        "https://admin.test/api/admin/reports/r1",
+        {
+          host: "evil.test",
+          origin: "https://admin.test",
+          referer: "https://admin.test/admin",
+        },
+        cookie,
+        { action: "flag" },
+      );
+
+      const res = await POST(req, { params: Promise.resolve({ id: "r1" }) });
+      expect(res.status).toBe(403);
+      const json = (await res.json()) as { error?: string };
+      expect(json.error).toBe("Admin access is not allowed from this host.");
+    });
+
+    it("allows when ADMIN_ALLOWED_HOST is unset and host/origin match request host", async () => {
+      applyBaseEnv({ ADMIN_ALLOWED_HOST: "" });
+      installPrismaMock();
+      const { createAdminSessionToken, ADMIN_SESSION_COOKIE_NAME } = await importAdminAuthHelpers();
+      const { createCsrfToken } = await importCsrfHelpers();
+      const { POST } = await importModerationPost();
+
+      const token = createAdminSessionToken();
+      const cookie = `${ADMIN_SESSION_COOKIE_NAME}=${token}`;
+      const csrf = createCsrfToken("admin-moderation");
+
+      const req = buildAdminModerationRequest(
+        "https://example.test/api/admin/reports/r1",
+        {
+          host: "example.test",
+          origin: "https://example.test",
+          referer: "https://example.test/admin",
+        },
+        cookie,
+        { action: "flag", csrf_token: csrf },
+      );
+
+      const res = await POST(req, { params: Promise.resolve({ id: "r1" }) });
+      expect(res.status).not.toBe(401);
+      expect(res.status).not.toBe(403);
+    });
+  });
+
   it("returns 401 JSON when Origin/Referer mismatch for POST", async () => {
     applyBaseEnv({ ADMIN_ALLOWED_HOST: "admin.test" });
 
