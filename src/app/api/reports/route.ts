@@ -11,6 +11,7 @@ import {
   isReportRateLimitError,
 } from "@/lib/rateLimitError";
 import { reportSchema, type ReportInput } from "@/lib/validation/reportSchema";
+import { deriveCorrelationId, setCorrelationIdHeader } from "@/lib/correlation";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -82,6 +83,12 @@ function isHoneypotOnlyValidationError(issues: HoneypotIssue[]): boolean {
  * @returns A JSON NextResponse indicating success or failure.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const correlationId = deriveCorrelationId(req);
+  const withCorrelation = (res: NextResponse): NextResponse => {
+    setCorrelationIdHeader(res, correlationId);
+    return res;
+  };
+
   const clientIpRaw: string | null = getClientIp(req);
 
   // Fail closed: if we cannot determine an IP, do not accept the report.
@@ -92,9 +99,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       path: req.nextUrl.pathname,
       method: req.method,
       ip: clientIpRaw,
+      correlationId,
     });
 
-    return mapRateLimitErrorToResponse(error);
+    return withCorrelation(mapRateLimitErrorToResponse(error));
   }
 
   const clientIp: string = clientIpRaw.trim();
@@ -106,9 +114,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       path: req.nextUrl.pathname,
       method: req.method,
       ip: clientIpRaw,
+      correlationId,
     });
 
-    return mapRateLimitErrorToResponse(error);
+    return withCorrelation(mapRateLimitErrorToResponse(error));
   }
 
   let json: unknown;
@@ -120,15 +129,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       path: req.nextUrl.pathname,
       method: req.method,
       ip: clientIp,
+      correlationId,
       error: formatUnknownError(parseError),
     });
 
-    return NextResponse.json(
+    return withCorrelation(NextResponse.json(
       {
         error: "Invalid JSON payload",
       },
       { status: 400 },
-    );
+    ));
   }
 
   try {
@@ -140,25 +150,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           ip: clientIp,
           path: req.nextUrl.pathname,
           userAgent: req.headers.get("user-agent") ?? undefined,
+          correlationId,
         });
 
         // Honeypot: treat as bot submission and silently succeed.
-        return new NextResponse(null, { status: 200 });
+        return withCorrelation(new NextResponse(null, { status: 200 }));
       }
 
       logWarn("[POST /api/reports] Report validation failed", {
         ip: clientIp,
         path: req.nextUrl.pathname,
         issues: parsed.error.issues,
+        correlationId,
       });
 
-      return NextResponse.json(
+      return withCorrelation(NextResponse.json(
         {
           error: "Invalid input",
           details: parsed.error.flatten(),
         },
         { status: 400 },
-      );
+      ));
     }
 
     const data: ReportInput = parsed.data;
@@ -199,15 +211,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       ip: clientIp,
       positionCategory: data.positionCategory,
       positionDetail: data.positionDetail,
+      correlationId,
     });
 
-    return NextResponse.json(
+    return withCorrelation(NextResponse.json(
       {
         id: report.id,
         createdAt: report.createdAt,
       },
       { status: 200 },
-    );
+    ));
   } catch (error: unknown) {
     if (isReportRateLimitError(error)) {
       logWarn("[POST /api/reports] Rate limit hit for report creation", {
@@ -216,17 +229,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         reason: error.reason,
         statusCode: error.statusCode,
         message: error.message,
+        correlationId,
       });
 
-      return mapRateLimitErrorToResponse(error);
+      return withCorrelation(mapRateLimitErrorToResponse(error));
     }
 
     logError("[POST /api/reports] Unexpected error", {
       ip: clientIp,
       path: req.nextUrl.pathname,
+      correlationId,
       error: formatUnknownError(error),
     });
 
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return withCorrelation(NextResponse.json({ error: "Internal server error" }, { status: 500 }));
   }
 }

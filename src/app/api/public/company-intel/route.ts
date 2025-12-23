@@ -2,6 +2,7 @@
 import { DEFAULT_COMPANY_INTEL_K_ANONYMITY, fetchCompanyIntel } from "@/lib/companyIntelService";
 import { companyIntelRequestSchema } from "@/lib/contracts/companyIntel";
 import { formatUnknownError } from "@/lib/errorUtils";
+import { deriveCorrelationId, setCorrelationIdHeader } from "@/lib/correlation";
 import { logError } from "@/lib/logger";
 import { applyPublicRateLimit } from "@/lib/publicRateLimit";
 import type { NextRequest } from "next/server";
@@ -47,6 +48,12 @@ const kAnonymityThreshold: number = parsePositiveIntEnv(
 );
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
+  const correlationId = deriveCorrelationId(req);
+  const withCorrelation = (res: NextResponse): NextResponse => {
+    setCorrelationIdHeader(res, correlationId);
+    return res;
+  };
+
   const rateLimitResult = applyPublicRateLimit(req, {
     scope: RATE_LIMIT_SCOPE,
     maxRequests: 20,
@@ -56,7 +63,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   });
 
   if (!rateLimitResult.allowed) {
-    return rateLimitResult.response;
+    return withCorrelation(rateLimitResult.response);
   }
 
   const parsed = companyIntelRequestSchema.safeParse({
@@ -65,10 +72,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   });
 
   if (parsed.success === false) {
-    return NextResponse.json(
+    return withCorrelation(NextResponse.json(
       { error: "Invalid input" },
       { status: 400, headers: NO_STORE_HEADERS },
-    );
+    ));
   }
 
   try {
@@ -78,12 +85,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     });
 
     if ("status" in intel) {
-      return NextResponse.json(
+      return withCorrelation(NextResponse.json(
         { status: "insufficient_data" },
         { status: 200, headers: { "cache-control": CACHE_CONTROL_HEADER } },
-      );
+      ));
     }
-    return NextResponse.json(
+    return withCorrelation(NextResponse.json(
       {
         company: {
           canonicalId: intel.companyId,
@@ -93,15 +100,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         updatedAt: intel.updatedAt.toISOString(),
       },
       { status: 200, headers: { "cache-control": CACHE_CONTROL_HEADER } },
-    );
+    ));
   } catch (error: unknown) {
     logError("[GET /api/public/company-intel] Unexpected error", {
       error: formatUnknownError(error),
+      correlationId,
     });
 
-    return NextResponse.json(
+    return withCorrelation(NextResponse.json(
       { error: "Internal server error" },
       { status: 500, headers: NO_STORE_HEADERS },
-    );
+    ));
   }
 }

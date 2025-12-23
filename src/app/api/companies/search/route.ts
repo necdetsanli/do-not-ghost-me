@@ -2,6 +2,7 @@
 import { env } from "@/env";
 import { prisma } from "@/lib/db";
 import { formatUnknownError } from "@/lib/errorUtils";
+import { deriveCorrelationId, setCorrelationIdHeader } from "@/lib/correlation";
 import { logError } from "@/lib/logger";
 import { applyPublicRateLimit } from "@/lib/publicRateLimit";
 import type { NextRequest } from "next/server";
@@ -49,6 +50,12 @@ const MAX_QUERY_LENGTH: number = 120;
  * @returns A JSON array of suggestions or an error payload on failure.
  */
 export async function GET(req: NextRequest): Promise<NextResponse> {
+  const correlationId = deriveCorrelationId(req);
+  const withCorrelation = (res: NextResponse): NextResponse => {
+    setCorrelationIdHeader(res, correlationId);
+    return res;
+  };
+
   // 1. Rate limiting - fail closed on missing IP
   const rateLimitResult = applyPublicRateLimit(req, {
     scope: RATE_LIMIT_SCOPE,
@@ -58,7 +65,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   });
 
   if (!rateLimitResult.allowed) {
-    return rateLimitResult.response;
+    return withCorrelation(rateLimitResult.response);
   }
 
   // 2. Process search request
@@ -67,14 +74,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const rawQuery: string | null = searchParams.get("q");
 
     if (rawQuery === null) {
-      return NextResponse.json<CompanySuggestion[]>([], { status: 200 });
+      return withCorrelation(NextResponse.json<CompanySuggestion[]>([], { status: 200 }));
     }
 
     const trimmed: string = rawQuery.trim();
 
     // Avoid noisy queries for empty input.
     if (trimmed.length === 0) {
-      return NextResponse.json<CompanySuggestion[]>([], { status: 200 });
+      return withCorrelation(NextResponse.json<CompanySuggestion[]>([], { status: 200 }));
     }
 
     const q: string = trimmed.slice(0, MAX_QUERY_LENGTH);
@@ -108,12 +115,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       country: company.country,
     }));
 
-    return NextResponse.json(payload, { status: 200 });
+    return withCorrelation(NextResponse.json(payload, { status: 200 }));
   } catch (error: unknown) {
     logError("[GET /api/companies/search] Unexpected error", {
       error: formatUnknownError(error),
+      correlationId,
     });
 
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return withCorrelation(
+      NextResponse.json({ error: "Internal server error" }, { status: 500 }),
+    );
   }
 }

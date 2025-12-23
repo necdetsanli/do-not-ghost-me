@@ -6,6 +6,7 @@ import path from "node:path";
 type LogLevel = "debug" | "info" | "warn" | "error";
 
 type LogContext = Record<string, unknown>;
+type RedactedContext = Record<string, unknown>;
 
 // -----------------------------------------------------------------------------
 // Environment-driven configuration
@@ -143,7 +144,7 @@ function formatContext(context?: LogContext): string {
   }
 
   try {
-    return ` ${JSON.stringify(context)}`;
+    return ` ${JSON.stringify(redactContext(context))}`;
   } catch (err: unknown) {
     console.error(
       "[LOGGER] Failed to JSON.stringify log context",
@@ -170,6 +171,30 @@ function shouldLog(level: LogLevel): boolean {
   }
 
   return currentIndex >= thresholdIndex;
+}
+
+/**
+ * Shallowly redact sensitive fields in the provided context object.
+ *
+ * - Keys containing password/token/authorization/cookie are redacted.
+ * - Values remain untouched otherwise.
+ *
+ * @param context - Original log context.
+ * @returns Redacted clone of the context.
+ */
+function redactContext(context: LogContext): RedactedContext {
+  const redacted: RedactedContext = {};
+  const SENSITIVE = /(password|token|authorization|cookie)/i;
+
+  for (const [key, value] of Object.entries(context)) {
+    if (SENSITIVE.test(key)) {
+      redacted[key] = "[REDACTED]";
+    } else {
+      redacted[key] = value;
+    }
+  }
+
+  return redacted;
 }
 
 // -----------------------------------------------------------------------------
