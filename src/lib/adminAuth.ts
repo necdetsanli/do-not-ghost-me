@@ -1,11 +1,11 @@
 // src/lib/adminAuth.ts
-import crypto from "node:crypto";
 import type { NextRequest, NextResponse } from "next/server";
+import crypto from "node:crypto";
 
 import { env } from "@/env";
-import { logInfo, logWarn, logError } from "@/lib/logger";
+import { logError, logInfo, logWarn } from "@/lib/logger";
 
-export const ADMIN_SESSION_COOKIE_NAME = "dg_admin";
+export const ADMIN_SESSION_COOKIE_NAME = "__Host-dg_admin";
 
 /**
  * Session lifetime in seconds.
@@ -394,10 +394,13 @@ export function adminSessionCookieOptions(): {
   path: string;
   maxAge: number;
 } {
+  // __Host- prefixed cookies REQUIRE Secure=true, even on localhost.
+  // If we set Secure=false, browsers will reject the cookie entirely.
+  // Therefore, we always set secure: true for __Host- cookies.
   return {
     name: ADMIN_SESSION_COOKIE_NAME,
     httpOnly: true,
-    secure: env.NODE_ENV === "production",
+    secure: true,
     sameSite: "strict" as const,
     path: "/",
     maxAge: ADMIN_SESSION_MAX_AGE_SECONDS,
