@@ -1,7 +1,6 @@
 // src/lib/csrf.ts
-import crypto from "node:crypto";
 import { env } from "@/env";
-import { randomBytes } from "node:crypto";
+import crypto, { randomBytes } from "node:crypto";
 
 /**
  * Time-to-live for CSRF tokens in milliseconds.
@@ -21,7 +20,7 @@ const CSRF_TOKEN_VERSION = 1;
  * Keeping this as a string literal union makes call sites explicit and
  * avoids accidental reuse of the same secret for unrelated contexts.
  */
-export type CsrfPurpose = "admin-login";
+export type CsrfPurpose = "admin-login" | "admin-moderation";
 
 /**
  * Internal CSRF token payload shape.
