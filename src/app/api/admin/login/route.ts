@@ -1,7 +1,6 @@
 // src/app/api/admin/login/route.ts
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { env } from "@/env";
 import {
   verifyAdminPassword,
   createAdminSessionToken,

@@ -132,29 +132,6 @@ function getFileStream(): fs.WriteStream | null {
 // -----------------------------------------------------------------------------
 
 /**
- * Render a safe JSON representation of the context.
- * We catch JSON errors so that logging never breaks the app.
- *
- * @param context - Optional key/value metadata to attach to the log entry.
- * @returns A stringified representation prefixed with a space, or an empty string.
- */
-function formatContext(context?: LogContext): string {
-  if (context == null || Object.keys(context).length === 0) {
-    return "";
-  }
-
-  try {
-    return ` ${JSON.stringify(redactContext(context))}`;
-  } catch (err: unknown) {
-    console.error(
-      "[LOGGER] Failed to JSON.stringify log context",
-      err instanceof Error ? err.message : err,
-    );
-    return "";
-  }
-}
-
-/**
  * Determine whether a given log level should be emitted under the current
  * ACTIVE_LOG_LEVEL threshold.
  *

@@ -46,7 +46,7 @@ const memoryStore: Map<string, AdminLoginRateLimitState> = new Map();
 function getMemoryState(ipHash: string, now: number): AdminLoginRateLimitState {
   const existing = memoryStore.get(ipHash);
 
-  if (existing) {
+  if (existing !== undefined) {
     // Expired lock resets state.
     if (existing.lockedUntil !== null && now >= existing.lockedUntil) {
       const reset: AdminLoginRateLimitState = {
@@ -81,12 +81,12 @@ function getMemoryState(ipHash: string, now: number): AdminLoginRateLimitState {
   return initial;
 }
 
-async function memoryIsLocked(ipHash: string, now: number): Promise<boolean> {
+function memoryIsLocked(ipHash: string, now: number): Promise<boolean> {
   const state = getMemoryState(ipHash, now);
-  return state.lockedUntil !== null && now < state.lockedUntil;
+  return Promise.resolve(state.lockedUntil !== null && now < state.lockedUntil);
 }
 
-async function memoryRegisterFailure(ipHash: string, now: number): Promise<void> {
+function memoryRegisterFailure(ipHash: string, now: number): Promise<void> {
   const state = getMemoryState(ipHash, now);
 
   // Reset window if outside window
@@ -110,10 +110,12 @@ async function memoryRegisterFailure(ipHash: string, now: number): Promise<void>
   }
 
   memoryStore.set(ipHash, state);
+  return Promise.resolve();
 }
 
-async function memoryReset(ipHash: string): Promise<void> {
+function memoryReset(ipHash: string): Promise<void> {
   memoryStore.delete(ipHash);
+  return Promise.resolve();
 }
 
 // -----------------------------------------------------------------------------
@@ -171,7 +173,7 @@ async function dbRegisterFailure(ipHash: string, now: number): Promise<void> {
       let firstAttemptAt = nowDate;
       let lockedUntil: Date | null = null;
 
-      if (existing) {
+      if (existing !== null) {
         const windowExpired = now - existing.firstAttemptAt.getTime() > LOGIN_RATE_LIMIT_WINDOW_MS;
         const lockExpired =
           existing.lockedUntil !== null && existing.lockedUntil.getTime() <= now;
