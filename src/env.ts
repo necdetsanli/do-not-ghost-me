@@ -101,6 +101,48 @@ const baseServerEnvSchema = z.object({
   }),
 
   /**
+   * Rate limit for company search endpoint (req/min).
+   * 60 req/min is generous for autocomplete usage patterns.
+   */
+  RATE_LIMIT_COMPANY_SEARCH_MAX_REQUESTS: intFromEnv({
+    varName: "RATE_LIMIT_COMPANY_SEARCH_MAX_REQUESTS",
+    min: 10,
+    max: 200,
+    defaultValue: 60,
+  }),
+
+  /**
+   * Rate limit window for company search in milliseconds.
+   */
+  RATE_LIMIT_COMPANY_SEARCH_WINDOW_MS: intFromEnv({
+    varName: "RATE_LIMIT_COMPANY_SEARCH_WINDOW_MS",
+    min: 10_000,
+    max: 300_000,
+    defaultValue: 60_000,
+  }),
+
+  /**
+   * Rate limit for reports stats endpoint (req/min).
+   * Lower than search since stats queries are more expensive.
+   */
+  RATE_LIMIT_REPORTS_STATS_MAX_REQUESTS: intFromEnv({
+    varName: "RATE_LIMIT_REPORTS_STATS_MAX_REQUESTS",
+    min: 5,
+    max: 100,
+    defaultValue: 30,
+  }),
+
+  /**
+   * Rate limit window for reports stats in milliseconds.
+   */
+  RATE_LIMIT_REPORTS_STATS_WINDOW_MS: intFromEnv({
+    varName: "RATE_LIMIT_REPORTS_STATS_WINDOW_MS",
+    min: 10_000,
+    max: 300_000,
+    defaultValue: 60_000,
+  }),
+
+  /**
    * Public API: Company intel (browser extension)
    */
   COMPANY_INTEL_ENFORCE_K_ANONYMITY: boolFromEnv({
@@ -205,6 +247,13 @@ const serverEnvSchema = baseServerEnvSchema.superRefine(applyEnvInvariants);
 
 /**
  * Read and validate process.env once at module load time.
+ *
+ * This function explicitly maps each expected environment variable from `process.env`
+ * to the Zod schema. Any new env var added to `baseServerEnvSchema` must also be
+ * added here for it to be parsed and validated.
+ *
+ * @returns The validated, typed environment object.
+ * @throws Error if any required env var is missing or invalid.
  */
 function parseServerEnv(): z.infer<typeof serverEnvSchema> {
   const parsed = serverEnvSchema.safeParse({
@@ -214,6 +263,10 @@ function parseServerEnv(): z.infer<typeof serverEnvSchema> {
     RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP:
       process.env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP,
     RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY: process.env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY,
+    RATE_LIMIT_COMPANY_SEARCH_MAX_REQUESTS: process.env.RATE_LIMIT_COMPANY_SEARCH_MAX_REQUESTS,
+    RATE_LIMIT_COMPANY_SEARCH_WINDOW_MS: process.env.RATE_LIMIT_COMPANY_SEARCH_WINDOW_MS,
+    RATE_LIMIT_REPORTS_STATS_MAX_REQUESTS: process.env.RATE_LIMIT_REPORTS_STATS_MAX_REQUESTS,
+    RATE_LIMIT_REPORTS_STATS_WINDOW_MS: process.env.RATE_LIMIT_REPORTS_STATS_WINDOW_MS,
     COMPANY_INTEL_ENFORCE_K_ANONYMITY: process.env.COMPANY_INTEL_ENFORCE_K_ANONYMITY,
     COMPANY_INTEL_K_ANONYMITY: process.env.COMPANY_INTEL_K_ANONYMITY,
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
