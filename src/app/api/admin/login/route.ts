@@ -15,6 +15,7 @@ import {
 import { deriveCorrelationId, setCorrelationIdHeader } from "@/lib/correlation";
 import { getClientIp } from "@/lib/ip";
 import { verifyCsrfToken } from "@/lib/csrf";
+import { adminJsonError } from "@/lib/adminErrorResponse";
 import { logWarn, logError } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -27,21 +28,6 @@ const LOGIN_ERROR_QUERY_VALUE = "1";
 // -----------------------------------------------------------------------------
 // Origin checks
 // -----------------------------------------------------------------------------
-/**
- * Builds a 403 JSON response for disallowed admin hosts or origins.
- * This message is relied upon by tests and E2E assertions.
- *
- * @returns {NextResponse} A JSON response with a 403 status.
- */
-function buildHostForbiddenResponse(): NextResponse {
-  return NextResponse.json(
-    {
-      error: "Admin access is not allowed from this host.",
-    },
-    { status: 403 },
-  );
-}
-
 // -----------------------------------------------------------------------------
 // Form parsing / helpers
 // -----------------------------------------------------------------------------
@@ -124,12 +110,9 @@ function buildSuccessRedirectResponse(req: NextRequest, sessionToken: string): N
  * @returns {NextResponse} A 429 JSON response describing the rate limit.
  */
 function buildRateLimitResponse(): NextResponse {
-  return NextResponse.json(
-    {
-      error: "Too many admin login attempts from this IP. Please try again later.",
-    },
-    { status: 429 },
-  );
+  return adminJsonError("Too many admin login attempts from this IP. Please try again later.", {
+    status: 429,
+  });
 }
 
 // -----------------------------------------------------------------------------
@@ -178,7 +161,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       origin: req.headers.get("origin") ?? null,
     }));
 
-    return withCorrelation(buildHostForbiddenResponse());
+    return withCorrelation(
+      adminJsonError("Admin access is not allowed from this host.", { status: 403 }),
+    );
   }
 
   // 2) IP-based rate limiting.
@@ -188,14 +173,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // Fail closed: missing/blank/unknown IP is not allowed to proceed.
   if (clientIp.length === 0 || clientIp.toLowerCase() === "unknown") {
-    return withCorrelation(
-      NextResponse.json(
-        {
-          error: "Bad request",
-        },
-        { status: 400 },
-      ),
-    );
+    return withCorrelation(adminJsonError("Bad request", { status: 400 }));
   }
 
   const ipHash = hashAdminIp(clientIp);
@@ -254,13 +232,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       ip: clientIp,
     }));
 
-    return withCorrelation(
-      NextResponse.json(
-        {
-          error: "Internal server error",
-        },
-        { status: 500 },
-      ),
-    );
+    return withCorrelation(adminJsonError("Internal server error", { status: 500 }));
   }
 }

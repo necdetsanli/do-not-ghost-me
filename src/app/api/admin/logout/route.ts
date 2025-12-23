@@ -4,22 +4,10 @@ import { NextResponse } from "next/server";
 import { env } from "@/env";
 import { adminSessionCookieOptions, isAllowedAdminHost, isOriginAllowed } from "@/lib/adminAuth";
 import { deriveCorrelationId, setCorrelationIdHeader } from "@/lib/correlation";
+import { adminJsonError } from "@/lib/adminErrorResponse";
 import { logInfo, logWarn } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
-
-/**
- * 403 JSON response for disallowed admin hosts.
- * Kept aligned with the login route for consistent debugging and tests.
- */
-function buildHostForbiddenResponse(): NextResponse {
-  return NextResponse.json(
-    {
-      error: "Admin access is not allowed from this host.",
-    },
-    { status: 403 },
-  );
-}
 
 /**
  * Log out the current admin by clearing the session cookie.
@@ -51,7 +39,7 @@ export function POST(req: NextRequest): NextResponse {
       },
     );
 
-    return withCorrelation(buildHostForbiddenResponse());
+    return withCorrelation(adminJsonError("Admin access is not allowed from this host.", { status: 403 }));
   }
 
   const cookieOpts = adminSessionCookieOptions();

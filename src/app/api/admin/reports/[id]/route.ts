@@ -4,6 +4,7 @@ import { verifyCsrfToken } from "@/lib/csrf";
 import { prisma } from "@/lib/db";
 import { formatUnknownError } from "@/lib/errorUtils";
 import { deriveCorrelationId, setCorrelationIdHeader } from "@/lib/correlation";
+import { adminJsonError } from "@/lib/adminErrorResponse";
 import { logError, logInfo, logWarn } from "@/lib/logger";
 import type { ReportStatus } from "@prisma/client";
 import type { NextRequest } from "next/server";
@@ -93,7 +94,7 @@ export async function POST(
 
     const status: number = message === "Admin access is not allowed from this host." ? 403 : 401;
 
-    return withCorrelation(NextResponse.json({ error: message }, { status }));
+    return withCorrelation(adminJsonError(message, { status }));
   }
 
   // 2) Params: Next 15 route handler typings use Promise for params.
@@ -106,7 +107,7 @@ export async function POST(
       method: request.method,
     }));
 
-    return withCorrelation(NextResponse.json({ error: "Missing or invalid report id" }, { status: 400 }));
+    return withCorrelation(adminJsonError("Missing or invalid report id", { status: 400 }));
   }
 
   // 3) Form data
@@ -123,7 +124,7 @@ export async function POST(
       method: request.method,
     }));
 
-    return withCorrelation(NextResponse.json({ error: "Invalid CSRF token" }, { status: 403 }));
+    return withCorrelation(adminJsonError("Invalid CSRF token", { status: 403 }));
   }
 
   // 5) Validate action
@@ -204,7 +205,7 @@ export async function POST(
         action,
       }));
 
-      return withCorrelation(NextResponse.json({ error: `Unknown moderation action: ${action}` }, { status: 400 }));
+      return withCorrelation(adminJsonError(`Unknown moderation action: ${action}`, { status: 400 }));
     }
 
     // On success, redirect back to the admin dashboard.
@@ -220,6 +221,6 @@ export async function POST(
       error: formatUnknownError(error),
     }));
 
-    return withCorrelation(NextResponse.json({ error: "Failed to apply moderation action" }, { status: 500 }));
+    return withCorrelation(adminJsonError("Failed to apply moderation action", { status: 500 }));
   }
 }
