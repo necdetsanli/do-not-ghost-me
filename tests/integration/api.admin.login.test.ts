@@ -564,6 +564,84 @@ describe("POST /api/admin/login", () => {
     expect(getSetCookie(res)).toBeNull();
   });
 
+  describe("host/origin matrix (current behavior)", () => {
+    it("allows when host matches ADMIN_ALLOWED_HOST and origin matches host", async () => {
+      applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
+      const { validCsrf } = await getCsrfTokens();
+      const { POST } = await importLoginPost();
+
+      const req = buildLoginPostRequest(
+        "https://allowed.test/api/admin/login",
+        {
+          host: "allowed.test",
+          origin: "https://allowed.test",
+          "x-forwarded-for": "203.0.113.30",
+        },
+        { password: TEST_ADMIN_PASSWORD_WRONG, _csrf: validCsrf },
+      );
+
+      const res = await POST(req);
+      expect(res.status).not.toBe(403); // passes host/origin checks
+    });
+
+    it("denies when host matches but origin mismatches ADMIN_ALLOWED_HOST", async () => {
+      applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
+      const { validCsrf } = await getCsrfTokens();
+      const { POST } = await importLoginPost();
+
+      const req = buildLoginPostRequest(
+        "https://allowed.test/api/admin/login",
+        {
+          host: "allowed.test",
+          origin: "https://evil.test",
+          "x-forwarded-for": "203.0.113.31",
+        },
+        { password: TEST_ADMIN_PASSWORD_WRONG, _csrf: validCsrf },
+      );
+
+      const res = await POST(req);
+      expect(res.status).toBe(403);
+    });
+
+    it("denies when origin matches ADMIN_ALLOWED_HOST but host header differs", async () => {
+      applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
+      const { validCsrf } = await getCsrfTokens();
+      const { POST } = await importLoginPost();
+
+      const req = buildLoginPostRequest(
+        "https://allowed.test/api/admin/login",
+        {
+          host: "other.test",
+          origin: "https://allowed.test",
+          "x-forwarded-for": "203.0.113.32",
+        },
+        { password: TEST_ADMIN_PASSWORD_WRONG, _csrf: validCsrf },
+      );
+
+      const res = await POST(req);
+      expect(res.status).toBe(403);
+    });
+
+    it("allows when ADMIN_ALLOWED_HOST unset and host/origin match", async () => {
+      applyBaseEnv({ ADMIN_ALLOWED_HOST: "" });
+      const { validCsrf } = await getCsrfTokens();
+      const { POST } = await importLoginPost();
+
+      const req = buildLoginPostRequest(
+        "https://example.test/api/admin/login",
+        {
+          host: "example.test",
+          origin: "https://example.test",
+          "x-forwarded-for": "203.0.113.33",
+        },
+        { password: TEST_ADMIN_PASSWORD_WRONG, _csrf: validCsrf },
+      );
+
+      const res = await POST(req);
+      expect(res.status).not.toBe(403);
+    });
+  });
+
   it("returns 500 JSON when CSRF verification throws unexpectedly", async () => {
     applyBaseEnv({ ADMIN_ALLOWED_HOST: "allowed.test" });
 

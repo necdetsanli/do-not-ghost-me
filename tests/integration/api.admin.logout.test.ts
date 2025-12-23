@@ -209,6 +209,50 @@ describe("POST /api/admin/logout", () => {
     expect(setCookie).toContain("Path=/");
   });
 
+  describe("host matrix (current behavior)", () => {
+    it("allows logout when ADMIN_ALLOWED_HOST matches Host header", async () => {
+      envMock.ADMIN_ALLOWED_HOST = "example.test";
+
+      const req = makeLogoutRequest({
+        url: "http://example.test/api/admin/logout",
+        hostHeader: "example.test",
+      });
+
+      const res = POST(req);
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as { success?: boolean };
+      expect(json.success).toBe(true);
+    });
+
+    it("denies logout when Host mismatches ADMIN_ALLOWED_HOST", async () => {
+      envMock.ADMIN_ALLOWED_HOST = "example.test";
+
+      const req = makeLogoutRequest({
+        url: "http://example.test/api/admin/logout",
+        hostHeader: "evil.test",
+      });
+
+      const res = POST(req);
+      expect(res.status).toBe(403);
+      const json = (await res.json()) as { error?: string };
+      expect(json.error).toBe("Admin access is not allowed from this host.");
+    });
+
+    it("allows logout when ADMIN_ALLOWED_HOST is unset", async () => {
+      delete envMock.ADMIN_ALLOWED_HOST;
+
+      const req = makeLogoutRequest({
+        url: "http://example.test/api/admin/logout",
+        hostHeader: "evil.test",
+      });
+
+      const res = POST(req);
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as { success?: boolean };
+      expect(json.success).toBe(true);
+    });
+  });
+
   it("allows any host when ADMIN_ALLOWED_HOST is whitespace-only (trimmed empty)", async () => {
     envMock.ADMIN_ALLOWED_HOST = "   ";
 
