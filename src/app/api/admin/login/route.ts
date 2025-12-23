@@ -9,6 +9,10 @@ import {
   isAllowedAdminHost,
   isOriginAllowed,
 } from "@/lib/adminAuth";
+import {
+  getAdminLoginRateLimiter,
+  hashAdminIp,
+} from "@/lib/adminLoginRateLimiter";
 import { deriveCorrelationId, setCorrelationIdHeader } from "@/lib/correlation";
 import { getClientIp } from "@/lib/ip";
 import { verifyCsrfToken } from "@/lib/csrf";
@@ -20,147 +24,6 @@ const ADMIN_PASSWORD_FIELD_NAME = "password";
 const CSRF_FIELD_NAME = "_csrf";
 const LOGIN_ERROR_QUERY_KEY = "error";
 const LOGIN_ERROR_QUERY_VALUE = "1";
-
-// -----------------------------------------------------------------------------
-// Login rate limiting (in-memory, IP-based)
-// -----------------------------------------------------------------------------
-
-const LOGIN_RATE_LIMIT_MAX_ATTEMPTS: number = 5;
-const LOGIN_RATE_LIMIT_WINDOW_MS: number = 5 * 60 * 1000; // 5 minutes
-const LOGIN_RATE_LIMIT_LOCK_MS: number = 15 * 60 * 1000; // 15 minutes
-
-type LoginRateLimitState = {
-  attempts: number;
-  firstAttemptAt: number;
-  lockedUntil: number | null;
-};
-
-type LoginRateLimitStore = Map<string, LoginRateLimitState>;
-
-/**
- * Returns the global in-memory store for admin login rate limiting.
- *
- * The store is attached to `globalThis` so that it survives hot reloads
- * in development and avoids re-creating the map on every import.
- *
- * @returns {LoginRateLimitStore} The shared rate limit store.
- */
-function getLoginRateLimitStore(): LoginRateLimitStore {
-  const globalAny = globalThis as {
-    __adminLoginRateLimitStore?: LoginRateLimitStore;
-  };
-
-  globalAny.__adminLoginRateLimitStore ??= new Map<string, LoginRateLimitState>();
-
-  return globalAny.__adminLoginRateLimitStore;
-}
-
-/**
- * Retrieves or initializes the rate limit state for a given IP address.
- *
- * If an existing state is found and its lock has expired, the state is reset.
- * Otherwise, the existing state is returned as-is. New IPs receive an initial
- * state with zero attempts and no lock.
- *
- * @param {string} ip - The client IP address.
- * @param {number} now - The current timestamp in milliseconds.
- * @returns {LoginRateLimitState} The rate limit state for the IP.
- */
-function getRateLimitStateForIp(ip: string, now: number): LoginRateLimitState {
-  const store = getLoginRateLimitStore();
-  const existing = store.get(ip);
-
-  if (existing !== undefined) {
-    if (existing.lockedUntil !== null && now >= existing.lockedUntil) {
-      const resetState: LoginRateLimitState = {
-        attempts: 0,
-        firstAttemptAt: now,
-        lockedUntil: null,
-      };
-
-      store.set(ip, resetState);
-      return resetState;
-    }
-
-    return existing;
-  }
-
-  const initial: LoginRateLimitState = {
-    attempts: 0,
-    firstAttemptAt: now,
-    lockedUntil: null,
-  };
-
-  store.set(ip, initial);
-  return initial;
-}
-
-/**
- * Returns true if the given IP address is currently locked out
- * due to too many failed login attempts.
- *
- * @param {string} ip - The client IP address.
- * @param {number} now - The current timestamp in milliseconds.
- * @returns {boolean} True if the IP is locked, false otherwise.
- */
-function isIpLocked(ip: string, now: number): boolean {
-  const state = getRateLimitStateForIp(ip, now);
-
-  if (state.lockedUntil === null) {
-    return false;
-  }
-
-  return now < state.lockedUntil;
-}
-
-/**
- * Registers a failed login attempt for an IP address, updating its
- * rate limit state and applying a temporary lock if the maximum number
- * of attempts within the window is exceeded.
- *
- * @param {string} ip - The client IP address.
- * @param {number} now - The current timestamp in milliseconds.
- * @returns {void}
- */
-function registerFailedLoginAttempt(ip: string, now: number): void {
-  const store = getLoginRateLimitStore();
-  const state = getRateLimitStateForIp(ip, now);
-
-  // If the first attempt is outside the window, reset the counter.
-  if (now - state.firstAttemptAt > LOGIN_RATE_LIMIT_WINDOW_MS) {
-    state.attempts = 0;
-    state.firstAttemptAt = now;
-    state.lockedUntil = null;
-  }
-
-  state.attempts += 1;
-
-  if (state.attempts >= LOGIN_RATE_LIMIT_MAX_ATTEMPTS) {
-    state.lockedUntil = now + LOGIN_RATE_LIMIT_LOCK_MS;
-
-    logWarn("[admin-login] IP locked due to too many failed attempts", {
-      ip,
-      attempts: state.attempts,
-      windowMs: LOGIN_RATE_LIMIT_WINDOW_MS,
-      lockMs: LOGIN_RATE_LIMIT_LOCK_MS,
-      lockedUntil: state.lockedUntil,
-    });
-  }
-
-  store.set(ip, state);
-}
-
-/**
- * Clears all rate limit tracking state for the given IP address.
- * This is typically called after a successful login.
- *
- * @param {string} ip - The client IP address.
- * @returns {void}
- */
-function resetLoginAttempts(ip: string): void {
-  const store = getLoginRateLimitStore();
-  store.delete(ip);
-}
 
 // -----------------------------------------------------------------------------
 // Origin checks
@@ -297,6 +160,7 @@ function buildRateLimitResponse(): NextResponse {
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const correlationId = deriveCorrelationId(req);
+  const rateLimiter = getAdminLoginRateLimiter();
 
   const withCorrelation = (res: NextResponse): NextResponse => {
     setCorrelationIdHeader(res, correlationId);
@@ -335,8 +199,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  if (clientIp.length > 0 && isIpLocked(clientIp, now) === true) {
-    return withCorrelation(buildRateLimitResponse());
+  const ipHash = hashAdminIp(clientIp);
+
+  if (clientIp.length > 0) {
+    const locked = await rateLimiter.isLocked(ipHash, now);
+    if (locked) {
+      return withCorrelation(buildRateLimitResponse());
+    }
   }
 
   try {
@@ -347,7 +216,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const csrfIsValid = verifyCsrfToken("admin-login", csrfToken);
     if (csrfIsValid !== true) {
       if (clientIp.length > 0) {
-        registerFailedLoginAttempt(clientIp, now);
+        await rateLimiter.registerFailure(ipHash, now);
       }
 
       return withCorrelation(buildErrorRedirectResponse(req));
@@ -356,7 +225,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // 5) Password validation.
     if (password === null) {
       if (clientIp.length > 0) {
-        registerFailedLoginAttempt(clientIp, now);
+        await rateLimiter.registerFailure(ipHash, now);
       }
 
       return withCorrelation(buildErrorRedirectResponse(req));
@@ -366,7 +235,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (isValidPassword !== true) {
       if (clientIp.length > 0) {
-        registerFailedLoginAttempt(clientIp, now);
+        await rateLimiter.registerFailure(ipHash, now);
       }
 
       return withCorrelation(buildErrorRedirectResponse(req));
@@ -374,7 +243,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     // 6) Successful login → reset rate limit state and create session.
     if (clientIp.length > 0) {
-      resetLoginAttempts(clientIp);
+      await rateLimiter.reset(ipHash);
     }
 
     const sessionToken = createAdminSessionToken();

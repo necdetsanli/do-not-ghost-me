@@ -9,6 +9,7 @@ import {
   TEST_ADMIN_SESSION_SECRET,
   TEST_RATE_LIMIT_IP_SALT,
 } from "../testUtils/testSecrets";
+import { resetAdminLoginRateLimiter } from "@/lib/adminLoginRateLimiter";
 
 /**
  * Applies a minimal valid env for importing the app env schema.
@@ -142,8 +143,7 @@ describe("POST /api/admin/login", () => {
     // Ensure a known base env exists for each test unless overridden.
     applyBaseEnv();
 
-    delete (globalThis as unknown as { __adminLoginRateLimitStore?: unknown })
-      .__adminLoginRateLimitStore;
+    resetAdminLoginRateLimiter();
   });
 
   afterEach(() => {

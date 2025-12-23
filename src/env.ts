@@ -181,6 +181,17 @@ const baseServerEnvSchema = z.object({
    * Used to derive CSRF tokens; must be long and random in production.
    */
   ADMIN_CSRF_SECRET: z.string().min(32).optional(),
+
+  /**
+   * Strategy for admin login rate limiting.
+   * "memory" (default) keeps state in-process.
+   * "db" persists state in Postgres (requires matching schema/migrations).
+   */
+  ADMIN_LOGIN_RATE_LIMIT_STRATEGY: z
+    .enum(["memory", "db"])
+    .default("memory")
+    .optional()
+    .transform((v) => v ?? "memory"),
 });
 
 /**

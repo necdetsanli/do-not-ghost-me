@@ -403,6 +403,21 @@ model ReportIpDailyLimit {
   @@index([day], name: "idx_day")
 }
 
+/// Persistent state for admin login rate limiting per IP.
+model AdminLoginRateLimit {
+  id String @id @default(cuid())
+
+  /// Hex-encoded HMAC of the remote IP address.
+  ipHash String @unique @db.VarChar(128)
+
+  attempts       Int
+  firstAttemptAt DateTime
+  lockedUntil    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 /// Minimal admin user model for future multi-user admin accounts.
 /// Currently the app relies on a single env-based password, but this model
 /// allows attaching moderation actions to a specific admin in the future.
