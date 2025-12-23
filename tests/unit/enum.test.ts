@@ -1,20 +1,20 @@
 // tests/unit/enum.test.ts
-import { describe, it, expect } from "vitest";
-import { PositionCategory, JobLevel, Stage, CountryCode } from "@prisma/client";
 import {
+  categoryEnumToSlug,
+  categorySlugToEnum,
   enumToSlug,
   formatEnumLabel,
   labelForCategory,
+  labelForCountry,
   labelForJobLevel,
   labelForStage,
-  labelForCountry,
-  categoryEnumToSlug,
-  categorySlugToEnum,
   seniorityEnumToSlug,
   senioritySlugToEnum,
   stageEnumToSlug,
   stageSlugToEnum,
 } from "@/lib/enums";
+import { CountryCode, JobLevel, PositionCategory, Stage } from "@prisma/client";
+import { describe, expect, it } from "vitest";
 
 /**
  * Unit tests for lib/enums utilities.
@@ -112,5 +112,30 @@ describe("lib/enums", () => {
     expect(back).toBe(stage);
 
     expect(stageSlugToEnum("unknown-slug")).toBeUndefined();
+  });
+
+  /**
+   * Ensures formatEnumLabel handles edge cases with empty parts.
+   */
+  it("formatEnumLabel handles empty parts from consecutive underscores", () => {
+    // Double underscore creates an empty part
+    const result = formatEnumLabel("__DOUBLE__UNDERSCORE__");
+    expect(typeof result).toBe("string");
+  });
+
+  /**
+   * Ensures formatEnumLabel handles trailing underscore.
+   */
+  it("formatEnumLabel handles trailing underscore", () => {
+    const result = formatEnumLabel("TEST_");
+    expect(result).toBe("Test ");
+  });
+
+  /**
+   * Ensures formatEnumLabel handles leading underscore.
+   */
+  it("formatEnumLabel handles leading underscore", () => {
+    const result = formatEnumLabel("_LEADING");
+    expect(result).toBe(" Leading");
   });
 });

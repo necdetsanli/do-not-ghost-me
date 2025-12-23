@@ -1,9 +1,9 @@
 // tests/unit/env.test.ts
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  TEST_ADMIN_CSRF_SECRET,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_SESSION_SECRET,
-  TEST_ADMIN_CSRF_SECRET,
   TEST_RATE_LIMIT_IP_SALT,
 } from "../testUtils/testSecrets";
 
@@ -234,6 +234,56 @@ describe("src/env.ts", () => {
       loadEnvModule({
         NODE_ENV: "production",
         RATE_LIMIT_IP_SALT: "replace-with-a-strong-random-salt-value-123456",
+      }),
+    ).rejects.toThrow("Invalid environment configuration. See error log above.");
+
+    expect(errSpy).toHaveBeenCalledTimes(1);
+    errSpy.mockRestore();
+  });
+
+  it("uses default for numeric env vars when value is empty string", async () => {
+    const mod = await loadEnvModule({
+      RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP: "",
+      RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY: "   ",
+    });
+
+    // Empty strings should fall back to defaults
+    expect(mod.env.RATE_LIMIT_MAX_REPORTS_PER_COMPANY_PER_IP).toBe(3);
+    expect(mod.env.RATE_LIMIT_MAX_REPORTS_PER_IP_PER_DAY).toBe(10);
+  });
+
+  it("coerces boolean env vars from string 'true' (case-insensitive)", async () => {
+    const mod = await loadEnvModule({
+      COMPANY_INTEL_ENFORCE_K_ANONYMITY: "TRUE",
+    });
+
+    expect(mod.env.COMPANY_INTEL_ENFORCE_K_ANONYMITY).toBe(true);
+  });
+
+  it("coerces boolean env vars from string 'false' (case-insensitive)", async () => {
+    const mod = await loadEnvModule({
+      COMPANY_INTEL_ENFORCE_K_ANONYMITY: "FALSE",
+    });
+
+    expect(mod.env.COMPANY_INTEL_ENFORCE_K_ANONYMITY).toBe(false);
+  });
+
+  it("uses default for boolean env vars when value is empty string", async () => {
+    const mod = await loadEnvModule({
+      COMPANY_INTEL_ENFORCE_K_ANONYMITY: "",
+    });
+
+    // Empty string should fall back to default (false)
+    expect(mod.env.COMPANY_INTEL_ENFORCE_K_ANONYMITY).toBe(false);
+  });
+
+  it("throws when COMPANY_INTEL_K_ANONYMITY < 2 and enforcement is enabled", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      loadEnvModule({
+        COMPANY_INTEL_ENFORCE_K_ANONYMITY: "true",
+        COMPANY_INTEL_K_ANONYMITY: "1",
       }),
     ).rejects.toThrow("Invalid environment configuration. See error log above.");
 

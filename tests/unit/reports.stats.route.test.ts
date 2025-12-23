@@ -1,20 +1,22 @@
 // tests/unit/reports.stats.route.test.ts
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { prismaMock, logErrorMock, logWarnMock, getUtcWeekStartMock } = vi.hoisted(() => ({
-  prismaMock: {
-    report: {
-      count: vi.fn(),
-      groupBy: vi.fn(),
+const { prismaMock, logErrorMock, logWarnMock, getUtcWeekStartMock, applyPublicRateLimitMock } =
+  vi.hoisted(() => ({
+    prismaMock: {
+      report: {
+        count: vi.fn(),
+        groupBy: vi.fn(),
+      },
+      company: {
+        findMany: vi.fn(),
+      },
     },
-    company: {
-      findMany: vi.fn(),
-    },
-  },
-  logErrorMock: vi.fn(),
-  logWarnMock: vi.fn(),
-  getUtcWeekStartMock: vi.fn(),
-}));
+    logErrorMock: vi.fn(),
+    logWarnMock: vi.fn(),
+    getUtcWeekStartMock: vi.fn(),
+    applyPublicRateLimitMock: vi.fn(),
+  }));
 
 vi.mock("next/server", () => ({
   NextResponse: {
@@ -44,6 +46,10 @@ vi.mock("@/lib/dates", () => ({
   getUtcWeekStart: getUtcWeekStartMock,
 }));
 
+vi.mock("@/lib/publicRateLimit", () => ({
+  applyPublicRateLimit: applyPublicRateLimitMock,
+}));
+
 type GroupByRow = {
   companyId: string;
   _count: { companyId: number };
@@ -55,10 +61,14 @@ type JsonResponse = {
   error?: string;
 };
 
-async function importGet(): Promise<() => Promise<Response>> {
+async function importGet(): Promise<(req: Request) => Promise<Response>> {
   vi.resetModules();
   const mod = await import("@/app/api/reports/stats/route");
-  return mod.GET as unknown as () => Promise<Response>;
+  return mod.GET as unknown as (req: Request) => Promise<Response>;
+}
+
+function createMockRequest(): Request {
+  return new Request("http://localhost/api/reports/stats", { method: "GET" });
 }
 
 async function readJson(res: Response): Promise<JsonResponse> {
@@ -69,6 +79,9 @@ async function readJson(res: Response): Promise<JsonResponse> {
 describe("GET /api/reports/stats", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Default: rate limiting passes
+    applyPublicRateLimitMock.mockReturnValue({ allowed: true, clientIp: "127.0.0.1" });
 
     // Deterministic week window
     getUtcWeekStartMock.mockReturnValue(new Date(Date.UTC(2025, 0, 6, 0, 0, 0)));
@@ -87,7 +100,7 @@ describe("GET /api/reports/stats", () => {
     prismaMock.report.groupBy.mockResolvedValue([] as GroupByRow[]);
 
     const GET = await importGet();
-    const res = await GET();
+    const res = await GET(createMockRequest());
 
     expect(res.status).toBe(200);
 
@@ -127,7 +140,7 @@ describe("GET /api/reports/stats", () => {
     ]);
 
     const GET = await importGet();
-    const res = await GET();
+    const res = await GET(createMockRequest());
 
     expect(res.status).toBe(200);
 
@@ -150,7 +163,7 @@ describe("GET /api/reports/stats", () => {
     ]);
 
     const GET = await importGet();
-    const res = await GET();
+    const res = await GET(createMockRequest());
 
     expect(res.status).toBe(200);
 
@@ -173,7 +186,7 @@ describe("GET /api/reports/stats", () => {
     ]);
 
     const GET = await importGet();
-    const res = await GET();
+    const res = await GET(createMockRequest());
 
     expect(res.status).toBe(200);
 
@@ -198,7 +211,7 @@ describe("GET /api/reports/stats", () => {
     prismaMock.report.count.mockRejectedValue(new Error("db-down"));
 
     const GET = await importGet();
-    const res = await GET();
+    const res = await GET(createMockRequest());
 
     expect(res.status).toBe(500);
 
@@ -206,5 +219,88 @@ describe("GET /api/reports/stats", () => {
     expect(body.error).toBe("Internal server error");
 
     expect(logErrorMock).toHaveBeenCalledTimes(1);
+  });
+
+  // --- Rate Limiting Tests ---
+  describe("rate limiting", () => {
+    it("returns 429 with 'Rate limit unavailable' when IP cannot be resolved (fail-closed)", async () => {
+      applyPublicRateLimitMock.mockReturnValue({
+        allowed: false,
+        response: new Response(JSON.stringify({ error: "Rate limit unavailable" }), {
+          status: 429,
+          headers: { "Cache-Control": "no-store" },
+        }),
+      });
+
+      const GET = await importGet();
+      const res = await GET(createMockRequest());
+
+      expect(res.status).toBe(429);
+
+      const body = await readJson(res);
+      expect(body.error).toBe("Rate limit unavailable");
+
+      // Business logic should NOT be reached
+      expect(prismaMock.report.count).not.toHaveBeenCalled();
+    });
+
+    it("returns 429 with 'Too many requests' when rate limit exceeded", async () => {
+      applyPublicRateLimitMock.mockReturnValue({
+        allowed: false,
+        response: new Response(JSON.stringify({ error: "Too many requests" }), {
+          status: 429,
+          headers: { "Cache-Control": "no-store" },
+        }),
+      });
+
+      const GET = await importGet();
+      const res = await GET(createMockRequest());
+
+      expect(res.status).toBe(429);
+
+      const body = await readJson(res);
+      expect(body.error).toBe("Too many requests");
+
+      // Business logic should NOT be reached
+      expect(prismaMock.report.count).not.toHaveBeenCalled();
+    });
+
+    it("returns 500 and logs error when rate limit system throws unexpected error", async () => {
+      applyPublicRateLimitMock.mockReturnValue({
+        allowed: false,
+        response: new Response(JSON.stringify({ error: "Internal server error" }), {
+          status: 500,
+          headers: { "Cache-Control": "no-store" },
+        }),
+      });
+
+      const GET = await importGet();
+      const res = await GET(createMockRequest());
+
+      expect(res.status).toBe(500);
+
+      const body = await readJson(res);
+      expect(body.error).toBe("Internal server error");
+
+      // Business logic should NOT be reached
+      expect(prismaMock.report.count).not.toHaveBeenCalled();
+    });
+
+    it("calls applyPublicRateLimit with correct scope and limits", async () => {
+      applyPublicRateLimitMock.mockReturnValue({ allowed: true, clientIp: "10.0.0.1" });
+
+      const GET = await importGet();
+      await GET(createMockRequest());
+
+      expect(applyPublicRateLimitMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          scope: "reports-stats",
+          maxRequests: 30,
+          windowMs: 60_000,
+          logContext: "[GET /api/reports/stats]",
+        }),
+      );
+    });
   });
 });

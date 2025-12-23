@@ -1,7 +1,7 @@
 // tests/unit/adminAuth.test.ts
-import { describe, expect, it, vi } from "vitest";
-import crypto from "node:crypto";
 import type { NextRequest, NextResponse } from "next/server";
+import crypto from "node:crypto";
+import { describe, expect, it, vi } from "vitest";
 
 type MockEnv = {
   NODE_ENV: "production" | "development" | "test";
@@ -48,7 +48,7 @@ function signHmacSha256B64url(data: string, secret: string): string {
  *
  * Notes:
  * - Implements only the fields used by the module (method, headers, nextUrl, cookies.get()).
- * - cookies.get("dg_admin") returns the provided cookieValue, if non-empty.
+ * - cookies.get("__Host-dg_admin") returns the provided cookieValue, if non-empty.
  *
  * @param args - Request field overrides.
  * @returns NextRequest-like object.
@@ -87,7 +87,7 @@ function makeReq({
 
   const cookieStore = {
     get: (name: string): { value: string } | undefined => {
-      if (name !== "dg_admin") {
+      if (name !== "__Host-dg_admin") {
         return undefined;
       }
       if (cookieValue === null || cookieValue === undefined || cookieValue === "") {
@@ -397,6 +397,23 @@ describe("adminAuth host/origin checks", () => {
   });
 
   /**
+   * Ensures isOriginAllowed returns true when ADMIN_ALLOWED_HOST is empty string.
+   */
+  it("allows all origins when ADMIN_ALLOWED_HOST is empty string", async () => {
+    const { mod } = await loadAdminAuth({ ADMIN_ALLOWED_HOST: "" });
+
+    const req = makeReq({
+      host: "any.host.com",
+      proto: "https",
+      origin: "https://any.origin.com",
+      method: "POST",
+    });
+
+    const ok = mod.isOriginAllowed(req);
+    expect(ok).toBe(true);
+  });
+
+  /**
    * Ensures Origin header is accepted when it matches the expected admin origin.
    */
   it("allows origin when it matches expected admin origin", async () => {
@@ -461,6 +478,124 @@ describe("adminAuth host/origin checks", () => {
 
     const ok = mod.isOriginAllowed(req);
     expect(ok).toBe(true);
+  });
+
+  /**
+   * Ensures OPTIONS requests are also treated as safe methods.
+   */
+  it("allows OPTIONS method when origin/referer are missing", async () => {
+    const { mod } = await loadAdminAuth({ ADMIN_ALLOWED_HOST: "example.test" });
+
+    const req = makeReq({
+      host: "example.test",
+      proto: "https",
+      method: "OPTIONS",
+    });
+
+    const ok = mod.isOriginAllowed(req);
+    expect(ok).toBe(true);
+  });
+
+  /**
+   * Ensures HEAD requests are allowed without origin/referer as safe methods.
+   */
+  it("allows HEAD method without origin/referer", async () => {
+    const { mod } = await loadAdminAuth({ ADMIN_ALLOWED_HOST: "example.test" });
+
+    const req = makeReq({
+      host: "example.test",
+      proto: "https",
+      method: "HEAD",
+    });
+
+    const ok = mod.isOriginAllowed(req);
+    expect(ok).toBe(true);
+  });
+
+  /**
+   * Ensures malformed origin headers are rejected.
+   */
+  it("rejects malformed origin header URLs", async () => {
+    const { mod } = await loadAdminAuth({ ADMIN_ALLOWED_HOST: "example.test" });
+
+    const headers = new Headers();
+    headers.set("origin", "not-a-valid-url");
+    headers.set("x-forwarded-proto", "https");
+
+    const req = {
+      method: "POST",
+      headers,
+      nextUrl: new URL("https://example.test/admin"),
+      cookies: { get: () => undefined },
+    } as unknown as NextRequest;
+
+    const ok = mod.isOriginAllowed(req);
+    expect(ok).toBe(false);
+  });
+
+  /**
+   * Ensures malformed referer headers are rejected when origin is empty.
+   */
+  it("rejects malformed referer header URLs", async () => {
+    const { mod } = await loadAdminAuth({ ADMIN_ALLOWED_HOST: "example.test" });
+
+    const headers = new Headers();
+    headers.set("referer", "not-a-valid-url");
+    headers.set("x-forwarded-proto", "https");
+
+    const req = {
+      method: "POST",
+      headers,
+      nextUrl: new URL("https://example.test/admin"),
+      cookies: { get: () => undefined },
+    } as unknown as NextRequest;
+
+    const ok = mod.isOriginAllowed(req);
+    expect(ok).toBe(false);
+  });
+
+  /**
+   * Ensures protocol defaults to https when neither x-forwarded-proto nor req.nextUrl.protocol
+   * provides a valid value.
+   */
+  it("defaults to https when protocol is neither http nor https", async () => {
+    const { mod } = await loadAdminAuth({ ADMIN_ALLOWED_HOST: "example.test" });
+
+    const headers = new Headers();
+    headers.set("origin", "https://example.test");
+    // No x-forwarded-proto header
+
+    // Create a URL with a non-standard protocol that will be transformed
+    const nextUrl = new URL("https://example.test/admin");
+    // Force protocol to something invalid
+    Object.defineProperty(nextUrl, "protocol", { value: "ftp:", writable: false });
+
+    const req = {
+      method: "POST",
+      headers,
+      nextUrl,
+      cookies: { get: () => undefined },
+    } as unknown as NextRequest;
+
+    const ok = mod.isOriginAllowed(req);
+    expect(ok).toBe(true);
+  });
+
+  /**
+   * Ensures unsafe methods without origin/referer are rejected.
+   */
+  it("rejects unsafe methods without origin or referer", async () => {
+    const { mod } = await loadAdminAuth({ ADMIN_ALLOWED_HOST: "example.test" });
+
+    const req = makeReq({
+      host: "example.test",
+      proto: "https",
+      method: "POST",
+      // No origin or referer
+    });
+
+    const ok = mod.isOriginAllowed(req);
+    expect(ok).toBe(false);
   });
 });
 
@@ -539,7 +674,7 @@ describe("adminAuth cookie helpers", () => {
 
     const opts = mod.adminSessionCookieOptions();
 
-    expect(opts.name).toBe("dg_admin");
+    expect(opts.name).toBe("__Host-dg_admin");
     expect(opts.httpOnly).toBe(true);
     expect(opts.sameSite).toBe("strict");
     expect(opts.path).toBe("/");
@@ -571,7 +706,7 @@ describe("adminAuth cookie helpers", () => {
       maxAge: number;
     };
 
-    expect(callArg.name).toBe("dg_admin");
+    expect(callArg.name).toBe("__Host-dg_admin");
     expect(callArg.value).toBe("token");
     expect(callArg.httpOnly).toBe(true);
     expect(callArg.sameSite).toBe("strict");

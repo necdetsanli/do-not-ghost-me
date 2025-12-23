@@ -1,6 +1,6 @@
 // tests/unit/companyIntel.contract.test.ts
-import { describe, expect, it } from "vitest";
 import { companyIntelRequestSchema } from "@/lib/contracts/companyIntel";
+import { describe, expect, it } from "vitest";
 
 describe("companyIntelRequestSchema", () => {
   it("normalizes source casing and lowercases non-domain keys", () => {
@@ -79,5 +79,30 @@ describe("companyIntelRequestSchema", () => {
       const result = companyIntelRequestSchema.safeParse(payload);
       expect(result.success).toBe(false);
     }
+  });
+
+  it("rejects empty or whitespace-only domain keys", () => {
+    const empties = [
+      { source: "domain", key: "" },
+      { source: "domain", key: "   " },
+      { source: "domain", key: "https://" }, // Normalizes to empty host
+    ];
+
+    for (const payload of empties) {
+      const result = companyIntelRequestSchema.safeParse(payload);
+      expect(result.success).toBe(false);
+    }
+  });
+
+  it("rejects domains exceeding maximum length", () => {
+    // Create a domain that exceeds MAX_DOMAIN_LENGTH (253 chars)
+    const longDomain = "a".repeat(250) + ".com";
+
+    const result = companyIntelRequestSchema.safeParse({
+      source: "domain",
+      key: longDomain,
+    });
+
+    expect(result.success).toBe(false);
   });
 });
