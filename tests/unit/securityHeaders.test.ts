@@ -202,6 +202,32 @@ describe("Security Headers Configuration", () => {
       const csp = header?.value ?? "";
       expect(csp).not.toContain("unsafe-eval");
     });
+
+    it("matches the exact production CSP string (drift guard)", async () => {
+      const expectedCsp =
+        "default-src 'self'; " +
+        "script-src 'self' 'unsafe-inline'; " +
+        "style-src 'self' 'unsafe-inline'; " +
+        "object-src 'none'; " +
+        "img-src 'self' data:; " +
+        "connect-src 'self'; " +
+        "font-src 'self' data:; " +
+        "frame-ancestors 'none'; " +
+        "frame-src 'none'; " +
+        "form-action 'self'; " +
+        "base-uri 'self'; " +
+        "media-src 'self'; " +
+        "manifest-src 'self'; " +
+        "worker-src 'self' blob:";
+
+      const config = await importConfigFresh();
+      const headerConfigs = await config.default.headers();
+      const globalHeaders = headerConfigs.find((h) => h.source === "/(.*)")?.headers ?? [];
+
+      const header = globalHeaders.find((h) => h.key === "Content-Security-Policy");
+      expect(header).toBeDefined();
+      expect(header?.value).toBe(expectedCsp);
+    });
   });
 
   describe("general config", () => {
