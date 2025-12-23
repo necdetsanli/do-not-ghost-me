@@ -8,16 +8,64 @@ This project follows **Semantic Versioning** (`MAJOR.MINOR.PATCH`).
 
 ## [Unreleased]
 
-- Test suite refresh + coverage hardening (unit/integration/e2e) is in progress. Some test updates have landed, but the effort is not complete yet.
+_No unreleased changes._
+
+---
+
+## [1.4.0] - 2025-12-23
 
 ### Added
 
-- Comprehensive security regression test suite (`tests/unit/security.regression.test.ts`):
-  - **CSRF Security** (6 tests): Timing attack resistance, token replay prevention, purpose binding, malformed token handling
-  - **Session Security** (4 tests): Token tampering detection, constant-time password comparison
-  - **Cookie Security** (5 tests): \_\_Host- prefix validation, Path/HttpOnly/SameSite/Secure attribute verification
-  - **Rate Limiting** (8 tests): IP validation, scope isolation, window expiry, IP hashing verification
-  - **Host/Origin Validation** (5 tests): Host header attacks, origin spoofing, referer fallback validation
+- **Rate limit store abstraction** (`src/lib/rateLimitStore.ts`):
+  - Pluggable `RateLimitStore` interface for future Redis migration
+  - `MemoryRateLimitStore` implementation with eviction and periodic sweep
+  - `RateLimitStoreFactory` for backend selection
+
+- **Public endpoint rate limiting**:
+  - `/api/companies/search`: 60 requests/minute per IP
+  - `/api/public/company-intel`: 30 requests/minute per IP
+  - `/api/reports/stats`: 30 requests/minute per IP
+
+- **CSRF token validation** for admin moderation actions (flag, delete, approve)
+
+- **Comprehensive security regression test suite** (`tests/unit/security.regression.test.ts`):
+  - CSRF timing attacks, token replay, purpose binding, malformed tokens
+  - Session token tampering, expiration boundaries, constant-time password comparison
+  - `__Host-` cookie prefix validation, cookie attribute verification
+  - Rate limit IP validation, scope isolation, window expiry, IP hashing
+  - Admin login rate limiting, lockout behavior, host/origin validation
+
+- **Security headers test suite** (`tests/unit/securityHeaders.test.ts`):
+  - Verifies CSP, HSTS, X-Frame-Options, Permissions-Policy in production vs development
+
+- **Rate limit store test suite** (`tests/unit/rateLimitStore.test.ts`):
+  - MemoryRateLimitStore, factory, eviction, and sweep behavior
+
+- **k-anonymity validation** in env schema: throws on startup if `COMPANY_INTEL_K_ANONYMITY < 2` when enforcement is enabled
+
+### Fixed
+
+- **`__Host-` cookie `Secure` attribute**: Always set `secure: true` for `__Host-dg_admin` cookie (required by browser spec, even on localhost)
+
+- **TypeScript path alias**: Corrected `@/*` path from `./*` to `./src/*` (resolved 621 ESLint errors)
+
+- **E2E test password synchronization**: Tests now use `process.env.ADMIN_PASSWORD` exclusively to avoid mismatch between Playwright workers and webServer
+
+- **E2E CSRF token handling**: Moderation tests extract CSRF token from page before API calls
+
+- **E2E cold-start retry**: Added retry logic with backoff for Next.js JIT compilation 404s
+
+- **Empty client IP handling**: `/api/reports` returns 429 when client IP is empty after trim
+
+### Changed
+
+- Refactored `useReportsStats` tests to use `@testing-library/react` renderHook for cleaner async state testing
+
+- Expanded unit test coverage across modules:
+  - `adminAuth`: Empty host, OPTIONS/HEAD methods, malformed origin/referer
+  - `csrf`: timingSafeEqual error catch branch
+  - `publicRateLimit`: Scope validation, applyPublicRateLimit helper, sweep edge cases
+  - Various route handlers and utility edge cases
 
 ---
 
