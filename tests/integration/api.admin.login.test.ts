@@ -489,9 +489,8 @@ describe("POST /api/admin/login", () => {
     vi.useRealTimers();
   });
 
-  it("returns 403 JSON when Origin present but Host header is missing and ADMIN_ALLOWED_HOST not set", async () => {
-    // This test covers the hostHeader === null branch when no ADMIN_ALLOWED_HOST is set
-    // Apply base env first, then override ADMIN_ALLOWED_HOST to empty string (falsy)
+  it("returns 400 when Origin present but Host header is missing and ADMIN_ALLOWED_HOST not set (fails closed on missing IP)", async () => {
+    // With no ADMIN_ALLOWED_HOST and missing host/IP, login should fail closed with 400.
     applyBaseEnv({ ADMIN_ALLOWED_HOST: "" });
 
     const { invalidCsrf } = await getCsrfTokens();
@@ -508,10 +507,10 @@ describe("POST /api/admin/login", () => {
     );
 
     const res = await POST(req);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(400);
 
     const json = (await res.json()) as { error?: string };
-    expect(json.error).toBe("Admin access is not allowed from this host.");
+    expect(json.error).toBe("Bad request");
   });
 
   it("returns 403 JSON when Origin header has invalid URL format", async () => {

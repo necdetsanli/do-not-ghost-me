@@ -59,6 +59,14 @@ vi.mock("@/env", () => ({
 
 vi.mock("@/lib/adminAuth", () => ({
   adminSessionCookieOptions: adminSessionCookieOptionsMock,
+  isAllowedAdminHost: (req: NextRequest) => {
+    const required = envMock.ADMIN_ALLOWED_HOST;
+    if (required === undefined || required === null || required.trim().length === 0) {
+      return true;
+    }
+    const host = req.headers.get("host") ?? "";
+    return host === required.trim();
+  },
 }));
 
 vi.mock("@/lib/logger", () => ({

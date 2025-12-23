@@ -2,37 +2,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { env } from "@/env";
-import { adminSessionCookieOptions } from "@/lib/adminAuth";
+import { adminSessionCookieOptions, isAllowedAdminHost } from "@/lib/adminAuth";
 import { logInfo, logWarn } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
-
-/**
- * Return true if this request is allowed to hit the admin logout endpoint,
- * based on the configured ADMIN_ALLOWED_HOST.
- *
- * This mirrors the logic used for the admin login endpoint so that
- * all admin APIs share the same host restriction rules.
- */
-function isHostAllowed(req: NextRequest): boolean {
-  const allowedHost = env.ADMIN_ALLOWED_HOST;
-
-  if (allowedHost === undefined || allowedHost === null) {
-    return true;
-  }
-
-  const trimmedAllowed = allowedHost.trim();
-  if (trimmedAllowed.length === 0) {
-    return true;
-  }
-
-  const hostHeader = req.headers.get("host");
-  if (hostHeader === null) {
-    return false;
-  }
-
-  return hostHeader === trimmedAllowed;
-}
 
 /**
  * 403 JSON response for disallowed admin hosts.
@@ -55,7 +28,7 @@ function buildHostForbiddenResponse(): NextResponse {
  * - Clients are responsible for navigation after a successful logout.
  */
 export function POST(req: NextRequest): NextResponse {
-  if (!isHostAllowed(req)) {
+  if (!isAllowedAdminHost(req)) {
     logWarn("[POST /api/admin/logout] Logout blocked due to disallowed host", {
       host: req.headers.get("host"),
       allowedHost: env.ADMIN_ALLOWED_HOST ?? null,

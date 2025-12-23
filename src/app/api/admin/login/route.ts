@@ -7,6 +7,7 @@ import {
   createAdminSessionToken,
   withAdminSessionCookie,
   isAllowedAdminHost,
+  isOriginAllowed,
 } from "@/lib/adminAuth";
 import { getClientIp } from "@/lib/ip";
 import { verifyCsrfToken } from "@/lib/csrf";
@@ -163,51 +164,6 @@ function resetLoginAttempts(ip: string): void {
 // -----------------------------------------------------------------------------
 // Origin checks
 // -----------------------------------------------------------------------------
-
-/**
- * Basic Origin check for CSRF mitigation.
- *
- * If an Origin header is present, its host must match:
- * - ADMIN_ALLOWED_HOST when configured, otherwise
- * - the Host header of the current request.
- *
- * @param {NextRequest} req - Incoming Next.js request.
- * @returns {boolean} True if the Origin is allowed, false otherwise.
- */
-function isOriginAllowed(req: NextRequest): boolean {
-  const originHeader = req.headers.get("origin");
-
-  if (originHeader === null) {
-    return true;
-  }
-
-  let originUrl: URL;
-  try {
-    originUrl = new URL(originHeader);
-  } catch {
-    return false;
-  }
-
-  const allowedHostFromEnv = env.ADMIN_ALLOWED_HOST;
-  const hostHeader = req.headers.get("host");
-
-  const normalizedOriginHost = originUrl.host;
-  const normalizedAllowed =
-    allowedHostFromEnv !== undefined && allowedHostFromEnv !== null
-      ? allowedHostFromEnv.trim()
-      : "";
-
-  if (normalizedAllowed.length > 0) {
-    return normalizedOriginHost === normalizedAllowed;
-  }
-
-  if (hostHeader === null) {
-    return false;
-  }
-
-  return normalizedOriginHost === hostHeader;
-}
-
 /**
  * Builds a 403 JSON response for disallowed admin hosts or origins.
  * This message is relied upon by tests and E2E assertions.
