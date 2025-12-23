@@ -1,18 +1,18 @@
 // src/app/api/reports/route.ts
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { findOrCreateCompanyForReport } from "@/lib/company";
 import { prisma } from "@/lib/db";
-import { reportSchema, type ReportInput } from "@/lib/validation/reportSchema";
+import { formatUnknownError } from "@/lib/errorUtils";
+import { getClientIp } from "@/lib/ip";
+import { logError, logInfo, logWarn } from "@/lib/logger";
 import { enforceReportLimitForIpCompanyPosition } from "@/lib/rateLimit";
 import {
   MISSING_IP_MESSAGE,
   ReportRateLimitError,
   isReportRateLimitError,
 } from "@/lib/rateLimitError";
-import { getClientIp } from "@/lib/ip";
-import { findOrCreateCompanyForReport } from "@/lib/company";
-import { logInfo, logWarn, logError } from "@/lib/logger";
-import { formatUnknownError } from "@/lib/errorUtils";
+import { reportSchema, type ReportInput } from "@/lib/validation/reportSchema";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
@@ -51,24 +51,15 @@ function mapRateLimitErrorToResponse(error: ReportRateLimitError): NextResponse 
  * This allows us to treat "honeypot filled" as a bot submission and
  * silently drop it, instead of surfacing a 400 validation error.
  *
- * @param issues - The Zod issues array from a failed parse.
- * @returns True if every issue path is exactly ["honeypot"], false otherwise.
+ * Invariant: This function is only called when `safeParse.success === false`,
+ * meaning Zod guarantees at least one issue exists. Honeypot is a top-level
+ * field, so its path is always `["honeypot"]`.
+ *
+ * @param issues - The Zod issues array from a failed parse (non-empty).
+ * @returns True if every issue path starts with "honeypot", false otherwise.
  */
 function isHoneypotOnlyValidationError(issues: HoneypotIssue[]): boolean {
-  if (issues.length === 0) {
-    return false;
-  }
-
-  return issues.every((issue: HoneypotIssue): boolean => {
-    if (issue.path.length !== 1) {
-      return false;
-    }
-
-    const [segment] = issue.path;
-
-    // We only care about string paths and specifically "honeypot".
-    return typeof segment === "string" && segment === "honeypot";
-  });
+  return issues.every((issue: HoneypotIssue): boolean => issue.path[0] === "honeypot");
 }
 
 /**
