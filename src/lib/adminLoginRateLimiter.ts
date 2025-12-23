@@ -32,7 +32,17 @@ export type AdminLoginRateLimiter = {
  * @returns Hex-encoded HMAC.
  */
 export function hashAdminIp(ip: string): string {
-  const hmac = crypto.createHmac("sha256", env.RATE_LIMIT_IP_SALT);
+  const saltFromEnv = env.RATE_LIMIT_IP_SALT ?? process.env.RATE_LIMIT_IP_SALT;
+  const salt = saltFromEnv ?? "test-admin-login-rate-limit-salt";
+
+  if (typeof saltFromEnv !== "string" || saltFromEnv.length === 0) {
+    if (process.env.NODE_ENV !== "test") {
+      throw new Error("RATE_LIMIT_IP_SALT is required for admin login rate limiting");
+    }
+    // In tests, fall back to deterministic salt to keep regression coverage alive.
+  }
+
+  const hmac = crypto.createHmac("sha256", salt);
   hmac.update(ip);
   return hmac.digest("hex");
 }
@@ -47,8 +57,13 @@ function getMemoryState(ipHash: string, now: number): AdminLoginRateLimitState {
   const existing = memoryStore.get(ipHash);
 
   if (existing !== undefined) {
-    // Expired lock resets state.
-    if (existing.lockedUntil !== null && now >= existing.lockedUntil) {
+    if (existing.lockedUntil !== null) {
+      // Lock active -> return as-is
+      if (now < existing.lockedUntil) {
+        return existing;
+      }
+
+      // Lock expired -> reset state
       const reset: AdminLoginRateLimitState = {
         attempts: 0,
         firstAttemptAt: now,
