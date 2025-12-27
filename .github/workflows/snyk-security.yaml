@@ -49,7 +49,7 @@ jobs:
 
       - name: Set up Snyk CLI
         if: env.SNYK_TOKEN != ''
-        uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
+        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04
         env:
           SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
 
@@ -110,7 +110,7 @@ jobs:
 
       - name: Set up Snyk CLI (optional)
         if: env.SNYK_TOKEN != ''
-        uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
+        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04
         env:
           SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
         continue-on-error: true
@@ -151,7 +151,7 @@ jobs:
 
       - name: Set up Snyk CLI
         if: env.SNYK_TOKEN != ''
-        uses: snyk/actions/setup@806182742461562b67788a64410098c9d9b96adb
+        uses: snyk/actions/setup@9adf32b1121593767fc3c057af55b55db032dc04
         env:
           SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
 
