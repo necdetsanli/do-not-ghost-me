@@ -101,7 +101,7 @@ jobs:
           YAML
 
       - name: Run HawkScan
-        uses: stackhawk/hawkscan-action@4c3258cd62248dac6d9fe91dd8d45928c697dee0
+        uses: stackhawk/hawkscan-action@29a62fe1e926ea50ac87a1b64efc59b82ffd5b7d
         continue-on-error: true
         with:
           apiKey: ${{ env.HAWK_API_KEY }}
@@ -179,7 +179,7 @@ jobs:
           YAML
 
       - name: Run HawkScan
-        uses: stackhawk/hawkscan-action@4c3258cd62248dac6d9fe91dd8d45928c697dee0
+        uses: stackhawk/hawkscan-action@29a62fe1e926ea50ac87a1b64efc59b82ffd5b7d
         continue-on-error: true
         with:
           apiKey: ${{ env.HAWK_API_KEY }}
