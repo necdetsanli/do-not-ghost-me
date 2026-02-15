@@ -40,7 +40,7 @@
     "docs:clean:all": "rimraf docs && node -e \"require('fs').mkdirSync('docs',{recursive:true})\""
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.2.0",
+    "@prisma/adapter-pg": "^7.3.0",
     "@prisma/client": "^7.2.0",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-navigation-menu": "^1.2.14",
