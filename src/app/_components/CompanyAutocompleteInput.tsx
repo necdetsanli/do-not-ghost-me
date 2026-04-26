@@ -4,6 +4,7 @@
 import type { JSX, ChangeEvent, KeyboardEvent } from "react";
 import { useId, useRef, useState } from "react";
 import { Input } from "@/components/Input";
+import { cn } from "@/components/ui/utils";
 
 type CompanySuggestion = {
   id: string;
@@ -231,7 +232,7 @@ export function CompanyAutocompleteInput(props: CompanyAutocompleteInputProps): 
   }
 
   return (
-    <div className="relative">
+    <div className={cn("relative")}>
       <Input
         label={label}
         name={name}
@@ -252,10 +253,10 @@ export function CompanyAutocompleteInput(props: CompanyAutocompleteInputProps): 
       />
 
       {isOpen === true && hasSuggestions === true ? (
-        <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-primary bg-surface shadow-md">
-          <ul id={listboxId} role="listbox" className="divide-y divide-[var(--border-secondary)]">
+        <div className={cn("absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-primary bg-surface shadow-md")}>
+          <ul id={listboxId} role="listbox" className={cn("divide-y divide-[var(--border-secondary)]")}>
             {isLoading === true ? (
-              <li className="px-3 py-2 text-xs text-secondary">Loading suggestions…</li>
+               <li className={cn("px-3 py-2 text-xs text-secondary")}>Loading suggestions…</li>
             ) : null}
 
             {isLoading === false
@@ -269,15 +270,15 @@ export function CompanyAutocompleteInput(props: CompanyAutocompleteInputProps): 
                       id={optionId}
                       role="option"
                       aria-selected={isHighlighted === true}
-                      className="combobox-option flex items-center justify-between px-3 py-2 text-sm"
+                      className={cn("combobox-option flex items-center justify-between px-3 py-2 text-sm")}
                       // onMouseDown: blur'dan önce çalışsın ve input değeri güncellensin
                       onMouseDown={(event) => {
                         event.preventDefault();
                         handleSuggestionSelect(company);
                       }}
                     >
-                      <span className="truncate font-medium">{company.name}</span>
-                      <span className="ml-2 shrink-0 text-xs text-tertiary">{company.country}</span>
+                       <span className={cn("truncate font-medium")}>{company.name}</span>
+                       <span className={cn("ml-2 shrink-0 text-xs text-tertiary")}>{company.country}</span>
                     </li>
                   );
                 })

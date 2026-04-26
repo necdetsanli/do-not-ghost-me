@@ -3,6 +3,7 @@
 import type { JSX } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
+import { cn } from "@/components/ui/utils";
 
 /**
  * Home page hero section: heading, copy and primary CTAs.
@@ -19,20 +20,20 @@ export function HomeHero(): JSX.Element {
   }
 
   return (
-    <div className="space-y-8">
-      <header className="space-y-4">
-        <h1 id="home-hero-heading" className="text-4xl tracking-tight text-primary md:text-5xl">
+    <div className={cn("space-y-8")}>
+      <header className={cn("space-y-4")}>
+        <h1 id="home-hero-heading" className={cn("text-4xl tracking-tight text-primary md:text-5xl")}>
           Track ghosting.
           <br />
           Share your experience.
         </h1>
-        <p className="text-lg leading-relaxed text-secondary md:text-xl">
+        <p className={cn("text-lg leading-relaxed text-secondary md:text-xl")}>
           Submit anonymous reports about companies that ghost job applicants. Help others know what
           to expect and hold companies accountable.
         </p>
       </header>
 
-      <div className="flex flex-wrap gap-4">
+      <div className={cn("flex flex-wrap gap-4")}>
         <Button
           variant="primary"
           size="lg"
@@ -55,7 +56,7 @@ export function HomeHero(): JSX.Element {
         </Button>
       </div>
 
-      <p className="text-xs text-tertiary">
+      <p className={cn("text-xs text-tertiary")}>
         Reports are anonymous. We store only minimal, non-identifiable metadata and use salted
         hashes of IP addresses for rate limiting instead of storing raw IP data.
       </p>

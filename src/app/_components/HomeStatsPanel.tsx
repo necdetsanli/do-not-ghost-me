@@ -7,6 +7,7 @@ import { TrendingUp } from "lucide-react";
 import { Card } from "@/components/Card";
 import { StatsCard } from "@/components/StatsCard";
 import { useReportsStats } from "@/app/_hooks/useReportsStats";
+import { cn } from "@/components/ui/utils";
 
 /**
  * Home page stats panel.
@@ -47,9 +48,9 @@ export function HomeStatsPanel(): JSX.Element {
         : "Most reported this week";
 
   return (
-    <aside className="space-y-4" aria-label="Platform statistics" aria-busy={status === "loading"}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-tertiary" aria-live="polite">
+    <aside className={cn("space-y-4")} aria-label="Platform statistics" aria-busy={status === "loading"}>
+      <div className={cn("flex items-center justify-between gap-3")}>
+        <div className={cn("text-xs text-tertiary")} aria-live="polite">
           {isRefreshing === true ? "Updating…" : "Auto-updates after you submit"}
           {liveError === true ? " · Refresh failed" : null}
         </div>
@@ -57,17 +58,17 @@ export function HomeStatsPanel(): JSX.Element {
 
       <StatsCard label="Total reports" value={totalReportsLabel} />
 
-      <Card className="!p-6">
-        <div className="flex items-start gap-3">
-          <div className="rounded-lg bg-indigo-100 p-2 dark:bg-indigo-900/30" aria-hidden="true">
-            <TrendingUp className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+      <Card className={cn("!p-6")}>
+        <div className={cn("flex items-start gap-3")}>
+          <div className={cn("rounded-lg bg-indigo-100 p-2 dark:bg-indigo-900/30")} aria-hidden="true">
+            <TrendingUp className={cn("h-5 w-5 text-indigo-600 dark:text-indigo-400")} />
           </div>
           <div className="flex-1">
-            <div className="mb-1 text-sm text-secondary">{subtitle}</div>
-            <div className="mb-1 text-xl text-primary" aria-live="polite">
+            <div className={cn("mb-1 text-sm text-secondary")}>{subtitle}</div>
+            <div className={cn("mb-1 text-xl text-primary")} aria-live="polite">
               {mostCompanyName}
             </div>
-            <div className="text-sm text-tertiary">{mostCompanyCountLabel}</div>
+            <div className={cn("text-sm text-tertiary")}>{mostCompanyCountLabel}</div>
           </div>
         </div>
       </Card>
