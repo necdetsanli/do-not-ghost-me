@@ -30,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Home", exact: true },
   { href: "/companies", label: "Companies" },
   { href: "/about", label: "About" },
+  { href: "/contact", label: "Contact" },
 ];
 
 function isActivePath(pathname: string, item: NavItem): boolean {
